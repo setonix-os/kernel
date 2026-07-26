@@ -31,7 +31,7 @@ jobs:
 
         steps:
             - name: Checkout repository
-              uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+              uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
             - name: Log in to GitHub Container Registry
               uses: docker/login-action@abd2ef45e78c5afb21d64d4ca52ee8550d9572c7 # v4.5.1
@@ -74,7 +74,7 @@ jobs:
                     markdownlint-cli2 "**/*.md"
                     echo "::endgroup::"
 
-                    for target in aarch64-unknown-none x86_64-unknown-none; do
+                    for target in aarch64-unknown-none-softfloat x86_64-unknown-none; do
                         echo "::group::$target"
                         cargo clippy --package setonix-kernel --all-features --target "$target" -- -D warnings
                         cargo build --verbose --package setonix-kernel --target "$target"
@@ -95,7 +95,7 @@ jobs:
 
         steps:
             - name: Checkout repository
-              uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+              uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
             - name: Log in to GitHub Container Registry
               uses: docker/login-action@abd2ef45e78c5afb21d64d4ca52ee8550d9572c7 # v4.5.1

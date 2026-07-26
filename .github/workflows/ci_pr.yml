@@ -37,7 +37,7 @@ jobs:
 
         steps:
             - name: Checkout repository
-              uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+              uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
             - name: Run checks in the devcontainer
               uses: devcontainers/ci@513af61f4de4f75d37e4438f184ba4358f0fc1ca # v0.3.1900000450
@@ -76,7 +76,7 @@ jobs:
                     # package: the workspace holds two crates with incompatible
                     # targets, and an unscoped --target would try to build the
                     # host tool for bare metal.
-                    for target in aarch64-unknown-none x86_64-unknown-none; do
+                    for target in aarch64-unknown-none-softfloat x86_64-unknown-none; do
                         echo "::group::$target"
                         cargo clippy --package setonix-kernel --all-features --target "$target" -- -D warnings
                         cargo build --verbose --package setonix-kernel --target "$target"
@@ -97,7 +97,7 @@ jobs:
 
         steps:
             - name: Checkout repository
-              uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+              uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
             # The smoke test that matters. One assertion, but it exercises the
             # link script, the boot stub, the stack, .bss zeroing, the

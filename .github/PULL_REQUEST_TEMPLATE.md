@@ -42,7 +42,7 @@ delete this section, its emptiness is itself the useful signal.
 
 ## Checklist
 
-- [ ] Builds for both Tier-1 targets (`cargo build --target aarch64-unknown-none` and `--target x86_64-unknown-none`)
+- [ ] Builds for both Tier-1 targets (`aarch64-unknown-none-softfloat` and `x86_64-unknown-none`)
 - [ ] Clippy passes (`cargo clippy --all-targets --all-features -- -D warnings`)
 - [ ] Formatted (`cargo fmt --all --check`)
 - [ ] Toolchain pins agree (`bash .github/scripts/check-toolchain-pin.sh`)

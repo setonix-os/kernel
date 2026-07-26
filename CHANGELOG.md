@@ -85,9 +85,52 @@ Release codenames follow the six Noongar seasons — Birak, Bunuru, Djeran, Maku
 
 ### Changed
 
-- Rust pin moved from 1.88.0 to 1.95.0, matching the maintainer's other projects and the verified
-  `dtolnay/rust-toolchain` action pin. Recorded here because a toolchain bump is a deliberate act
-  under constitution §7, not a detail.
+- **Both Tier-1 targets are now soft-float**, `aarch64-unknown-none` becoming
+  `aarch64-unknown-none-softfloat`. Found by booting: the kernel reached
+  `console::write_str` and then took a synchronous exception to `0x200` — the
+  `VBAR_EL1 = 0` vector — because LLVM had emitted an FP/SIMD instruction for
+  ordinary data movement inside `read_volatile`'s debug precondition check, and
+  `CPACR_EL1.FPEN` is 0 at reset. No console output at all, since the fault landed
+  one instruction before the first character.
+    - The plain `aarch64-unknown-none` target permits NEON; its `-softfloat`
+      variant does not. `x86_64-unknown-none` was already soft-float, so the two
+      Tier-1 architectures had been quietly asymmetric — precisely the class of
+      difference building both from day one is meant to expose.
+    - Right on the merits regardless of the bug: a microkernel whose IPC fast path
+      is the product must not touch registers it would then have to save and
+      restore on every context switch. FP/SIMD belongs to userspace, enabled per
+      process and saved lazily, once there is a userspace to enable it for.
+    - Nothing in the kernel source changed. Only the target triple did.
+- **The devcontainer no longer builds itself out of distribution packages.** Debian 13 ships QEMU
+  10.0.11; upstream is at 11.0.3. A whole major version of the emulator this kernel is tested on,
+  withheld by a packaging decision nobody on this project made — pillar 3's gatekeeper problem turning
+  up inside our own build, before the kernel had finished printing its first line. Rust, Node and QEMU
+  now come from their authors at pinned versions, each verified before use:
+    - QEMU is built from the upstream source tarball, checked against a SHA-256 pinned in the
+      Dockerfile *and* against the project's own detached GPG signature. Author signing is pillar 3 as
+      QEMU already practises it, so it costs nothing to honour. Only the two Tier-1 softmmu targets are
+      built.
+    - Rust comes from `rustup-init` in `static.rust-lang.org`'s versioned archive, verified against the
+      checksum published beside it, installed into `/opt/rust` so the toolchain belongs to the image
+      rather than to a user.
+    - Node comes from `nodejs.org`, verified against the release's own `SHASUMS256.txt`.
+    - Multi-stage, so the download and build tooling appears in no final layer, and the base image is
+      pinned by digest rather than by the moving `debian:13-slim` tag.
+    - apt remains for shared libraries and for tools that publish no upstream binary at all — GDB, the
+      UEFI firmware images, `mtools`, `dosfstools`. Each is labelled in the Dockerfile as a gatekeeper
+      not yet removed, with the reason it has not been.
+    - The image ends with a verification block that invokes every tool, so a missing shared library or
+      a botched `COPY` fails the build rather than someone's afternoon.
+- Base image moved from Debian 12 (bookworm) to **Debian 13 (trixie)**, which also brings gdb 16.3 in
+  place of 13.x.
+- The container now runs as root with the workspace at `/root/kernel`, matching the maintainer's other
+  embedded projects. The toolchain in `/opt` belongs to the image, which keeps `CARGO_HOME` writable
+  without chown games when CI runs the same image.
+- Rust pin moved 1.88.0 → 1.95.0 → **1.97.1**, the current stable. Recorded because a toolchain bump is
+  a deliberate act under constitution §7, not a detail. Verified: `fmt` and `clippy` clean on both
+  Tier-1 targets and on `xtask` under `-D warnings` with the new compiler, no source changes needed.
+- Every GitHub Action pin refreshed to its latest release: `actions/checkout` v6.0.3 → v7.0.1,
+  `actions/setup-node` → v7.0.0, `actions/cache` → v6.1.0, all still full-SHA pinned.
 - CI no longer guards its compile steps on the workspace having members, and the boot job no longer
   guards on `xtask` existing — both now do.
 - `clippy::redundant_pub_crate` and, in one documented instance,

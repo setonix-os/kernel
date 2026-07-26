@@ -68,7 +68,7 @@ whether it belongs at all.
 
 #### PR Requirements
 
-- [ ] Builds for both Tier-1 targets (`aarch64-unknown-none`, `x86_64-unknown-none`)
+- [ ] Builds for both Tier-1 targets (`aarch64-unknown-none-softfloat`, `x86_64-unknown-none`)
 - [ ] Clippy passes (`cargo clippy --all-targets --all-features -- -D warnings`)
 - [ ] Formatted (`cargo fmt --all --check`)
 - [ ] Toolchain pins agree (`bash .github/scripts/check-toolchain-pin.sh`)
@@ -101,9 +101,14 @@ CI runs the devcontainer image, so this is the unsupported path — you are repr
 container gives you, and any difference is yours to debug.
 
 - Rust, pinned in `rust-toolchain.toml` and installed automatically by rustup on first `cargo` command
-- `qemu-system-aarch64` and `qemu-system-x86_64`
+- `qemu-system-aarch64` and `qemu-system-x86_64` at the version the Dockerfile pins. **Your
+  distribution's QEMU is probably older** — Debian 13 ships 10.0.11 against upstream's 11.0.3 — so a
+  bug you see and CI does not may simply be a packager's freeze rather than a fault in the kernel
 - `gdb-multiarch`, OVMF and AAVMF UEFI firmware, `mtools`, `dosfstools`
 - Node and `markdownlint-cli2`, at the versions the Dockerfile pins
+
+The Dockerfile is the specification; read it rather than guessing, since it names an exact version and
+a verified download for each of these.
 
 ### Commands
 
@@ -121,7 +126,7 @@ crates with incompatible targets — `setonix-kernel` only ever cross-compiles,
 the host tool for bare metal and fails for a reason unrelated to your change:
 
 ```bash
-cargo clippy --package setonix-kernel --target aarch64-unknown-none -- -D warnings
+cargo clippy --package setonix-kernel --target aarch64-unknown-none-softfloat -- -D warnings
 cargo clippy --package setonix-kernel --target x86_64-unknown-none  -- -D warnings
 cargo clippy --package xtask --all-targets -- -D warnings
 cargo test   --package xtask

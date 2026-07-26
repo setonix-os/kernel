@@ -1,31 +1,51 @@
-// Setonix devcontainer — see CLAUDE.md §7. Reopen in Container and the
-// identical workshop exists for every contributor, human or AI.
+// Setonix devcontainer — see CLAUDE.md §7. Reopen in Container and the identical
+// workshop exists for every contributor, human or AI. CI runs this same image, so
+// there is one environment and no "works on my machine" to argue about.
 {
-  "name": "Setonix",
-  "build": { "dockerfile": "Dockerfile" },
-  "remoteUser": "vscode",
+    "name": "Setonix kernel",
 
-  "customizations": {
-    "vscode": {
-      "extensions": [
-        "rust-lang.rust-analyzer",
-        "vadimcn.vscode-lldb",
-        "tamasfe.even-better-toml",
-        "anthropic.claude-code"
-      ]
-    }
-  },
+    "build": { "dockerfile": "Dockerfile" },
 
-  // Persist Claude Code auth and shell history across container rebuilds.
-  "mounts": [
-    "source=setonix-claude-home,target=/home/vscode/.claude,type=volume",
-    "source=setonix-history,target=/home/vscode/.history,type=volume"
-  ],
+    // Runs as root, matching the maintainer's other embedded projects. The
+    // toolchain lives in /opt and belongs to the image rather than to a user,
+    // which keeps CARGO_HOME writable without chown games when CI runs the same
+    // image.
+    "workspaceFolder": "/root/kernel",
+    "workspaceMount": "source=${localWorkspaceFolder},target=/root/kernel,type=bind",
 
-  // QEMU's VNC display for the rare occasions a screen is wanted;
-  // the serial console remains the default workflow.
-  "forwardPorts": [5900],
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "rust-lang.rust-analyzer",
+                "vadimcn.vscode-lldb",
+                "tamasfe.even-better-toml",
+                "davidanson.vscode-markdownlint",
+                "editorconfig.editorconfig",
+                "usernamehw.errorlens",
+                "github.vscode-github-actions",
+                "redhat.vscode-yaml",
+                "ms-vscode.hexeditor",
+                "gruntfuggly.todo-tree",
+                "donjayamanne.githistory",
+                "anthropic.claude-code"
+            ],
+            "settings": {
+                "rust-analyzer.check.command": "clippy"
+            }
+        }
+    },
 
-  // Prove the pinned toolchain on first boot.
-  "postCreateCommand": "rustup show && qemu-system-aarch64 --version && qemu-system-x86_64 --version"
+    // Persist Claude Code auth and shell history across container rebuilds.
+    "mounts": [
+        "source=setonix-claude-home,target=/root/.claude,type=volume",
+        "source=setonix-history,target=/root/.history,type=volume"
+    ],
+
+    // QEMU's VNC display for the rare occasions a screen is wanted; the serial
+    // console remains the default workflow.
+    "forwardPorts": [5900],
+
+    // The Dockerfile verifies every tool at build time, so this only surfaces the
+    // versions in the terminal on first attach.
+    "postCreateCommand": "rustc --version && qemu-system-aarch64 --version | head -1"
 }

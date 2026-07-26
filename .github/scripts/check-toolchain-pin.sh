@@ -61,7 +61,7 @@ fi
 
 # --- 2. Both Tier-1 targets present ----------------------------------------
 
-for target in aarch64-unknown-none x86_64-unknown-none; do
+for target in aarch64-unknown-none-softfloat x86_64-unknown-none; do
     if ! grep -q "$target" rust-toolchain.toml; then
         echo "ERROR: rust-toolchain.toml is missing Tier-1 target '$target' (§6)" >&2
         fail=1

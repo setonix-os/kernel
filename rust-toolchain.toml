@@ -7,7 +7,20 @@
 # (CLAUDE.md §7: pinned, never drifting.)
 
 [toolchain]
-channel = "1.95.0"
+channel = "1.97.1"
 profile = "minimal"
 components = ["rust-src", "rustfmt", "clippy", "llvm-tools", "rust-analyzer"]
-targets = ["aarch64-unknown-none", "x86_64-unknown-none"]
+# Both Tier-1 targets are soft-float, and deliberately so.
+#
+# `x86_64-unknown-none` already sets `-mmx,-sse,+soft-float`. Its AArch64
+# counterpart `aarch64-unknown-none` does *not* — it permits NEON, and LLVM
+# happily emits FP/SIMD for ordinary data movement in debug builds. On a CPU at
+# reset `CPACR_EL1.FPEN` is 0, so the first such instruction traps to a vector
+# table that does not exist yet, and the kernel dies before its first character
+# reaches the UART. That is exactly how this was found.
+#
+# The softfloat variant is also the right answer independently of that bug: a
+# microkernel whose IPC fast path is the product must not touch registers it
+# would then have to save and restore on every context switch. FP/SIMD belongs to
+# userspace, enabled per process and saved lazily, once there is a userspace.
+targets = ["aarch64-unknown-none-softfloat", "x86_64-unknown-none"]

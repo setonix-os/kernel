@@ -22,8 +22,10 @@ change into a synchronised multi-repo dance for a single maintainer. Promote
 them out once the ABI stops moving — Phase 2 or 3, not before.
 
 Vendored MIT-licensed code (Redox and similar) goes under `vendor/`, one
-subdirectory per upstream crate, each retaining its own `LICENSE` verbatim, with
-a top-level `vendor/NOTICE.md` indexing provenance. A per-directory licence
+subdirectory per upstream crate, each retaining its own licence file **under the
+upstream's own filename and spelling** — usually `LICENSE` — with a top-level
+`vendor/NOTICE.md` indexing provenance. Our British `LICENCE` convention applies
+to our files, never to a quoted one. A per-directory licence
 boundary satisfies the obligation exactly as well as a repo split, without the
 friction.
 
@@ -39,10 +41,19 @@ xtask/           build, run and boot-test automation (host binary, no deps)
 
 ## Architectures
 
-Tier 1, both first-class from day one: `aarch64-unknown-none` and
+Tier 1, both first-class from day one: `aarch64-unknown-none-softfloat` and
 `x86_64-unknown-none`. The HAL boundary lives at `kernel/src/arch/mod.rs`;
 nothing above it may name an architecture. Bring-up order is QEMU aarch64
 `virt`, then QEMU x86_64 `q35`, then real hardware.
+
+**Both targets are soft-float**, and the AArch64 one needs its `-softfloat`
+variant named explicitly. The plain `aarch64-unknown-none` permits NEON, LLVM
+emits FP/SIMD for ordinary data movement in debug builds, and `CPACR_EL1.FPEN`
+is 0 at reset — so the first such instruction traps to a vector table that does
+not exist yet and the kernel dies before its first character reaches the UART.
+Independently of that, a microkernel must not touch registers it would have to
+save and restore on every context switch: FP/SIMD belongs to userspace, enabled
+per process and saved lazily, once there is a userspace.
 
 aarch64 boots. x86_64 compiles and links but does not boot: `q35` has no
 bare-ELF equivalent of `-kernel`, so it needs a UEFI stub first. Its entry point
@@ -64,7 +75,7 @@ builds for the host — so an unscoped `--target` will try to build the host too
 for bare metal:
 
 ```bash
-cargo clippy --package setonix-kernel --target aarch64-unknown-none -- -D warnings
+cargo clippy --package setonix-kernel --target aarch64-unknown-none-softfloat -- -D warnings
 cargo test   --package xtask
 ```
 
@@ -85,9 +96,22 @@ judgement call.
 
 Pinned in [rust-toolchain.toml](rust-toolchain.toml); the devcontainer's
 `RUST_VERSION` build-arg mirrors it. Bump both together in one deliberate
-commit. `Cargo.lock` **is** committed — this is a binary, and the project's
+commit, then run `.github/scripts/check-toolchain-pin.sh` — which also fails if
+any workflow starts installing a toolchain of its own, since CI runs the
+devcontainer image and must have no second source of truth.
+
+`Cargo.lock` **is** committed — this is a binary, and the project's
 reproducibility ethos applies to its own build before it applies to anyone
 else's.
+
+The same reasoning governs [.devcontainer/Dockerfile](.devcontainer/Dockerfile):
+Rust, Node and QEMU come from their authors at pinned versions, verified by hash
+or signature, rather than from apt. Debian 13 ships QEMU 10.0.11 against
+upstream's 11.0.3 — a major version of the emulator this kernel is tested on,
+withheld by a packaging decision. Distribution packages remain only for tools
+that publish no upstream binary, and each is labelled in the Dockerfile as a
+gatekeeper not yet removed. Adding a tool means adding it there, with a pinned
+version and a verified download.
 
 ## Development environment
 
@@ -99,4 +123,4 @@ every rebuild.
 
 ## Licence
 
-GPLv3 — see [LICENSE](LICENSE). New files carry an SPDX header.
+GPLv3 — see [LICENCE](LICENCE). New files carry an SPDX header.

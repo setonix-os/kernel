@@ -53,6 +53,6 @@ kernel code.
 
 ## Licence
 
-GPLv3 for original Setonix code — see [LICENSE](LICENSE). Vendored
+GPLv3 for original Setonix code — see [LICENCE](LICENCE). Vendored
 MIT-licensed components retain their notices and are incorporated under GPLv3 as
 the MIT licence permits.

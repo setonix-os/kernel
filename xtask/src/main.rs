@@ -54,9 +54,14 @@ impl Arch {
     }
 
     /// The Rust target triple.
+    ///
+    /// Both are soft-float. `x86_64-unknown-none` already is; AArch64 needs the
+    /// explicit `-softfloat` variant, because the plain one permits NEON and the
+    /// kernel would then trap on `CPACR_EL1.FPEN` before reaching its console.
+    /// See `rust-toolchain.toml` for the full reasoning.
     const fn triple(self) -> &'static str {
         match self {
-            Self::Aarch64 => "aarch64-unknown-none",
+            Self::Aarch64 => "aarch64-unknown-none-softfloat",
             Self::X86_64 => "x86_64-unknown-none",
         }
     }
