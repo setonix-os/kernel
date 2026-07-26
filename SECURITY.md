@@ -15,7 +15,7 @@ Use [GitHub Security Advisories](https://github.com/setonix-os/docs/security/adv
 
 ## Threat Model
 
-`docs/threat-model.md` is the authoritative statement. The constitution §9 holds the seed it expands:
+`threat-model.md` is the authoritative statement. The constitution §9 holds the seed it expands:
 
 **Assets:** app integrity, user-data confidentiality, capability integrity, update-channel
 authenticity.

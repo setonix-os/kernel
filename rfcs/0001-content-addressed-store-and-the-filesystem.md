@@ -4,10 +4,14 @@
 
 | Field | Value |
 |-------|-------|
-| Status | **Proposed** — awaiting the maintainer's decision |
-| Author | Drafted by Claude Code as sparring partner; verdict reserved to the maintainer |
+| Status | **Accepted** — 2026-07-26, by the maintainer |
+| Author | Drafted by Claude Code as sparring partner; verdict the maintainer's |
 | Date | 2026-07-26 |
 | Affects | Constitution §2 (pillars 1, 4), §4 (Borrow Ledger: filesystem, app format), §10 (phases 2–3) |
+
+> **Accepted.** The Borrow Ledger's filesystem and app-format rows have been amended
+> to match the "Consequences" section below. The three open questions at the end of
+> this document remain open and become RFCs of their own.
 
 ## The question
 

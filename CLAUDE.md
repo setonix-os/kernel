@@ -2,7 +2,7 @@
 
 > *Setonix does to operating systems what Rust did to systems languages:*
 > *keep the proven, prune the legacy.*
-
+>
 > This file is the project constitution. It doubles as the repo-root `CLAUDE.md`:
 > every Claude Code session reads it at start-up and is bound by it, exactly as
 > human contributors are.
@@ -84,19 +84,20 @@ The kernel is hand-written and minimal. It provides mechanism, never policy.
 
 Initial verdicts — revised only by the maintainer. **Author** records who
 produces the code; the maintainer reviews and must understand everything
-regardless.
+regardless. Where a row cites an RFC, that document holds the reasoning and the
+alternatives rejected; the row is the verdict, not the argument.
 
 | Subsystem | Verdict | Source / lineage | Author |
 |---|---|---|---|
 | Microkernel core (scheduler, IPC, capabilities, MMU) | Write ourselves | Earlier C++17 blueprint, re-expressed in Rust | Human-first, AI as sparring partner |
 | Boot path (asm stub, early init) | Write ourselves | Redox aarch64 port as reference | Human-first |
 | Hardware drivers | Port code | Redox driver corpus (MIT) | AI-first, human-reviewed |
-| Filesystem | Port code initially | RedoxFS (MIT); revisit once pillars run | AI-first, human-reviewed |
+| Filesystem | Port code | RedoxFS (MIT). Serves `file://` for mutable data, and backs the store's substrate. Revisit only if verification at rest or measurement demands it — not on a schedule. *(RFC-0001)* | AI-first, human-reviewed |
 | libc / runtime | Port code | relibc pieces (MIT), trimmed | AI-first, human-reviewed |
 | Network stack | Port code | Redox (MIT) | AI-first, human-reviewed |
 | Scheme registry & namespace | Write ourselves | Redox schemes + Plan 9 namespaces, design only | Human-first |
 | Permission broker | Write ourselves | Android model, design only | Human-first |
-| App format, signing, content-addressed store | Write ourselves | Nix + Haiku, design only | Human-first |
+| App format, signing, content-addressed store | Write ourselves | Nix + Haiku, design only. This row owns the store's **semantics and interface** — which is what the pillars rest on — and not its on-disk substrate. *(RFC-0001)* | Human-first |
 | App manager & updater | Write ourselves | Original project spec | Mixed |
 | Build system, CI, tests, tooling | Write ourselves | — | AI-first, human-reviewed |
 
@@ -144,11 +145,15 @@ replacing Linux, supporting every board on earth.
   code it serves, not beside this document — and pins the entire toolchain:
   the project's reproducibility ethos applied to its own dev environment. Any
   contributor, human or AI, gets the identical environment via "Reopen in
-  Container", locally or in GitHub Codespaces; CI runs the same image. The
-  Rust version is named in three places — `rust-toolchain.toml`, the
-  Dockerfile's `ARG RUST_VERSION`, and the CI action pin — and
-  `.github/scripts/check-toolchain-pin.sh` fails the build if they disagree,
-  so "pinned, never drifting" is checked rather than merely intended.
+  Container", locally or in GitHub Codespaces; **CI runs that same image**, built
+  from that same Dockerfile, so there is exactly one environment and no
+  "works on my machine" gap to argue about. It follows that the image must be able
+  to run every check a contributor is asked to run — compiler, emulator, linters
+  and all. The Rust version is named in two places, `rust-toolchain.toml` and the
+  Dockerfile's `ARG RUST_VERSION`; `.github/scripts/check-toolchain-pin.sh` fails
+  the build if they disagree, and also fails if CI ever reintroduces a toolchain of
+  its own, since that would quietly recreate the second source of truth this
+  arrangement exists to remove.
 - **Host stack:** Windows → VS Code → Docker Desktop on the **WSL 2** backend
   (never WSL 1 — a real Linux kernel is required). No native Linux install is
   needed for the QEMU phases.

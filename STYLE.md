@@ -29,8 +29,8 @@ Each fact has exactly one canonical location. Everything else cross-references i
 | Information | Canonical Source |
 |-------------|------------------|
 | The constitution | `CLAUDE.md` — and nowhere else, by design |
-| Threat model | `docs/threat-model.md` |
-| Design decisions | `docs/rfcs/` |
+| Threat model | `threat-model.md` |
+| Design decisions | `rfcs/` |
 | Contribution process | `CONTRIBUTING.md` |
 | British spelling word list | `.github/scripts/check-british-spelling.sh` |
 | Formatting rules | `.editorconfig` |
