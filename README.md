@@ -43,4 +43,4 @@ present.
 
 ## Licence
 
-GPLv3 — see [LICENSE](LICENSE).
+GPLv3 — see [LICENCE](LICENCE).

@@ -59,6 +59,15 @@ recorded is indistinguishable from law that was never agreed.
     - The general principle, worth stating once here because it will come up again: when a document and
       the world disagree, establish which one is wrong before editing either. Amending law to match a
       shortcut is how a constitution becomes decoration.
+    - §7 gained a clause recording that the workshop now practises the pillars on itself: tools are
+      fetched from their authors at pinned versions and verified by hash or signature, rather than
+      taken from the host distribution. The occasion was concrete rather than theoretical. While
+      setting the development environment up, Debian 13 turned out to ship QEMU 10.0.11 against
+      upstream's 11.0.3 — a whole major version of the emulator this kernel is tested on, withheld by a
+      packaging decision nobody on this project made. Pillar 3's gatekeeper problem appeared inside our
+      own build before the kernel had finished printing its first line, which is a better argument for
+      the pillar than anything that could have been written about it. Where a tool publishes no upstream
+      binary at all, the distribution's build is used and labelled as a gatekeeper not yet removed.
 - Layout flattened per RFC-0002: `docs/rfcs/` became `rfcs/`, and `threat-model.md` and `prior-art/`
   will sit at the repository root. The repository is already named `docs`; a nested `docs/` inside it
   was redundant and would have had to move again when the book's source root was chosen.

@@ -154,6 +154,15 @@ replacing Linux, supporting every board on earth.
   the build if they disagree, and also fails if CI ever reintroduces a toolchain of
   its own, since that would quietly recreate the second source of truth this
   arrangement exists to remove.
+- **The workshop practises the pillars on itself.** Tools are fetched from their
+  authors at pinned versions and verified by hash or signature — not taken from
+  the host distribution. This is not purism: Debian 13 ships QEMU 10.0.11 while
+  upstream is at 11.0.3, so building our environment from distribution packages
+  would mean testing the kernel on an emulator a packager froze, which is
+  pillar 3's gatekeeper problem turning up inside our own build. Where a tool
+  publishes no upstream binary at all — GDB, the UEFI firmware images — the
+  distribution's build is used and labelled in the Dockerfile as a gatekeeper not
+  yet removed.
 - **Host stack:** Windows → VS Code → Docker Desktop on the **WSL 2** backend
   (never WSL 1 — a real Linux kernel is required). No native Linux install is
   needed for the QEMU phases.
