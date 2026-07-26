@@ -11,6 +11,19 @@ policy.
  / ></
 ```
 
+**Setonix** — /ˈsɛtənɪks/, *SET-oh-niks* — is the genus of the quokka,
+*Setonix brachyurus*: Latin *seta* "bristle" and Greek *ónyx* "claw", for the
+bristles around the claws of its hind feet.
+
+**Kaya** — /ˈkaja/, *KAH-ya*, stress on the first syllable, never *ka-YA* — is
+Noongar for both "hello" and "yes", and is answered with *Kaya* in return. It is
+the first word this kernel says.
+
+Both notes are summarised from
+[the constitution §8](https://github.com/setonix-os/docs/blob/main/CLAUDE.md),
+which holds the full derivation and records that the pronunciation is offered in
+good faith pending confirmation with Noongar language custodians.
+
 ## Design in one paragraph
 
 Capabilities are the only authority: unforgeable, kernel-validated, explicitly
