@@ -13,8 +13,7 @@ decades of OS research and practice.
 
 **Name & mascot:** *Setonix*, after *Setonix brachyurus* — the quokka. The
 mascot is **Kaya** (Noongar: "hello"/"yes") — the world's happiest animal,
-greeting you by name. (Founded as BlueOS; renamed July 2026 to escape a
-crowded namespace.)
+greeting you by name.
 
 **Licence:** GPLv3 for all original Setonix code. Vendored MIT-licensed
 components (e.g. from Redox OS) retain their notices and are incorporated under

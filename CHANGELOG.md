@@ -40,6 +40,12 @@ recorded is indistinguishable from law that was never agreed.
 
 ### Changed
 
+- **The former name pruned from the opening.** The parenthetical recording that the project began as
+  BlueOS and was renamed in July 2026 has been removed. It told a reader nothing about what Setonix is
+  or why, which is the only job that opening paragraph has, and §1's coherence rule applies to the
+  document's own prose as much as to its subsystems. Nothing is lost — the sentence remains in this
+  repository's git history, which is where provenance belongs. Provenance is part of the record, not
+  part of the statement of what the project is.
 - **§4 Borrow Ledger amended**, per RFC-0001. The filesystem row loses "initially" and its
   revisit-on-a-schedule clause: RedoxFS now serves `file://` for mutable data *and* backs the store's
   substrate, to be revisited only if verification at rest or measurement demands it. The app-format row
