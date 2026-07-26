@@ -2,14 +2,15 @@ name: CI - Main Branch
 
 permissions:
     contents: read
+    # Main is the only branch that publishes the devcontainer image, which then
+    # serves as the layer cache every pull request pulls from. Same discipline as
+    # a build cache: write on main, read everywhere else.
+    packages: write
 
 on:
     push:
         branches: [main]
 
-# Main runs the same checks as ci_pr.yml, with one difference: it *saves* the
-# caches that pull-request runs restore read-only. Keeping the write side on
-# main only means a PR can never poison the cache for every other branch.
 concurrency:
     group: ${{ github.workflow }}-${{ github.ref }}
     cancel-in-progress: true
@@ -17,164 +18,113 @@ concurrency:
 env:
     CARGO_TERM_COLOR: always
     RUSTFLAGS: "-Dwarnings"
+    DEVCONTAINER_IMAGE: ghcr.io/setonix-os/kernel-devcontainer
 
+# Identical to ci_pr.yml except that this workflow *publishes* the devcontainer
+# image after the checks pass, so pull requests never build from an image that
+# has not itself been proven to build and boot the kernel.
 jobs:
-    quick-checks:
-        name: Quick Checks (pins, spelling, fmt, markdown)
+    checks:
+        name: Checks (pins, spelling, fmt, clippy, markdown)
         runs-on: ubuntu-latest
-        timeout-minutes: 10
+        timeout-minutes: 45
 
         steps:
             - name: Checkout repository
               uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
 
-            - name: Verify Rust toolchain pin consistency
-              run: bash .github/scripts/check-toolchain-pin.sh
-
-            - name: Verify British spelling
-              run: bash .github/scripts/check-british-spelling.sh
-
-            - name: Install Rust toolchain
-              uses: dtolnay/rust-toolchain@e081816240890017053eacbb1bdf337761dc5582 # v1.95.0 (latest stable)
+            - name: Log in to GitHub Container Registry
+              uses: docker/login-action@abd2ef45e78c5afb21d64d4ca52ee8550d9572c7 # v4.5.1
               with:
-                components: rustfmt
+                registry: ghcr.io
+                username: ${{ github.actor }}
+                password: ${{ secrets.GITHUB_TOKEN }}
 
-            - name: Setup Node.js
-              id: setup-node
-              uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+            - name: Run checks in the devcontainer
+              uses: devcontainers/ci@513af61f4de4f75d37e4438f184ba4358f0fc1ca # v0.3.1900000450
               with:
-                node-version: "lts/*"
+                imageName: ${{ env.DEVCONTAINER_IMAGE }}
+                cacheFrom: ${{ env.DEVCONTAINER_IMAGE }}
+                # Published only after the boot job below has also passed, so
+                # this step builds and runs without pushing.
+                push: never
+                runCmd: |
+                    set -euo pipefail
 
-            - name: Get markdownlint-cli2 version
-              id: mdlint-version
-              run: echo "version=$(npm view markdownlint-cli2 version)" >> "$GITHUB_OUTPUT"
+                    echo "::group::Environment"
+                    rustc --version
+                    cargo --version
+                    qemu-system-aarch64 --version | head -1
+                    markdownlint-cli2 --version
+                    echo "::endgroup::"
 
-            - name: Restore npm cache
-              id: npm-cache-restore
-              uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
-              with:
-                path: ~/.npm
-                key: npm-markdownlint-${{ runner.os }}-node-${{ steps.setup-node.outputs.node-version }}-mdlint-${{ steps.mdlint-version.outputs.version }}
+                    echo "::group::Toolchain pins"
+                    bash .github/scripts/check-toolchain-pin.sh
+                    echo "::endgroup::"
 
-            - name: Install markdownlint-cli2
-              run: npm install -g markdownlint-cli2
+                    echo "::group::British spelling"
+                    bash .github/scripts/check-british-spelling.sh
+                    echo "::endgroup::"
 
-            - name: Check formatting
-              run: cargo fmt --all --check
+                    echo "::group::Formatting"
+                    cargo fmt --all --check
+                    echo "::endgroup::"
 
-            - name: Lint markdown
-              run: markdownlint-cli2 "**/*.md"
+                    echo "::group::Markdown"
+                    markdownlint-cli2 "**/*.md"
+                    echo "::endgroup::"
 
-            - name: Save npm cache
-              if: steps.npm-cache-restore.outputs.cache-hit != 'true'
-              uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
-              with:
-                path: ~/.npm
-                key: npm-markdownlint-${{ runner.os }}-node-${{ steps.setup-node.outputs.node-version }}-mdlint-${{ steps.mdlint-version.outputs.version }}
+                    for target in aarch64-unknown-none x86_64-unknown-none; do
+                        echo "::group::$target"
+                        cargo clippy --package setonix-kernel --all-features --target "$target" -- -D warnings
+                        cargo build --verbose --package setonix-kernel --target "$target"
+                        cargo build --release --verbose --package setonix-kernel --target "$target"
+                        echo "::endgroup::"
+                    done
 
-    build:
-        name: Build (${{ matrix.target }})
-        needs: quick-checks
-        runs-on: ubuntu-latest
-        timeout-minutes: 20
-
-        strategy:
-            fail-fast: false
-            matrix:
-                target: [aarch64-unknown-none, x86_64-unknown-none]
-
-        steps:
-            - name: Checkout repository
-              uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
-
-            - name: Install Rust toolchain
-              uses: dtolnay/rust-toolchain@e081816240890017053eacbb1bdf337761dc5582 # v1.95.0 (latest stable)
-              with:
-                targets: ${{ matrix.target }}
-                components: clippy, rust-src
-
-            - name: Get Rust version
-              id: rust-version
-              run: echo "version=$(rustc --version | sha256sum | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
-
-            - name: Restore Rust cache
-              id: cache-restore
-              uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
-              with:
-                path: |
-                    ~/.cargo/bin/
-                    ~/.cargo/registry/index/
-                    ~/.cargo/registry/cache/
-                    ~/.cargo/git/db/
-                    target/
-                key: rust-${{ matrix.target }}-${{ steps.rust-version.outputs.version }}-${{ hashFiles('**/Cargo.lock', '**/Cargo.toml') }}
-                restore-keys: |
-                    rust-${{ matrix.target }}-${{ steps.rust-version.outputs.version }}-
-
-            - name: Run Clippy
-              run: cargo clippy --package setonix-kernel --all-features --target ${{ matrix.target }} -- -D warnings
-
-            - name: Build (debug)
-              run: cargo build --verbose --package setonix-kernel --target ${{ matrix.target }}
-
-            - name: Build (release)
-              run: cargo build --release --verbose --package setonix-kernel --target ${{ matrix.target }}
-
-            - name: Clippy (xtask, host)
-              run: cargo clippy --package xtask --all-targets --all-features -- -D warnings
-
-            - name: Run host tests
-              run: cargo test --verbose --package xtask
-
-            - name: Save Rust cache
-              if: steps.cache-restore.outputs.cache-hit != 'true'
-              uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
-              with:
-                path: |
-                    ~/.cargo/bin/
-                    ~/.cargo/registry/index/
-                    ~/.cargo/registry/cache/
-                    ~/.cargo/git/db/
-                    target/
-                key: rust-${{ matrix.target }}-${{ steps.rust-version.outputs.version }}-${{ hashFiles('**/Cargo.lock', '**/Cargo.toml') }}
+                    echo "::group::xtask (host)"
+                    cargo clippy --package xtask --all-targets --all-features -- -D warnings
+                    cargo test --verbose --package xtask
+                    echo "::endgroup::"
 
     boot:
         name: Boot (QEMU aarch64 virt)
-        needs: build
+        needs: checks
         runs-on: ubuntu-latest
-        timeout-minutes: 15
+        timeout-minutes: 30
 
-        # aarch64 only, for now. x86_64 q35 has no bare-ELF equivalent of
-        # -kernel, so booting it needs a UEFI stub and an ESP image that do not
-        # exist yet — see kernel/src/arch/x86_64/mod.rs. Add it to a matrix here
-        # the moment that lands; until then a second entry would only produce a
-        # permanently red job, which trains everyone to ignore this one.
         steps:
             - name: Checkout repository
               uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
 
-            - name: Install QEMU
-              run: |
-                sudo apt-get update
-                sudo apt-get install -y --no-install-recommends qemu-system-arm
-
-            - name: Install Rust toolchain
-              uses: dtolnay/rust-toolchain@e081816240890017053eacbb1bdf337761dc5582 # v1.95.0 (latest stable)
+            - name: Log in to GitHub Container Registry
+              uses: docker/login-action@abd2ef45e78c5afb21d64d4ca52ee8550d9572c7 # v4.5.1
               with:
-                targets: aarch64-unknown-none
-                components: rust-src
+                registry: ghcr.io
+                username: ${{ github.actor }}
+                password: ${{ secrets.GITHUB_TOKEN }}
 
-            - name: Boot and expect the greeting
-              run: cargo xtask boot-test --arch aarch64 --expect "Kaya!"
-
-            # Release builds differ enough in layout and inlining that a
-            # debug-only boot test has let real faults through in other kernels.
-            - name: Boot the release image
-              run: cargo xtask boot-test --arch aarch64 --release --expect "Kaya!"
+            # Debug and release are both booted here. They differ enough in
+            # layout and inlining that a debug-only boot test has let real faults
+            # through in other kernels.
+            #
+            # This step also publishes the image, and does so last on purpose: an
+            # image only becomes the cache for every pull request after it has
+            # been shown to build the kernel *and* boot it.
+            - name: Boot in the devcontainer, then publish the image
+              uses: devcontainers/ci@513af61f4de4f75d37e4438f184ba4358f0fc1ca # v0.3.1900000450
+              with:
+                imageName: ${{ env.DEVCONTAINER_IMAGE }}
+                cacheFrom: ${{ env.DEVCONTAINER_IMAGE }}
+                push: always
+                runCmd: |
+                    set -euo pipefail
+                    cargo xtask boot-test --arch aarch64 --expect "Kaya!"
+                    cargo xtask boot-test --arch aarch64 --release --expect "Kaya!"
 
     ci-success:
         name: CI Success
-        needs: [quick-checks, build, boot]
+        needs: [checks, boot]
         runs-on: ubuntu-latest
         timeout-minutes: 5
         if: ${{ !cancelled() }}
@@ -182,10 +132,8 @@ jobs:
         steps:
             - name: Check if all jobs succeeded
               run: |
-                if [[ "${{ needs.quick-checks.result }}" != "success" ]] ||
-                   [[ "${{ needs.build.result }}" != "success" ]] ||
-                   [[ "${{ needs.boot.result }}" != "success" &&
-                      "${{ needs.boot.result }}" != "skipped" ]]; then
+                if [[ "${{ needs.checks.result }}" != "success" ]] ||
+                   [[ "${{ needs.boot.result }}" != "success" ]]; then
                     echo "One or more jobs failed"
                     exit 1
                 fi

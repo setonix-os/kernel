@@ -97,9 +97,13 @@ On Windows, Docker Desktop must use the **WSL 2** backend. WSL 1 cannot run this
 
 ### Prerequisites if you insist on a host toolchain
 
+CI runs the devcontainer image, so this is the unsupported path — you are reproducing by hand what the
+container gives you, and any difference is yours to debug.
+
 - Rust, pinned in `rust-toolchain.toml` and installed automatically by rustup on first `cargo` command
 - `qemu-system-aarch64` and `qemu-system-x86_64`
 - `gdb-multiarch`, OVMF and AAVMF UEFI firmware, `mtools`, `dosfstools`
+- Node and `markdownlint-cli2`, at the versions the Dockerfile pins
 
 ### Commands
 

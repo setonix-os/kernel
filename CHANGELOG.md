@@ -43,7 +43,9 @@ Release codenames follow the six Noongar seasons — Birak, Bunuru, Djeran, Maku
       instead of failing obscurely.
 - Repository skeleton and pinned development environment.
     - `.devcontainer/` with QEMU for both Tier-1 architectures, `gdb-multiarch`, OVMF and AAVMF UEFI
-      firmware, `mtools` and `dosfstools`.
+      firmware, `mtools`, `dosfstools`, and a pinned Node plus `markdownlint-cli2`. The linter is there
+      because `CONTRIBUTING.md` asks contributors to run it: since CI runs this image, a tool missing
+      from it is an instruction that cannot be followed inside the canonical environment.
     - `rust-toolchain.toml` pinning Rust and both bare-metal targets.
     - Workspace `Cargo.toml` carrying the lint policy, so the first crate to land is already bound by
       it rather than retro-fitted.
@@ -52,15 +54,27 @@ Release codenames follow the six Noongar seasons — Birak, Bunuru, Djeran, Maku
       `#![allow(unsafe_code)]` and the full set of such modules is greppable in one command.
     - `undocumented_unsafe_blocks` and `missing_safety_doc` denied, making the `// SAFETY:` convention
       a compiler-checked requirement rather than a review habit.
-- CI for pull requests and `main`.
-    - Build and Clippy across both Tier-1 bare-metal targets.
-    - `boot` job that runs the kernel under QEMU and expects the console greeting. Activates
-      automatically once an `xtask` harness exists.
+- CI for pull requests and `main`, running **inside the devcontainer image**.
+    - Every job executes in the image built from `.devcontainer/Dockerfile` — the same one
+      contributors get from "Reopen in Container". Nothing installs a toolchain of its own, so no tool
+      version has a second source of truth and there is no "works on my machine" gap to argue about.
+      This is constitution §7 taken literally.
+    - The image is built from the Dockerfile *as it appears in the pull request*, so a change to the
+      environment is tested by the run that proposes it. Layers come from the image `main` publishes,
+      so an unchanged Dockerfile costs a pull rather than a build.
+    - `main` publishes the image only after it has both built the kernel **and** booted it, so a pull
+      request never caches from an image that was not itself proven.
+    - Build and Clippy across both Tier-1 bare-metal targets on every pull request.
+    - `boot` job runs the kernel under QEMU and requires the console greeting; `main` additionally
+      boots the release image, which differs enough in layout and inlining that debug-only boot tests
+      have let real faults through in other kernels.
     - Every action pinned to a commit SHA with a version comment.
 - `.github/scripts/check-toolchain-pin.sh`, verifying that the Rust version named in
-  `rust-toolchain.toml`, `.devcontainer/Dockerfile` and the CI action pins all agree, and that both
-  Tier-1 targets are still present. Closes the drift gap the constitution §7 promises against but that
-  three separate files would otherwise allow.
+  `rust-toolchain.toml` and in `.devcontainer/Dockerfile` agree, and that both Tier-1 targets are still
+  present. Its third check is an assertion of *absence*: no workflow may use `dtolnay/rust-toolchain`,
+  `actions/setup-node` or similar, nor install a toolchain by hand. Since CI runs the devcontainer
+  image, reintroducing any of those would silently recreate the second source of truth §7 exists to
+  remove — silently, because everything would still build.
 - `.github/scripts/check-british-spelling.sh`, enforcing constitution §11.6 in CI, with `vendor/`
   excluded so that vendored MIT code is never reworded.
 - Custom Claude Code commands: `/audit-kernel`, `/check-style`, `/check-spelling` and
