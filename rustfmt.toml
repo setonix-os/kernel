@@ -1,0 +1,11 @@
+# Rust formatting configuration.
+# See: https://rust-lang.github.io/rustfmt/
+#
+# Matches the house style used across the maintainer's other projects, with the
+# edition raised to 2024 since this is a new codebase with no migration cost.
+
+edition = "2024"
+max_width = 100
+tab_spaces = 4
+use_field_init_shorthand = true
+use_try_shorthand = true

@@ -1,0 +1,197 @@
+name: CI - Pull Request
+
+permissions:
+    contents: read
+
+on:
+    pull_request:
+        branches: [main]
+
+concurrency:
+    group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+    cancel-in-progress: true
+
+env:
+    CARGO_TERM_COLOR: always
+    RUSTFLAGS: "-Dwarnings"
+
+jobs:
+    quick-checks:
+        name: Quick Checks (pins, spelling, fmt, markdown)
+        runs-on: ubuntu-latest
+        timeout-minutes: 10
+
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+
+            - name: Verify Rust toolchain pin consistency
+              run: bash .github/scripts/check-toolchain-pin.sh
+
+            - name: Verify British spelling
+              run: bash .github/scripts/check-british-spelling.sh
+
+            - name: Install Rust toolchain
+              uses: dtolnay/rust-toolchain@e081816240890017053eacbb1bdf337761dc5582 # v1.95.0 (latest stable)
+              with:
+                components: rustfmt
+
+            - name: Setup Node.js
+              id: setup-node
+              uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+              with:
+                node-version: "lts/*"
+
+            - name: Get markdownlint-cli2 version
+              id: mdlint-version
+              run: echo "version=$(npm view markdownlint-cli2 version)" >> "$GITHUB_OUTPUT"
+
+            # Restore cache seeded by ci_main.yml (read-only on PRs).
+            - name: Restore npm cache
+              uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+              with:
+                path: ~/.npm
+                key: npm-markdownlint-${{ runner.os }}-node-${{ steps.setup-node.outputs.node-version }}-mdlint-${{ steps.mdlint-version.outputs.version }}
+
+            - name: Install markdownlint-cli2
+              run: npm install -g markdownlint-cli2
+
+            - name: Check formatting
+              run: cargo fmt --all --check
+
+            - name: Lint markdown
+              run: markdownlint-cli2 "**/*.md"
+
+    build:
+        name: Build (${{ matrix.target }})
+        needs: quick-checks
+        runs-on: ubuntu-latest
+        timeout-minutes: 20
+
+        # Both Tier-1 architectures are first-class from day one (CLAUDE.md §6),
+        # so neither is allowed to be the one that only builds "usually". The
+        # matrix is over bare-metal *targets*, not host operating systems: the
+        # host is irrelevant to a cross-compiled kernel, and a Windows or macOS
+        # runner would only prove that cargo runs there.
+        strategy:
+            fail-fast: false
+            matrix:
+                target: [aarch64-unknown-none, x86_64-unknown-none]
+
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+
+            - name: Install Rust toolchain
+              uses: dtolnay/rust-toolchain@e081816240890017053eacbb1bdf337761dc5582 # v1.95.0 (latest stable)
+              with:
+                targets: ${{ matrix.target }}
+                components: clippy, rust-src
+
+            - name: Get Rust version
+              id: rust-version
+              run: echo "version=$(rustc --version | sha256sum | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+
+            - name: Restore Rust cache
+              uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+              with:
+                path: |
+                    ~/.cargo/bin/
+                    ~/.cargo/registry/index/
+                    ~/.cargo/registry/cache/
+                    ~/.cargo/git/db/
+                    target/
+                key: rust-${{ matrix.target }}-${{ steps.rust-version.outputs.version }}-${{ hashFiles('**/Cargo.lock', '**/Cargo.toml') }}
+                restore-keys: |
+                    rust-${{ matrix.target }}-${{ steps.rust-version.outputs.version }}-
+
+            # Nothing to compile until the first crate lands. Guard rather than
+            # skip: this makes the workflow correct from the first commit and
+            # self-activating, instead of a file someone must remember to edit.
+            - name: Detect workspace members
+              id: members
+              run: |
+                if grep -qE '^[[:space:]]*members[[:space:]]*=[[:space:]]*\[[[:space:]]*\]' Cargo.toml; then
+                    echo "present=false" >> "$GITHUB_OUTPUT"
+                    echo "Workspace has no members yet — skipping compile steps."
+                else
+                    echo "present=true" >> "$GITHUB_OUTPUT"
+                fi
+
+            - name: Run Clippy
+              if: steps.members.outputs.present == 'true'
+              run: cargo clippy --all-targets --all-features --target ${{ matrix.target }} -- -D warnings
+
+            - name: Build (debug)
+              if: steps.members.outputs.present == 'true'
+              run: cargo build --verbose --target ${{ matrix.target }}
+
+            - name: Build (release)
+              if: steps.members.outputs.present == 'true'
+              run: cargo build --release --verbose --target ${{ matrix.target }}
+
+            # Host-target unit tests. Bare-metal targets cannot run a test
+            # harness, so anything architecture-independent is tested here and
+            # anything architecture-specific is tested by the boot job below.
+            - name: Run host tests
+              if: steps.members.outputs.present == 'true'
+              run: cargo test --verbose
+
+    boot:
+        name: Boot (QEMU aarch64 virt)
+        needs: build
+        runs-on: ubuntu-latest
+        timeout-minutes: 15
+
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+
+            - name: Detect boot harness
+              id: harness
+              run: |
+                if [[ -d xtask ]]; then
+                    echo "present=true" >> "$GITHUB_OUTPUT"
+                else
+                    echo "present=false" >> "$GITHUB_OUTPUT"
+                    echo "No xtask/ yet — the boot smoke test activates with the first bootable image."
+                fi
+
+            - name: Install QEMU and UEFI firmware
+              if: steps.harness.outputs.present == 'true'
+              run: |
+                sudo apt-get update
+                sudo apt-get install -y --no-install-recommends \
+                    qemu-system-arm qemu-efi-aarch64 mtools dosfstools
+
+            - name: Install Rust toolchain
+              if: steps.harness.outputs.present == 'true'
+              uses: dtolnay/rust-toolchain@e081816240890017053eacbb1bdf337761dc5582 # v1.95.0 (latest stable)
+              with:
+                targets: aarch64-unknown-none
+                components: rust-src
+
+            # The smoke test that matters: the kernel must actually reach its
+            # console and greet us. Plain TCG, no KVM, no container privileges.
+            - name: Boot and expect the greeting
+              if: steps.harness.outputs.present == 'true'
+              run: cargo xtask boot-test --arch aarch64 --expect "Kaya!"
+
+    ci-success:
+        name: CI Success
+        needs: [quick-checks, build, boot]
+        runs-on: ubuntu-latest
+        timeout-minutes: 5
+        if: ${{ !cancelled() }}
+
+        steps:
+            - name: Check if all jobs succeeded
+              run: |
+                if [[ "${{ needs.quick-checks.result }}" != "success" ]] ||
+                   [[ "${{ needs.build.result }}" != "success" ]] ||
+                   [[ "${{ needs.boot.result }}" != "success" &&
+                      "${{ needs.boot.result }}" != "skipped" ]]; then
+                    echo "One or more jobs failed"
+                    exit 1
+                fi
+                echo "All jobs completed successfully"

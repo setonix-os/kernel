@@ -1,0 +1,92 @@
+# Setonix kernel — workspace manifest.
+#
+# The workspace exists before its members on purpose: it is where the project's
+# lint policy lives, so that the very first crate to land is already bound by it
+# rather than retro-fitted. Add members as they are created — drivers and
+# userspace services join here rather than in separate repos until the ABI stops
+# moving (see CLAUDE.md).
+
+[workspace]
+resolver = "3"
+members = []
+
+[workspace.package]
+edition = "2024"
+license = "GPL-3.0-or-later"
+repository = "https://github.com/setonix-os/kernel"
+authors = ["MatejGomboc"]
+
+# ---------------------------------------------------------------------------
+# Lint policy — the constitution, mechanically enforced.
+#
+# Every crate in the workspace opts in with:
+#     [lints]
+#     workspace = true
+# ---------------------------------------------------------------------------
+
+[workspace.lints.rust]
+# CLAUDE.md §11.3 restricts `unsafe` to explicitly designated modules.
+#
+# `deny` rather than `forbid` is the whole point: `forbid` cannot be lifted
+# anywhere, which would make a kernel impossible, whereas `deny` means a
+# designated module must opt in *visibly* with
+#
+#     #![allow(unsafe_code)]  // SAFETY: <why this module is designated>
+#
+# That turns the policy from a review convention into a compiler-checked
+# invariant, and makes the full set of designated modules greppable in one
+# command:
+#
+#     grep -rn "allow(unsafe_code)" kernel/src/
+#
+# A reviewer can then diff that list against the two trees CLAUDE.md permits.
+unsafe_code = "deny"
+
+# A kernel is read far more often than it is written, and by a maintainer who
+# must be able to explain every line (CLAUDE.md §5.2).
+missing_docs = "warn"
+missing_debug_implementations = "warn"
+unreachable_pub = "warn"
+unused_qualifications = "warn"
+
+# Bare-metal correctness: these are silent footguns in `no_std` code.
+unused_must_use = "deny"
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
+nursery = { level = "warn", priority = -1 }
+cargo = { level = "warn", priority = -1 }
+
+# Kernel-specific denials. Each of these is a crash or a silent corruption in
+# a context with no operating system underneath to catch it.
+undocumented_unsafe_blocks = "deny"  # every `unsafe` block needs `// SAFETY:`
+missing_safety_doc = "deny"          # every `unsafe fn` needs `# Safety`
+panic = "warn"                       # panicking is a last resort, not a habit
+unwrap_used = "warn"
+expect_used = "warn"
+indexing_slicing = "warn"            # prefer `get()` — no unwinder to save us
+integer_division = "warn"
+as_conversions = "warn"              # prefer `try_from` at HAL boundaries
+ptr_as_ptr = "warn"
+
+# Allowed: we cannot control transitive dependency graphs of vendored crates.
+multiple_crate_versions = "allow"
+
+# ---------------------------------------------------------------------------
+# Release profile — a kernel image, not a desktop binary.
+# ---------------------------------------------------------------------------
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+# `panic = "abort"` is not optional here: `no_std` has no unwinder at all.
+panic = "abort"
+# Symbols are kept. A stripped kernel cannot be debugged over the QEMU gdb
+# stub, which is the primary debugging route for the whole of Phase 1.
+strip = false
+debug = true
+
+[profile.dev]
+panic = "abort"

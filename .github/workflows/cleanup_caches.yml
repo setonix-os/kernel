@@ -1,0 +1,43 @@
+name: Cleanup GitHub Actions Caches
+
+# Manual trigger only — use when you want to proactively clean up.
+# Defaults to dry-run so an accidental click doesn't delete anything;
+# uncheck to actually delete.
+on:
+    workflow_dispatch:
+        inputs:
+            dry_run:
+                description: 'Log actions without deleting (uncheck to actually delete)'
+                required: false
+                type: boolean
+                default: true
+
+# Serialise cleanups so two concurrent runs don't race to delete the
+# same caches (the script handles 404 gracefully, but counters get
+# inflated and the log becomes confusing).
+concurrency:
+    group: cleanup-caches
+    cancel-in-progress: false
+
+jobs:
+    cleanup:
+        name: Cleanup Caches
+        runs-on: ubuntu-latest
+        timeout-minutes: 5
+
+        permissions:
+            actions: write
+            contents: read
+
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+
+            - name: Run cleanup script
+              uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+              env:
+                INPUT_DRY_RUN: ${{ inputs.dry_run || false }}
+              with:
+                script: |
+                    const cleanupScript = require('./.github/scripts/cleanup-caches.js');
+                    await cleanupScript({ github, context, core });

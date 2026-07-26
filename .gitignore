@@ -1,0 +1,42 @@
+# Build output
+/target/
+**/*.rs.bk
+
+# NOTE: Cargo.lock is deliberately NOT ignored. This crate builds a binary, and
+# the project pins its own build as strictly as it pins its dependencies.
+
+# Boot images and firmware artefacts
+*.img
+*.iso
+*.efi
+/esp/
+/build/
+
+# Debug and profiling
+*.log
+/gdb-history
+perf.data*
+
+# Local Claude Code state. The committed parts of .claude/ (CLAUDE.md, commands/)
+# are shared project configuration; settings.local.json is per-machine.
+/.claude/settings.local.json
+/.claude/worktrees/
+
+# Node, only ever present because of markdownlint-cli2
+node_modules/
+package-lock.json
+
+# Secrets — never tracked
+.env
+.env.local
+
+# Windows artefact from an accidental `> nul`
+nul
+
+# Editor and OS noise
+# NOTE: .vscode/ is deliberately NOT ignored — extensions.json and settings.json
+# are shared project configuration, per the house style.
+.idea/
+*.swp
+Thumbs.db
+desktop.ini

@@ -1,0 +1,31 @@
+// Setonix devcontainer — see CLAUDE.md §7. Reopen in Container and the
+// identical workshop exists for every contributor, human or AI.
+{
+  "name": "Setonix",
+  "build": { "dockerfile": "Dockerfile" },
+  "remoteUser": "vscode",
+
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "rust-lang.rust-analyzer",
+        "vadimcn.vscode-lldb",
+        "tamasfe.even-better-toml",
+        "anthropic.claude-code"
+      ]
+    }
+  },
+
+  // Persist Claude Code auth and shell history across container rebuilds.
+  "mounts": [
+    "source=setonix-claude-home,target=/home/vscode/.claude,type=volume",
+    "source=setonix-history,target=/home/vscode/.history,type=volume"
+  ],
+
+  // QEMU's VNC display for the rare occasions a screen is wanted;
+  // the serial console remains the default workflow.
+  "forwardPorts": [5900],
+
+  // Prove the pinned toolchain on first boot.
+  "postCreateCommand": "rustup show && qemu-system-aarch64 --version && qemu-system-x86_64 --version"
+}

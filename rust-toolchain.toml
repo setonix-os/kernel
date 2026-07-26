@@ -1,0 +1,13 @@
+# Pinned toolchain — the single source of truth for the Rust version.
+#
+# Three places name this version and CI refuses to build if they disagree:
+# this file, `.devcontainer/Dockerfile`'s ARG RUST_VERSION, and the
+# `dtolnay/rust-toolchain` pin in `.github/workflows/`. Bump all three together
+# in one deliberate commit, then run `.github/scripts/check-toolchain-pin.sh`.
+# (CLAUDE.md §7: pinned, never drifting.)
+
+[toolchain]
+channel = "1.95.0"
+profile = "minimal"
+components = ["rust-src", "rustfmt", "clippy", "llvm-tools", "rust-analyzer"]
+targets = ["aarch64-unknown-none", "x86_64-unknown-none"]

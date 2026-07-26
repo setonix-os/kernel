@@ -1,0 +1,20 @@
+# Normalise line endings to LF in the repository *and* in the working tree.
+# This code is edited on Windows but built inside a Linux container, where a
+# CRLF shell script fails with "bad interpreter: /bin/sh^M" and a CRLF linker
+# script or assembly file can confuse the toolchain. LF everywhere, always.
+* text=auto eol=lf
+
+# Assembly, linker scripts and shell must never be touched.
+*.S    text eol=lf
+*.ld   text eol=lf
+*.sh   text eol=lf
+
+# Binaries must never be normalised.
+*.png  binary
+*.jpg  binary
+*.ico  binary
+*.img  binary
+*.iso  binary
+*.efi  binary
+*.bin  binary
+*.zip  binary

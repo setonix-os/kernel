@@ -1,0 +1,65 @@
+{
+    // Debugging a kernel means attaching to QEMU's gdb stub over TCP, not
+    // launching a host binary (CLAUDE.md §7). Start QEMU paused with its stub
+    // listening — `cargo xtask run-qemu --arch aarch64 --debug` — then attach
+    // with one of the configurations below.
+    //
+    // `gdb-multiarch` is installed in the devcontainer and remains the more
+    // capable option for bare-metal cross-debugging; these configurations exist
+    // so that the common case works without leaving the editor.
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Attach to QEMU (aarch64)",
+            "type": "lldb",
+            "request": "custom",
+            "targetCreateCommands": [
+                "target create ${workspaceFolder}/target/aarch64-unknown-none/debug/setonix-kernel"
+            ],
+            "processCreateCommands": [
+                "gdb-remote localhost:1234"
+            ]
+        },
+        {
+            "name": "Attach to QEMU (x86_64)",
+            "type": "lldb",
+            "request": "custom",
+            "targetCreateCommands": [
+                "target create ${workspaceFolder}/target/x86_64-unknown-none/debug/setonix-kernel"
+            ],
+            "processCreateCommands": [
+                "gdb-remote localhost:1234"
+            ]
+        },
+        {
+            // The xtask build tool and host-side tests are ordinary binaries
+            // and debug normally.
+            "name": "Debug xtask",
+            "type": "lldb",
+            "request": "launch",
+            "cargo": {
+                "args": ["build", "--bin=xtask"]
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "RUST_BACKTRACE": "1"
+            }
+        },
+        {
+            "name": "Debug host tests",
+            "type": "lldb",
+            "request": "launch",
+            "cargo": {
+                "args": ["test", "--no-run", "--lib"],
+                "filter": {
+                    "kind": "lib"
+                }
+            },
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "RUST_BACKTRACE": "1"
+            }
+        }
+    ]
+}

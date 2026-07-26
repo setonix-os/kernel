@@ -1,0 +1,35 @@
+version: 2
+updates:
+    # GitHub Actions: small dependency surface, easy to review individually —
+    # keep daily. Every pin in .github/workflows/ is a SHA, so these PRs are
+    # also how the SHAs get refreshed rather than rotting.
+    - package-ecosystem: "github-actions"
+      directory: "/"
+      schedule:
+        interval: "daily"
+        time: "00:00"
+
+    # Cargo: a kernel's dependency surface should stay small by construction, so
+    # grouping is less about noise than about keeping the closure auditable in a
+    # single review. Weekly still catches advisories within ~7 days.
+    #
+    # Note: Dependabot must never be allowed to bump the Rust toolchain — that
+    # version is pinned in three places at once and is verified by
+    # .github/scripts/check-toolchain-pin.sh. Toolchain bumps are deliberate,
+    # human commits (CLAUDE.md §7).
+    - package-ecosystem: "cargo"
+      directory: "/"
+      schedule:
+        interval: "weekly"
+        day: "monday"
+        time: "00:00"
+      open-pull-requests-limit: 5
+      groups:
+        cargo-dependencies:
+          patterns:
+            - "*"
+      ignore:
+        # Vendored MIT code is updated by a deliberate re-vendor, not by a bot:
+        # each import must be reviewed for licence notices and understood
+        # (CLAUDE.md §5.2, §11.5).
+        - dependency-name: "redox*"

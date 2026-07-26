@@ -1,0 +1,244 @@
+# Contributing to the Setonix kernel
+
+Thank you for your interest in Setonix. Please read this before opening a pull request.
+
+## Table of Contents
+
+- [Read the Constitution First](#read-the-constitution-first)
+- [Code of Conduct](#code-of-conduct)
+- [How to Contribute](#how-to-contribute)
+- [Development Setup](#development-setup)
+- [Coding Standards](#coding-standards)
+- [Commit Messages](#commit-messages)
+- [Testing](#testing)
+- [Documentation](#documentation)
+
+---
+
+## Read the Constitution First
+
+Setonix is governed by a written constitution: [`CLAUDE.md`](https://github.com/setonix-os/docs/blob/main/CLAUDE.md)
+in the sibling `docs` repository. It is binding on every contributor, human or AI, and it is short.
+
+Two of its rules shape every contribution here:
+
+- **Coherence over accumulation** (§1, §5.4). Every addition must justify itself as a consequence of
+  the project's primitive. A good feature that does not follow from it is still rejected. This is not
+  gatekeeping for its own sake — it is the only reason the system will still be explainable in five
+  years.
+- **Nothing merges un-understood** (§5.2, §11.4). If the maintainer cannot explain your change, it
+  does not land, however correct it is. Ship the explanation with the code.
+
+If you believe the constitution is wrong about something, that is a legitimate position — argue it in
+the `docs` repository, where being wrong is cheap. Do not route around it in a pull request.
+
+---
+
+## Code of Conduct
+
+This project adheres to the Contributor Covenant. By participating you are expected to uphold it.
+See [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).
+
+---
+
+## How to Contribute
+
+### Reporting Bugs
+
+Use the bug report template. For a kernel, two details matter more than anything else and are the
+ones most often missing: **the full serial console output from reset onwards**, and **whether it
+reproduces on the other Tier-1 architecture**. A fault on exactly one architecture usually means the
+hardware-abstraction boundary has leaked, which is a different bug from the one you are reporting.
+
+### Suggesting Features
+
+Before opening a feature request, check it against the primitive. A proposal that names which pillar
+it follows from will be taken seriously; one that does not will mostly generate a conversation about
+whether it belongs at all.
+
+### Pull Requests
+
+1. Open an issue first for anything beyond a fix or a typo
+2. Check the **Borrow Ledger** (constitution §4) for the subsystem you are touching. If its verdict
+   is "write ourselves", a port will be rejected; if "port code", hand-written work needs a reason. If
+   the verdict is unclear, **ask** — §11.2 is explicit that contributors do not decide this
+3. Branch from `main`
+4. Fill in the PR template completely, including the `unsafe` register — leave it saying "None"
+   rather than deleting it, because its emptiness is the useful signal
+
+#### PR Requirements
+
+- [ ] Builds for both Tier-1 targets (`aarch64-unknown-none`, `x86_64-unknown-none`)
+- [ ] Clippy passes (`cargo clippy --all-targets --all-features -- -D warnings`)
+- [ ] Formatted (`cargo fmt --all --check`)
+- [ ] Toolchain pins agree (`bash .github/scripts/check-toolchain-pin.sh`)
+- [ ] British spelling (`bash .github/scripts/check-british-spelling.sh`)
+- [ ] Markdown lint-clean (`markdownlint-cli2 "**/*.md"`)
+- [ ] Boots in QEMU where applicable
+- [ ] Every new `unsafe` block is inside a designated module, carries a `// SAFETY:` comment, and is
+      listed in the PR
+- [ ] `CHANGELOG.md` updated under `[Unreleased]`
+- [ ] Commit messages follow [Conventional Commits](#commit-messages)
+
+---
+
+## Development Setup
+
+### Canonical: the devcontainer
+
+The pinned toolchain is the whole point — see the constitution §7. Open the repository in VS Code and
+choose **Reopen in Container**. Everything is pinned in [.devcontainer/](.devcontainer/) and CI uses
+the same versions.
+
+**Clone into a container volume or the WSL-side filesystem, never a bind mount from `/mnt/c`.** The
+Windows-filesystem bridge is many times slower and you will feel it on every rebuild.
+
+On Windows, Docker Desktop must use the **WSL 2** backend. WSL 1 cannot run this.
+
+### Prerequisites if you insist on a host toolchain
+
+- Rust, pinned in `rust-toolchain.toml` and installed automatically by rustup on first `cargo` command
+- `qemu-system-aarch64` and `qemu-system-x86_64`
+- `gdb-multiarch`, OVMF and AAVMF UEFI firmware, `mtools`, `dosfstools`
+
+### Commands
+
+```bash
+cargo build --target aarch64-unknown-none    # Build for the lead architecture
+cargo build --target x86_64-unknown-none     # Prove the HAL boundary
+cargo clippy --all-targets --all-features -- -D warnings
+cargo fmt --all
+cargo test                                   # Host-target unit tests
+```
+
+Emulation, debugging and image-building commands land with the `xtask` harness.
+
+---
+
+## Coding Standards
+
+See [STYLE.md](STYLE.md) for the full conventions. The rules that get changes rejected:
+
+### `unsafe`
+
+Permitted only in the modules `CLAUDE.md` designates, and enforced by `unsafe_code = "deny"` at the
+workspace level — a designated module opts in visibly with `#![allow(unsafe_code)]`. Every block
+carries a `// SAFETY:` comment naming the invariant, not restating the code.
+
+The full set of designated modules is greppable, deliberately:
+
+```bash
+grep -rn "allow(unsafe_code)" kernel/src/
+```
+
+If that list grows, a reviewer will ask why.
+
+### The architecture boundary
+
+Nothing above `kernel/src/arch/mod.rs` may name an architecture. No `#[cfg(target_arch)]` above the
+HAL. Both Tier-1 architectures are first-class; neither is the one that only builds "usually".
+
+### Mechanism, not policy
+
+The kernel provides mechanism. Defaults, heuristics and permission rules belong in userspace. Policy
+in the kernel is one of the graves the constitution names explicitly.
+
+### British Spelling 🇬🇧
+
+British spelling in documentation, comments and console output. The enforced word list is in
+`.github/scripts/check-british-spelling.sh`.
+
+Code identifiers may use American spelling where it matches a Rust or hardware convention — a
+register field named in a datasheet is quoted, not corrected. Vendored MIT code is never reworded:
+its provenance is a licence obligation.
+
+---
+
+## Commit Messages
+
+We use [Conventional Commits](https://www.conventionalcommits.org/):
+
+```text
+<type>(<scope>): <description>
+
+[optional body]
+
+[optional footer(s)]
+```
+
+### Types
+
+| Type | Description |
+|------|-------------|
+| `feat` | New feature |
+| `fix` | Bug fix |
+| `docs` | Documentation only |
+| `style` | Formatting, no code change |
+| `refactor` | Neither fixes a bug nor adds a feature |
+| `perf` | Performance improvement |
+| `test` | Adding or updating tests |
+| `chore` | Maintenance tasks |
+| `ci` | CI/CD changes |
+| `security` | Security improvements |
+
+### Examples
+
+```text
+feat(ipc): add register-based fast path for messages under 32 bytes
+
+fix(mmu): invalidate TLB after unmapping a range
+
+chore(toolchain): bump Rust to 1.95.0 in all three pinned locations
+```
+
+### Rules
+
+- Imperative mood ("add feature", not "added feature")
+- Do not capitalise the first letter of the description
+- No full stop at the end of the subject line
+- Subject line under 72 characters
+- Reference issues in the footer: `Fixes #123`
+
+---
+
+## Testing
+
+A kernel cannot run a normal test harness on its target, so tests are split by what they can reach:
+
+| Kind | Where | Runs on |
+|------|-------|---------|
+| Unit tests of architecture-independent logic | `#[cfg(test)]` beside the code | Host |
+| Integration tests | `tests/` | Host |
+| Boot and hardware behaviour | `cargo xtask boot-test` | QEMU, both architectures |
+
+The boot smoke test is the one that matters most and the cheapest to keep honest: the kernel must
+reach its console and print its greeting. If that breaks, nothing above it can be trusted.
+
+Write tests that would fail for the right reason. A test that passes because a stub returns `Ok(())`
+is worse than no test.
+
+---
+
+## Documentation
+
+| Location | Purpose |
+|----------|--------|
+| `../docs/CLAUDE.md` | The constitution — binding project law |
+| `CLAUDE.md` | Repo-local rules: build, `unsafe` policy, HAL boundary |
+| `README.md` | User-facing overview |
+| `CONTRIBUTING.md` | This file |
+| `STYLE.md` | Style conventions |
+| `SECURITY.md` | Security policy and vulnerability reporting |
+| `CHANGELOG.md` | User-facing change history |
+| Rustdoc comments | API documentation (`cargo doc --open`) |
+
+Update `CHANGELOG.md`'s `[Unreleased]` section for all notable changes, and bump `STYLE.md`'s
+*Last updated* line when you change a convention.
+
+---
+
+## Questions?
+
+- Design questions belong in the [docs repository discussions](https://github.com/setonix-os/docs/discussions)
+- Check existing issues first
+- Be patient — this is a one-maintainer project by design
