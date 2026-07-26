@@ -12,15 +12,21 @@ here, where being wrong is cheap.
 
 - **[CLAUDE.md](CLAUDE.md)** — the founding document and project constitution.
   Binding on every contributor, human or AI. Start here.
-- `threat-model.md` — expansion of the constitution's seed threat model. *(to come)*
-- `rfcs/` — one document per design decision, with its rationale and the
-  alternatives rejected. *(to come)*
-- `prior-art/` — archived earlier attempts, kept as provenance. *(to come)*
+- [docs/rfcs/](docs/rfcs/) — one document per design decision, with its rationale
+  and the alternatives rejected.
+    - [RFC-0001](docs/rfcs/0001-content-addressed-store-and-the-filesystem.md) —
+      the content-addressed store and the filesystem. **Proposed.**
+- `docs/threat-model.md` — expansion of the constitution's seed threat model. *(to come)*
+- `docs/prior-art/` — archived earlier attempts, kept as provenance. *(to come)*
 
 ## Status
 
-Phase 0 — Paper. The constitution is written; the threat model and the
-hardware-abstraction RFC are the outstanding Phase 0 deliverables.
+Phase 0 — Paper, closing. The constitution is written and under version control.
+The threat model is the last outstanding Phase 0 deliverable; RFC-0001 proposes
+how to settle the Borrow Ledger's filesystem row, and awaits a verdict.
+
+Phase 1 has begun in the [kernel repository](https://github.com/setonix-os/kernel):
+the kernel boots on QEMU aarch64 `virt`.
 
 ## Acknowledgement
 

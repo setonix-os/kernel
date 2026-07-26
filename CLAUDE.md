@@ -140,11 +140,15 @@ replacing Linux, supporting every board on earth.
 ## 7. Development Environment
 
 - **Canonical setup: a VS Code devcontainer.** `.devcontainer/` (Dockerfile +
-  devcontainer.json) lives in the repo beside this file and pins the entire
-  toolchain — the project's reproducibility ethos applied to its own dev
-  environment. Any contributor, human or AI, gets the identical environment
-  via "Reopen in Container", locally or in GitHub Codespaces; CI runs the
-  same image.
+  devcontainer.json) lives at the root of the `kernel` repository — beside the
+  code it serves, not beside this document — and pins the entire toolchain:
+  the project's reproducibility ethos applied to its own dev environment. Any
+  contributor, human or AI, gets the identical environment via "Reopen in
+  Container", locally or in GitHub Codespaces; CI runs the same image. The
+  Rust version is named in three places — `rust-toolchain.toml`, the
+  Dockerfile's `ARG RUST_VERSION`, and the CI action pin — and
+  `.github/scripts/check-toolchain-pin.sh` fails the build if they disagree,
+  so "pinned, never drifting" is checked rather than merely intended.
 - **Host stack:** Windows → VS Code → Docker Desktop on the **WSL 2** backend
   (never WSL 1 — a real Linux kernel is required). No native Linux install is
   needed for the QEMU phases.

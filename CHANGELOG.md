@@ -20,21 +20,30 @@ recorded is indistinguishable from law that was never agreed.
 - `.github/scripts/check-british-spelling.sh` and CI workflows enforcing constitution §11.6 and
   markdown lint on every pull request.
 
+- `docs/rfcs/0001-content-addressed-store-and-the-filesystem.md` — **proposed**, awaiting the
+  maintainer's verdict. Asks whether the content-addressed store is layered over an ordinary
+  filesystem or is the filesystem, and argues for a split answer: fix the store's semantics now
+  (authoritative, content-addressed, immutable, self-verifying, reached through `store://`), and defer
+  the on-disk format behind that interface. The key finding is that the usual argument for baking the
+  store into the filesystem — enforcement — does not transfer to Setonix, because there is no root to
+  escalate to; the capability model already supplies a stronger version of that guarantee. What baking
+  it in would genuinely add is verification at rest, and that is obtainable without committing to an
+  on-disk format. Commit to the interface early, the format late.
+
+### Changed
+
+- **§7 amended.** The clause stating that `.devcontainer/` "lives in the repo beside this file" was
+  made false by moving the constitution into this repository while the devcontainer serves the kernel
+  repository. It now names the kernel repository explicitly, and records that the Rust version appears
+  in three places with a CI script that fails the build if they disagree — so "pinned, never drifting"
+  is checked rather than merely intended.
+
 ### Outstanding Phase 0 deliverables
 
-The constitution's own roadmap §10 names two items before Phase 1 may begin. Neither is done:
+The constitution's roadmap §10 names two items before Phase 1 may begin. One remains:
 
 - `docs/threat-model.md` — expansion of the §9 seed.
-- Settling the Borrow Ledger. In particular the filesystem row: the content-addressed store is a
-  "write ourselves" item sitting directly on top of a "port RedoxFS initially" item, and it is not yet
-  decided whether the store is layered over an ordinary filesystem or *is* the filesystem. That choice
-  probably forces the ledger's revisit earlier than "once the pillars run".
-
-### Known amendments needed
-
-- §7 states that `.devcontainer/` lives "in the repo beside this file". Since the constitution now
-  lives here and the devcontainer serves the kernel repository, this clause needs a one-line
-  correction. Recorded rather than silently fixed, because §4 and §11.1 reserve amendments to the
-  maintainer.
+- Settling the Borrow Ledger: RFC-0001 above proposes the two clarifications the filesystem and
+  app-format rows need, but the verdict is the maintainer's and the ledger is unchanged until then.
 
 [Unreleased]: https://github.com/setonix-os/docs/commits/main
