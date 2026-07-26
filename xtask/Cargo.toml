@@ -1,0 +1,27 @@
+[package]
+name = "xtask"
+version = "0.0.0"
+description = "Build, run and boot-test automation for the Setonix kernel"
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+publish = false
+
+# No dependencies, deliberately. This is the tool that builds a system whose
+# fourth pillar is exact, auditable dependency closures; it would be a poor
+# advertisement for that if running it pulled in eighty crates. The standard
+# library is enough for spawning processes and reading a pipe with a deadline.
+[dependencies]
+
+# xtask does not inherit the workspace lint policy. Those lints exist because a
+# kernel has no operating system underneath it to catch a panic, an out-of-range
+# index or a divide by zero. This is an ordinary host program that does have one,
+# and where `unwrap` on a genuinely impossible case is clearer than ceremony.
+[lints.rust]
+unsafe_code = "forbid"
+missing_docs = "warn"
+
+[lints.clippy]
+all = { level = "warn", priority = -1 }
+pedantic = { level = "warn", priority = -1 }

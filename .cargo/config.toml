@@ -1,0 +1,10 @@
+# No default build target is set on purpose.
+#
+# This workspace holds two very different crates: `setonix-kernel`, which only
+# ever cross-compiles to a bare-metal target, and `xtask`, which only ever
+# builds for the host. A `[build] target` would be wrong for one of them
+# whichever value it took, so both are always named explicitly. `cargo xtask`
+# is the front door and handles the targets for you.
+
+[alias]
+xtask = "run --package xtask --"

@@ -1,0 +1,39 @@
+# Clippy configuration for the workspace.
+
+# `clippy::doc_markdown` (pedantic) flags anything that looks like an identifier
+# in prose and asks for backticks. That is usually right, but a kernel's
+# documentation is full of architecture, firmware and peripheral names that are
+# proper nouns rather than code, and backticking them makes the prose worse.
+#
+# The leading ".." extends clippy's built-in list rather than replacing it —
+# without it, every default entry (OpenGL, TypeScript, and so on) is lost.
+doc-valid-idents = [
+    "..",
+    # Architectures and instruction sets
+    "AArch64",
+    "x86_64",
+    "RISC-V",
+    # Firmware and boot
+    "AAVMF",
+    "OVMF",
+    "UEFI",
+    "ACPI",
+    "GOP",
+    # Peripherals and buses
+    "PL011",
+    "AHCI",
+    "NVMe",
+    "MMIO",
+    "GDT",
+    "IDT",
+    "TLB",
+    "MPIDR",
+    # Systems Setonix borrows from, per the constitution's lineage notes
+    "RedoxFS",
+    "KeyKOS",
+    "seL4",
+    "QNX",
+    "Zircon",
+    # Licensing
+    "GPLv3",
+]

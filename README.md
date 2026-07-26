@@ -26,15 +26,30 @@ the [constitution](https://github.com/setonix-os/docs/blob/main/CLAUDE.md).
 
 ## Status
 
-Pre-code. The repository holds the pinned toolchain and development environment;
-the first milestone is `Kaya!` and the resident critter on the QEMU aarch64
-`virt` PL011 UART.
+Phase 1, first milestone: the kernel boots on QEMU aarch64 `virt` and greets you
+on the PL011 UART. That is all it does — there is no scheduler, no IPC, no
+capability table and no MMU yet. What it does prove is the chain everything else
+rests on: link script, boot stub, stack, `.bss`, the hardware-abstraction
+boundary, and the console.
+
+x86_64 compiles and links against the same architecture-independent kernel, which
+is what keeps the hardware-abstraction boundary honest, but it does not boot yet —
+`q35` needs a UEFI stub first.
 
 ## Building
 
-Requires the devcontainer — see [.devcontainer/](.devcontainer/) and
-[CLAUDE.md](CLAUDE.md). Build and run instructions land with the first commit
-that produces a bootable image.
+The canonical environment is the devcontainer — see [.devcontainer/](.devcontainer/).
+
+```bash
+cargo xtask build     --arch aarch64            # cross-compile
+cargo xtask run-qemu  --arch aarch64            # boot, serial on this terminal
+cargo xtask run-qemu  --arch aarch64 --debug    # halt at reset, gdb on :1234
+cargo xtask boot-test --arch aarch64 --expect "Kaya!"
+```
+
+`boot-test` is what CI gates on. See [CONTRIBUTING.md](CONTRIBUTING.md) for the
+full development setup and [CLAUDE.md](CLAUDE.md) for the rules that apply to
+kernel code.
 
 ## Licence
 

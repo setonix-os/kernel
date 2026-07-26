@@ -78,7 +78,7 @@ allow_re=$(IFS='|'; echo "${ALLOWED_PATTERNS[*]}")
 # necessity, a list of American spellings.
 mapfile -t files < <(
     git ls-files -- \
-        '*.md' '*.rs' '*.toml' '*.yml' '*.yaml' '*.sh' '*.S' '*.ld' '*.json' '*.jsonc' \
+        '*.md' '*.rs' '*.toml' '*.yml' '*.yaml' '*.sh' '*.s' '*.S' '*.ld' '*.json' '*.jsonc' \
         ':!:vendor/**' ':!:LICENCE' ':!:CODE_OF_CONDUCT.md' ':!:target/**' \
         ':!:.github/scripts/check-british-spelling.sh'
 )

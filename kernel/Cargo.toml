@@ -1,0 +1,22 @@
+[package]
+name = "setonix-kernel"
+version = "0.0.0"
+description = "The Setonix microkernel"
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+publish = false
+
+[[bin]]
+name = "setonix-kernel"
+path = "src/main.rs"
+# There is no test harness on a bare-metal target: libtest needs an operating
+# system underneath it, which is precisely what this crate is. Architecture-
+# independent logic is tested from the host as it appears; architecture-specific
+# behaviour is tested by booting under QEMU (`cargo xtask boot-test`).
+test = false
+bench = false
+
+[lints]
+workspace = true

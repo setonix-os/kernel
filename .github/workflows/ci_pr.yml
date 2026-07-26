@@ -105,37 +105,29 @@ jobs:
                 restore-keys: |
                     rust-${{ matrix.target }}-${{ steps.rust-version.outputs.version }}-
 
-            # Nothing to compile until the first crate lands. Guard rather than
-            # skip: this makes the workflow correct from the first commit and
-            # self-activating, instead of a file someone must remember to edit.
-            - name: Detect workspace members
-              id: members
-              run: |
-                if grep -qE '^[[:space:]]*members[[:space:]]*=[[:space:]]*\[[[:space:]]*\]' Cargo.toml; then
-                    echo "present=false" >> "$GITHUB_OUTPUT"
-                    echo "Workspace has no members yet — skipping compile steps."
-                else
-                    echo "present=true" >> "$GITHUB_OUTPUT"
-                fi
-
+            # Every cargo invocation names its package. The workspace holds two
+            # crates with incompatible targets — the kernel only ever
+            # cross-compiles, xtask only ever builds for the host — so an
+            # unscoped `--target` would try to build the host tool for bare
+            # metal and fail for a reason that has nothing to do with the change
+            # under test.
             - name: Run Clippy
-              if: steps.members.outputs.present == 'true'
-              run: cargo clippy --all-targets --all-features --target ${{ matrix.target }} -- -D warnings
+              run: cargo clippy --package setonix-kernel --all-features --target ${{ matrix.target }} -- -D warnings
 
             - name: Build (debug)
-              if: steps.members.outputs.present == 'true'
-              run: cargo build --verbose --target ${{ matrix.target }}
+              run: cargo build --verbose --package setonix-kernel --target ${{ matrix.target }}
 
             - name: Build (release)
-              if: steps.members.outputs.present == 'true'
-              run: cargo build --release --verbose --target ${{ matrix.target }}
+              run: cargo build --release --verbose --package setonix-kernel --target ${{ matrix.target }}
 
-            # Host-target unit tests. Bare-metal targets cannot run a test
-            # harness, so anything architecture-independent is tested here and
-            # anything architecture-specific is tested by the boot job below.
+            - name: Clippy (xtask, host)
+              run: cargo clippy --package xtask --all-targets --all-features -- -D warnings
+
+            # Host-target tests. A bare-metal target cannot run libtest, so
+            # architecture-independent logic is tested here and architecture-
+            # specific behaviour is tested by booting under QEMU, below.
             - name: Run host tests
-              if: steps.members.outputs.present == 'true'
-              run: cargo test --verbose
+              run: cargo test --verbose --package xtask
 
     boot:
         name: Boot (QEMU aarch64 virt)
@@ -147,34 +139,28 @@ jobs:
             - name: Checkout repository
               uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
 
-            - name: Detect boot harness
-              id: harness
-              run: |
-                if [[ -d xtask ]]; then
-                    echo "present=true" >> "$GITHUB_OUTPUT"
-                else
-                    echo "present=false" >> "$GITHUB_OUTPUT"
-                    echo "No xtask/ yet — the boot smoke test activates with the first bootable image."
-                fi
-
-            - name: Install QEMU and UEFI firmware
-              if: steps.harness.outputs.present == 'true'
+            - name: Install QEMU
               run: |
                 sudo apt-get update
-                sudo apt-get install -y --no-install-recommends \
-                    qemu-system-arm qemu-efi-aarch64 mtools dosfstools
+                sudo apt-get install -y --no-install-recommends qemu-system-arm
 
             - name: Install Rust toolchain
-              if: steps.harness.outputs.present == 'true'
               uses: dtolnay/rust-toolchain@e081816240890017053eacbb1bdf337761dc5582 # v1.95.0 (latest stable)
               with:
                 targets: aarch64-unknown-none
                 components: rust-src
 
-            # The smoke test that matters: the kernel must actually reach its
-            # console and greet us. Plain TCG, no KVM, no container privileges.
+            # The smoke test that matters. One assertion, but it exercises the
+            # link script, the boot stub, the stack, .bss zeroing, the
+            # hardware-abstraction boundary and the PL011 together — nothing
+            # else available at this stage covers that much. Plain TCG, so no
+            # KVM and no container privileges are required.
+            #
+            # x86_64 is absent on purpose: q35 has no bare-ELF equivalent of
+            # -kernel, so that path needs a UEFI stub before it can be booted at
+            # all. `cargo xtask boot-test --arch x86_64` says so explicitly
+            # rather than failing obscurely.
             - name: Boot and expect the greeting
-              if: steps.harness.outputs.present == 'true'
               run: cargo xtask boot-test --arch aarch64 --expect "Kaya!"
 
     ci-success:

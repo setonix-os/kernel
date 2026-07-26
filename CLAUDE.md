@@ -27,12 +27,46 @@ a top-level `vendor/NOTICE.md` indexing provenance. A per-directory licence
 boundary satisfies the obligation exactly as well as a repo split, without the
 friction.
 
+## Layout
+
+```text
+kernel/          the kernel crate (no_std, no_main)
+  src/main.rs    architecture-independent entry; contains no unsafe, ever
+  src/arch/      the HAL boundary — the only tree that knows the architecture
+  link/          per-architecture linker scripts
+xtask/           build, run and boot-test automation (host binary, no deps)
+```
+
 ## Architectures
 
 Tier 1, both first-class from day one: `aarch64-unknown-none` and
 `x86_64-unknown-none`. The HAL boundary lives at `kernel/src/arch/mod.rs`;
 nothing above it may name an architecture. Bring-up order is QEMU aarch64
 `virt`, then QEMU x86_64 `q35`, then real hardware.
+
+aarch64 boots. x86_64 compiles and links but does not boot: `q35` has no
+bare-ELF equivalent of `-kernel`, so it needs a UEFI stub first. Its entry point
+nevertheless calls straight through into the kernel proper, deliberately — an
+entry that merely halted would leave everything above `arch` as dead code on that
+target, and the second Tier-1 build would then prove nothing.
+
+## Building
+
+```bash
+cargo xtask build     --arch aarch64 [--release]
+cargo xtask run-qemu  --arch aarch64 [--debug]        # --debug: gdb stub on :1234
+cargo xtask boot-test --arch aarch64 --expect "Kaya!"
+```
+
+Always name the package when invoking cargo directly. The workspace holds two
+crates with incompatible targets — the kernel only cross-compiles, `xtask` only
+builds for the host — so an unscoped `--target` will try to build the host tool
+for bare metal:
+
+```bash
+cargo clippy --package setonix-kernel --target aarch64-unknown-none -- -D warnings
+cargo test   --package xtask
+```
 
 ## `unsafe` policy
 

@@ -8,7 +8,7 @@
 
 [workspace]
 resolver = "3"
-members = []
+members = ["kernel", "xtask"]
 
 [workspace.package]
 edition = "2024"
@@ -73,20 +73,29 @@ ptr_as_ptr = "warn"
 # Allowed: we cannot control transitive dependency graphs of vendored crates.
 multiple_crate_versions = "allow"
 
+# Allowed: `redundant_pub_crate` (nursery) fires on every `pub(crate)` item in a
+# private module and suggests plain `pub` instead. In a binary crate every module
+# is private, so the suggestion is not merely noisy but wrong — `pub` there means
+# nothing, while `pub(crate)` states the intended reach and keeps `missing_docs`
+# honest about what is API. Kept as a documented exception rather than worked
+# around item by item.
+redundant_pub_crate = "allow"
+
 # ---------------------------------------------------------------------------
 # Release profile — a kernel image, not a desktop binary.
 # ---------------------------------------------------------------------------
+
+# Note on panics: the `*-unknown-none` targets declare `panic-strategy = abort`
+# in their own target specifications, so a `no_std` kernel already cannot unwind.
+# Setting `panic = "abort"` here as well would additionally apply it to the host
+# build of `xtask`, which breaks `cargo test` — the libtest harness needs unwind.
+# Leaving it to the target spec is both correct and less surprising.
 
 [profile.release]
 opt-level = 3
 lto = true
 codegen-units = 1
-# `panic = "abort"` is not optional here: `no_std` has no unwinder at all.
-panic = "abort"
-# Symbols are kept. A stripped kernel cannot be debugged over the QEMU gdb
-# stub, which is the primary debugging route for the whole of Phase 1.
+# Symbols are kept. A stripped kernel cannot be debugged over the QEMU gdb stub,
+# which is the primary debugging route for the whole of Phase 1.
 strip = false
 debug = true
-
-[profile.dev]
-panic = "abort"

@@ -104,14 +104,24 @@ On Windows, Docker Desktop must use the **WSL 2** backend. WSL 1 cannot run this
 ### Commands
 
 ```bash
-cargo build --target aarch64-unknown-none    # Build for the lead architecture
-cargo build --target x86_64-unknown-none     # Prove the HAL boundary
-cargo clippy --all-targets --all-features -- -D warnings
+cargo xtask build     --arch aarch64 [--release]
+cargo xtask run-qemu  --arch aarch64            # boot, serial on this terminal
+cargo xtask run-qemu  --arch aarch64 --debug    # halt at reset, gdb stub on :1234
+cargo xtask boot-test --arch aarch64 --expect "Kaya!"
 cargo fmt --all
-cargo test                                   # Host-target unit tests
 ```
 
-Emulation, debugging and image-building commands land with the `xtask` harness.
+When invoking cargo directly, **always name the package**. The workspace holds two
+crates with incompatible targets — `setonix-kernel` only ever cross-compiles,
+`xtask` only ever builds for the host — so an unscoped `--target` tries to build
+the host tool for bare metal and fails for a reason unrelated to your change:
+
+```bash
+cargo clippy --package setonix-kernel --target aarch64-unknown-none -- -D warnings
+cargo clippy --package setonix-kernel --target x86_64-unknown-none  -- -D warnings
+cargo clippy --package xtask --all-targets -- -D warnings
+cargo test   --package xtask
+```
 
 ---
 
