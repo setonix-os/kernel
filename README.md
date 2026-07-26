@@ -8,6 +8,23 @@
 This repository is the project's paper trail. Design disagreements are settled
 here, where being wrong is cheap.
 
+## The names
+
+**Setonix** — /ˈsɛtənɪks/, *SET-oh-niks* — is the genus of the quokka,
+*Setonix brachyurus*, from Latin *seta* "bristle" and Greek *ónyx* "claw". The
+quokka lives only in the south-west of Western Australia, which is Noongar
+country; that is why the project's other names come from Noongar and nowhere
+else.
+
+**Kaya** — /ˈkaja/, *KAH-ya*, stressed on the first syllable and never *ka-YA* —
+is Noongar for both "hello" and "yes", normally answered with *Kaya* in return.
+It is the kernel's first output.
+
+[CLAUDE.md §8](CLAUDE.md) holds the full derivation, and records that this
+pronunciation is offered in good faith rather than as an authority — confirming
+it with Noongar language custodians is part of the project's acknowledgement
+commitment.
+
 ## Contents
 
 - **[CLAUDE.md](CLAUDE.md)** — the founding document and project constitution.

@@ -186,6 +186,38 @@ replacing Linux, supporting every board on earth.
 
 ## 8. Identity & Artwork
 
+- **The name:** *Setonix* is the genus of the quokka, *Setonix brachyurus* —
+  the only species in it. The accepted derivation is Latin *seta*, "bristle",
+  with Greek *ónyx*, "claw": the bristles around the claws of its hind feet.
+  *brachyurus* is Greek *brachys* + *oura*, "short-tailed". So the full name
+  reads roughly **short-tailed bristle-claw**.
+
+  Pronounced **SET-oh-niks** — /ˈsɛtənɪks/, stress on the first syllable.
+
+  The quokka lives only in the south-west corner of Western Australia —
+  Wadjemup (Rottnest Island), Bald Island, and pockets of mainland forest.
+  That is Noongar country, which is why the project's names come from Noongar
+  and from nowhere else: the animal and the language belong to the same place.
+  A passing European named the island after the animal and got the animal
+  wrong — Willem de Vlamingh took the quokkas for large rats in 1696 and wrote
+  down *'t Eylandt 't Rottenest*, "rat's nest island". Wadjemup is the older
+  name, and the better one.
+
+- **The greeting:** *Kaya* is Noongar for both "hello" and "yes", and is
+  normally answered with *Kaya* in return — a call that expects a response,
+  which is a fitting first word for a machine to say to you.
+
+  Pronounced with the stress on the first syllable, **KAH-ya** — approximately
+  /ˈkaja/, where the `y` is a glide. English guides render it both "KAH-yah"
+  and "KY-ah"; those chase the same sound rather than disagreeing, because
+  English has no tidy spelling for it. To an English ear it lands close to the
+  name *Kaia*. It is never *ka-YA*.
+
+  This pronunciation is written here as a good-faith starting point, **not as
+  an authority**. Confirming it with Noongar language custodians is part of the
+  acknowledgement commitment below, and takes precedence over anything in this
+  paragraph.
+
 - **Console greeting:** the kernel's first output is `Kaya!`, followed by the
   resident console critter:
 
@@ -194,6 +226,12 @@ replacing Linux, supporting every board on earth.
    ( •_•)
    / ></
   ```
+
+- **The one clause not open to amendment:** it is a crime, within this
+  project's jurisdiction, to assert that the quokka is not the happiest animal
+  on earth. Submissions arguing that the smile is merely the shape of the jaw
+  will be read, admired for their rigour, and rejected. Every other line in
+  this document may be revised by RFC. Not this one.
 
 - **Artwork policy:** Setonix never imitates Aboriginal visual art. Dreaming
   iconography encodes owned stories belonging to specific peoples; any
