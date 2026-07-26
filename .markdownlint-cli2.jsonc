@@ -3,7 +3,6 @@
     // GitHub issue templates have their own frontmatter format requirements.
     "ignores": [
         "CODE_OF_CONDUCT.md",
-        ".github/ISSUE_TEMPLATE/**",
-        "prior-art/**"
+        ".github/ISSUE_TEMPLATE/**"
     ]
 }

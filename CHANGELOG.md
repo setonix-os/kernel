@@ -74,8 +74,16 @@ recorded is indistinguishable from law that was never agreed.
       own build before the kernel had finished printing its first line, which is a better argument for
       the pillar than anything that could have been written about it. Where a tool publishes no upstream
       binary at all, the distribution's build is used and labelled as a gatekeeper not yet removed.
-- Layout flattened per RFC-0002: `docs/rfcs/` became `rfcs/`, and `threat-model.md` and `prior-art/`
-  will sit at the repository root. The repository is already named `docs`; a nested `docs/` inside it
+- Layout flattened per RFC-0002: `docs/rfcs/` became `rfcs/`, and `threat-model.md` will sit at the
+  repository root.
+- **`prior-art/` dropped** before it was ever built, and RFC-0002 amended to say so. The plan had been
+  to archive the earlier attempts here as provenance. They were dead ends, were never public
+  repositories, and Setonix does not draw on them — so keeping their archives would be preserving a
+  lineage the project has no use for, which is exactly what §1 and §5.4 argue against. The Borrow
+  Ledger already records lineage for everything Setonix genuinely borrows from, which is the provenance
+  that matters. The promise is removed from `README.md` and `CONTRIBUTING.md` rather than left standing
+  as a directory that never appears: a document that promises something it never delivers teaches its
+  readers to discount the rest of it. The repository is already named `docs`; a nested `docs/` inside it
   was redundant and would have had to move again when the book's source root was chosen.
 - The constitution's two opening epigraphs became one blockquote with two paragraphs, so that
   markdownlint's `MD028` passes without the rule being disabled. Reformatting project law is the

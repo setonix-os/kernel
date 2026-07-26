@@ -23,7 +23,6 @@ This project adheres to the Contributor Covenant. See [CODE_OF_CONDUCT.md](CODE_
 | `CLAUDE.md` | The constitution: the primitive, the pillars, kernel doctrine, the Borrow Ledger |
 | `threat-model.md` | Expansion of the constitution's seed threat model |
 | `rfcs/` | One document per design decision, with rationale and rejected alternatives |
-| `prior-art/` | Archived earlier attempts, kept as provenance |
 
 Code belongs in [`setonix-os/kernel`](https://github.com/setonix-os/kernel), not here.
 

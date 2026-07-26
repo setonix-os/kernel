@@ -91,8 +91,7 @@ organisation from the constitution, which is a far worse outcome than an awkward
 - `docs/rfcs/` flattened to `rfcs/`. The repository is already named `docs`; a
   nested `docs/` inside it was a reflex, and it would have had to move again when
   the book's source root was chosen. Flattened now, while there are two commits and
-  no external links to break. `threat-model.md` and `prior-art/` likewise sit at the
-  root.
+  no external links to break. `threat-model.md` likewise sits at the root.
 - No change to the kernel repository, which already holds its own documentation.
 - Phase 4 gains a concrete task: add `book.toml`, a `SUMMARY.md`, and a Pages
   workflow. Nothing before Phase 4 depends on it.
@@ -107,3 +106,15 @@ organisation from the constitution, which is a far worse outcome than an awkward
 - **Moving `CLAUDE.md` under a `src/` directory to suit mdBook's defaults.**
   Rejected under Decision 5; the renderer accommodates the constitution, not the
   reverse.
+
+## Amendments
+
+- **2026-07-26 — `prior-art/` dropped.** As accepted, this RFC listed a
+  `prior-art/` directory holding archives of earlier attempts. It is removed
+  rather than left unbuilt. The earlier attempts were dead ends, were never public
+  repositories, and carrying their archives here would preserve provenance for a
+  lineage the project does not draw on — §1's coherence rule cuts against it, and
+  the Borrow Ledger already records lineage for everything Setonix *does* borrow
+  from. Recorded as an amendment rather than edited away silently, because an
+  accepted RFC is a record of a decision and quietly changing one is how a
+  decision log stops being trustworthy.

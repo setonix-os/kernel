@@ -36,7 +36,6 @@ commitment.
     - [RFC-0002](rfcs/0002-documentation-scope-and-publication.md) —
       documentation scope and publication. **Accepted.**
 - `threat-model.md` — expansion of the constitution's seed threat model. *(to come)*
-- `prior-art/` — archived earlier attempts, kept as provenance. *(to come)*
 
 ## Status
 
