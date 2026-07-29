@@ -79,6 +79,7 @@ whether it belongs at all.
       listed in the PR
 - [ ] `CHANGELOG.md` updated under `[Unreleased]`
 - [ ] Commit messages follow [Conventional Commits](#commit-messages)
+- [ ] Every commit is GPG-signed and shows **Verified** on GitHub (see [Signed Commits](#signed-commits))
 
 ---
 
@@ -217,6 +218,20 @@ chore(toolchain): bump Rust to 1.95.0 in all three pinned locations
 - No full stop at the end of the subject line
 - Subject line under 72 characters
 - Reference issues in the footer: `Fixes #123`
+
+### Signed Commits
+
+Every commit is GPG-signed. The project's third pillar is author-signed artefacts, and its own history
+holds itself to the standard it asks of app authors: all of `main` shows **Verified** on GitHub, from
+the root commit onwards. Set it up once —
+
+```bash
+git config user.signingkey <your-key-id>
+git config commit.gpgsign true
+```
+
+— and add the public key to your GitHub account so the badge reads Verified. To re-sign an existing
+branch: `git rebase --exec "git commit --amend --no-edit -S" main`.
 
 ---
 
