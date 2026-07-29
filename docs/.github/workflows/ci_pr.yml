@@ -1,0 +1,63 @@
+name: CI - Pull Request
+
+permissions:
+    contents: read
+
+on:
+    pull_request:
+        branches: [main]
+
+concurrency:
+    group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+    cancel-in-progress: true
+
+jobs:
+    quick-checks:
+        name: Quick Checks (spelling, markdown)
+        runs-on: ubuntu-latest
+        timeout-minutes: 10
+
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+            - name: Verify British spelling
+              run: bash .github/scripts/check-british-spelling.sh
+
+            - name: Setup Node.js
+              id: setup-node
+              uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+              with:
+                node-version: "lts/*"
+
+            - name: Get markdownlint-cli2 version
+              id: mdlint-version
+              run: echo "version=$(npm view markdownlint-cli2 version)" >> "$GITHUB_OUTPUT"
+
+            - name: Restore npm cache
+              uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+              with:
+                path: ~/.npm
+                key: npm-markdownlint-${{ runner.os }}-node-${{ steps.setup-node.outputs.node-version }}-mdlint-${{ steps.mdlint-version.outputs.version }}
+
+            - name: Install markdownlint-cli2
+              run: npm install -g markdownlint-cli2
+
+            - name: Lint markdown
+              run: markdownlint-cli2 "**/*.md"
+
+    ci-success:
+        name: CI Success
+        needs: [quick-checks]
+        runs-on: ubuntu-latest
+        timeout-minutes: 5
+        if: ${{ !cancelled() }}
+
+        steps:
+            - name: Check if all jobs succeeded
+              run: |
+                if [[ "${{ needs.quick-checks.result }}" != "success" ]]; then
+                    echo "One or more jobs failed"
+                    exit 1
+                fi
+                echo "All jobs completed successfully"

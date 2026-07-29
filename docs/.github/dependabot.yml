@@ -1,0 +1,8 @@
+version: 2
+updates:
+    # Actions only — this repository holds prose, not code.
+    - package-ecosystem: "github-actions"
+      directory: "/"
+      schedule:
+        interval: "daily"
+        time: "00:00"
