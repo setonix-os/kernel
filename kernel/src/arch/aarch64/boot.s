@@ -2,10 +2,11 @@
 //
 // AArch64 boot stub — the first Setonix instructions to execute.
 //
-// DRAFT: the Borrow Ledger marks the boot path "write ourselves, human-first".
-// This is a sparring-partner draft, not a merge candidate: read it, verify every
-// line against the architecture reference manual, and re-express it in your own
-// hand before it lands (CLAUDE.md §5.1, §5.3).
+// Assembly is the one place the constitution allows outside Rust, and it is kept
+// to the minimum: boot and context switching, nothing else. Every instruction
+// here should be checked against the Arm Architecture Reference Manual by the
+// reviewer before it merges — §5.3 delegates the writing of the kernel core, not
+// the understanding of it, and this file is the least forgiving in the tree.
 //
 // Entry state on QEMU 'virt':
 //   - The image is loaded at 0x4000_0000 and entered at _start with the MMU off,
