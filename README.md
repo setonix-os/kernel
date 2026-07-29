@@ -19,10 +19,9 @@ bristles around the claws of its hind feet.
 Noongar for both "hello" and "yes", and is answered with *Kaya* in return. It is
 the first word this kernel says.
 
-Both notes are summarised from
-[the constitution §8](https://github.com/setonix-os/docs/blob/main/CLAUDE.md),
-which holds the full derivation and records that the pronunciation is offered in
-good faith pending confirmation with Noongar language custodians.
+Both notes are summarised from [the constitution §8](CONSTITUTION.md), which
+holds the full derivation and records that the pronunciation is offered in good
+faith pending confirmation with Noongar language custodians.
 
 ## Design in one paragraph
 
@@ -35,7 +34,20 @@ because everything above it is reached through broker-mediated schemes rather
 than ambient authority.
 
 The reasoning behind all of that, and the lineage of each borrowed idea, is in
-the [constitution](https://github.com/setonix-os/docs/blob/main/CLAUDE.md).
+the [constitution](CONSTITUTION.md).
+
+## Documents
+
+The paper trail lives in this repository, beside the code it governs:
+
+- [CONSTITUTION.md](CONSTITUTION.md) — the founding document. Binding on every
+  contributor, human or AI. Start here.
+- [docs/rfcs/](docs/rfcs/) — one document per design decision, with its
+  rationale and the alternatives rejected.
+- [docs/CHANGELOG.md](docs/CHANGELOG.md) — the amendment log for the
+  constitution and the design documents.
+- `docs/threat-model.md` — expansion of the constitution's seed threat model.
+  *(to come — the last outstanding Phase 0 deliverable)*
 
 ## Status
 
@@ -63,6 +75,14 @@ cargo xtask boot-test --arch aarch64 --expect "Kaya!"
 `boot-test` is what CI gates on. See [CONTRIBUTING.md](CONTRIBUTING.md) for the
 full development setup and [CLAUDE.md](CLAUDE.md) for the rules that apply to
 kernel code.
+
+## Acknowledgement
+
+Setonix borrows words from the Noongar language with acknowledgement, and
+commissions rather than imitates visual language. We acknowledge the Noongar
+people as the traditional custodians of the country whose language and seasons
+give this project its names, and pay our respects to their elders past and
+present.
 
 ## Licence
 

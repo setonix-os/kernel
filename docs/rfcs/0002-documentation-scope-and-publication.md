@@ -118,3 +118,31 @@ organisation from the constitution, which is a far worse outcome than an awkward
   from. Recorded as an amendment rather than edited away silently, because an
   accepted RFC is a record of a decision and quietly changing one is how a
   decision log stops being trustworthy.
+
+- **2026-07-26 — the two-repository split is reversed; the documents move into
+  the kernel repository.** The maintainer's decision, taken while the project is
+  fresh enough that nothing external breaks. Two repositories were double
+  overhead for one maintainer: every cross-reference was a URL, every convention
+  was maintained twice — and the atomicity test of Decision 1, the genuinely
+  load-bearing idea, never required separate *repositories*, only separate
+  ownership of concerns. It survives intact as a placement principle within one
+  repository: documentation that describes code changes with the code, while
+  the constitution, RFCs and threat model live at the root and under `docs/`,
+  on their own cadence.
+
+  What else survives, and how:
+
+    - **Decision 2 (no wiki)** — unchanged.
+    - **Decision 3 (render in place, never mirror)** — unchanged in principle;
+      the thing rendered is now this repository's document set. A dedicated
+      GitHub Pages repository remains possible later if the project fancies
+      one — that was always additive, per Decision 4.
+    - **Decision 5 (auto-load position is load-bearing)** — the mechanism
+      changed shape but not intent: the constitution is `CONSTITUTION.md` at
+      the repository root, and the repo-root `CLAUDE.md`, which Claude Code
+      auto-loads, binds every session to it in its opening lines.
+
+  The docs repository is retired to private, not deleted. Its history was merged
+  into this repository as ancestry first, so every signed commit of the paper
+  trail remains publicly reachable; the retired repository is a frozen
+  duplicate, not the canonical record.

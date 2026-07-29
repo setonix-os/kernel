@@ -1,6 +1,7 @@
 # Changelog
 
-All notable changes to the Setonix documents are recorded here.
+All notable changes to the Setonix documents — the constitution, the RFCs, the threat model — are
+recorded here. The code's changelog is [../CHANGELOG.md](../CHANGELOG.md).
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
@@ -40,6 +41,16 @@ recorded is indistinguishable from law that was never agreed.
 
 ### Changed
 
+- **The documents moved into the kernel repository, and the docs repository is retired** (2026-07-26,
+  maintainer's decision; RFC-0002 amended to record it). The two-repository split was double overhead
+  for a single maintainer — every cross-reference was a URL, every convention existed twice — and the
+  project is young enough that nothing external breaks. The docs repository's full history was
+  **merged, not copied**: all of its signed commits are ancestry of this repository now, so the paper
+  trail keeps its provenance and its signatures in public. The constitution lives at
+  [`CONSTITUTION.md`](../CONSTITUTION.md) in the repository root, bound into every session by the
+  repo-root `CLAUDE.md`; RFCs stay under `docs/rfcs/`; this file continues as the documents'
+  changelog. A dedicated GitHub Pages repository can still be added later if fancied — RFC-0002's
+  Decision 4 anticipated exactly that, and it survives the consolidation unchanged.
 - **§5.3 amended: authorship of the kernel core may be delegated; understanding and merge authority
   may not.** The clause previously read "Hand-write the learning core", reserving kernel hot paths to
   the maintainer. It now reads "Review the learning core line by line". The maintainer's decision,
@@ -121,4 +132,4 @@ The constitution's roadmap §10 named two items before Phase 1 may begin. One re
 - `threat-model.md` — expansion of the §9 seed.
 - ~~Settling the Borrow Ledger~~ — done, by RFC-0001 and the §4 amendment above.
 
-[Unreleased]: https://github.com/setonix-os/docs/commits/main
+[Unreleased]: https://github.com/setonix-os/kernel/commits/main

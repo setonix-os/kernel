@@ -17,8 +17,8 @@ Thank you for your interest in Setonix. Please read this before opening a pull r
 
 ## Read the Constitution First
 
-Setonix is governed by a written constitution: [`CLAUDE.md`](https://github.com/setonix-os/docs/blob/main/CLAUDE.md)
-in the sibling `docs` repository. It is binding on every contributor, human or AI, and it is short.
+Setonix is governed by a written constitution: [CONSTITUTION.md](CONSTITUTION.md), at the root of this
+repository. It is binding on every contributor, human or AI, and it is short.
 
 Two of its rules shape every contribution here:
 
@@ -29,8 +29,9 @@ Two of its rules shape every contribution here:
 - **Nothing merges un-understood** (§5.2, §11.4). If the maintainer cannot explain your change, it
   does not land, however correct it is. Ship the explanation with the code.
 
-If you believe the constitution is wrong about something, that is a legitimate position — argue it in
-the `docs` repository, where being wrong is cheap. Do not route around it in a pull request.
+If you believe the constitution is wrong about something, that is a legitimate position — argue it on
+paper, in an issue or an RFC under [docs/rfcs/](docs/rfcs/), where being wrong is cheap. Do not route
+around it in a pull request. The constitution itself is revised only by the maintainer.
 
 ---
 
@@ -80,6 +81,28 @@ whether it belongs at all.
 - [ ] `CHANGELOG.md` updated under `[Unreleased]`
 - [ ] Commit messages follow [Conventional Commits](#commit-messages)
 - [ ] Every commit is GPG-signed and shows **Verified** on GitHub (see [Signed Commits](#signed-commits))
+
+### Writing an RFC
+
+Design decisions are settled on paper under [docs/rfcs/](docs/rfcs/), where being wrong is cheap
+(constitution §5.5). An RFC earns its place by making a decision cheaper to revisit later. State, in
+this order:
+
+1. **The question.** One sentence. If you cannot compress it to one sentence, it is two RFCs.
+2. **Which pillar it serves.** Constitution §1: an addition that is not a consequence of the primitive
+   does not go in, however attractive. If the answer is "none", say so — that is a finding, not a
+   failure.
+3. **The options considered.** Including the one you rejected and why. An RFC listing only the chosen
+   design is a decision without a record, which is the thing RFCs exist to prevent.
+4. **The lineage.** Which prior system solved this, and what it got wrong. The constitution's ledger
+   names lineage for every borrowed idea; keep the habit.
+5. **The graves.** Whether the design walks into one of the failures §3 names — multi-copy IPC, policy
+   in the kernel, baroque capability hierarchies, bolted-on multicore.
+6. **What it costs.** What becomes harder, not just what becomes possible.
+
+Number RFCs sequentially. Do not renumber or delete a rejected one: a rejected RFC is a permanent
+record of a question already settled, and is often more useful than an accepted one. Accepted RFCs are
+never silently edited — changes go in an **Amendments** section, dated, with the reasoning.
 
 ---
 
@@ -257,7 +280,9 @@ is worse than no test.
 
 | Location | Purpose |
 |----------|--------|
-| `../docs/CLAUDE.md` | The constitution — binding project law |
+| `CONSTITUTION.md` | The constitution — binding project law |
+| `docs/rfcs/` | One document per design decision, with rationale and rejected alternatives |
+| `docs/CHANGELOG.md` | Amendment log for the constitution and the design documents |
 | `CLAUDE.md` | Repo-local rules: build, `unsafe` policy, HAL boundary |
 | `README.md` | User-facing overview |
 | `CONTRIBUTING.md` | This file |
@@ -273,6 +298,6 @@ Update `CHANGELOG.md`'s `[Unreleased]` section for all notable changes, and bump
 
 ## Questions?
 
-- Design questions belong in the [docs repository discussions](https://github.com/setonix-os/docs/discussions)
+- Design questions belong in [discussions](https://github.com/setonix-os/kernel/discussions) or an RFC
 - Check existing issues first
 - Be patient — this is a one-maintainer project by design

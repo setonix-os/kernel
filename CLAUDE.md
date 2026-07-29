@@ -2,10 +2,12 @@
 
 # Setonix kernel — repo guide
 
-> **The project constitution lives in the sibling `docs` repo, at
-> `../docs/CLAUDE.md`, and is binding.** It is the single canonical copy. Read
-> it before working here. This file adds only what is specific to *this* repo:
-> how to build it, how to run it, and the rules that apply to kernel code.
+> **The project constitution is [CONSTITUTION.md](CONSTITUTION.md), at the root
+> of this repository, and is binding.** It is the single canonical copy. Read it
+> before working here. This file adds only what is operational: how to build,
+> how to run, and the rules that apply to kernel code. Design records live in
+> [docs/rfcs/](docs/rfcs/); amendments to the documents are logged in
+> [docs/CHANGELOG.md](docs/CHANGELOG.md).
 
 ## What belongs here
 

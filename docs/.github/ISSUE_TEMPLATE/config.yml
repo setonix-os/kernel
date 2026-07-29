@@ -1,8 +1,0 @@
-blank_issues_enabled: false
-contact_links:
-    - name: Security Vulnerability
-      url: https://github.com/setonix-os/docs/security/advisories/new
-      about: Please report security vulnerabilities privately via GitHub Security Advisories
-    - name: Design Discussion
-      url: https://github.com/setonix-os/docs/discussions
-      about: Design disagreements are settled on paper — start here, where being wrong is cheap

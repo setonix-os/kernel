@@ -25,8 +25,9 @@ Do not run it anywhere that matters.
 
 ## Threat Model
 
-The project's threat model lives in the [docs repository](https://github.com/setonix-os/docs) and is
-the authoritative statement of what Setonix defends against. In summary, from the constitution §9:
+The project's threat model will live at `docs/threat-model.md` in this repository — it is the last
+outstanding Phase 0 deliverable, and becomes the authoritative statement once written. Until then, the
+seed in [the constitution §9](CONSTITUTION.md) is the statement of what Setonix defends against:
 
 **Assets:** app integrity, user-data confidentiality, capability integrity, update-channel
 authenticity.
@@ -39,6 +40,13 @@ updates; network attackers; hostile inputs to servers.
 **Out of scope initially:** physical access, hardware side channels, compromised toolchain.
 
 That last exclusion is worth reading carefully before assuming a finding is in scope.
+
+## Design Flaws Are in Scope
+
+The design documents live in this repository too, so a flaw in the *design* is reported the same way
+as a flaw in the code: a threat model that omits a real adversary, an RFC whose scheme is unsound, a
+capability rule that permits widening. A design flaw found on paper is the cheapest kind to fix, which
+is the entire argument for keeping the paper here.
 
 ## What Counts as a Vulnerability Here
 

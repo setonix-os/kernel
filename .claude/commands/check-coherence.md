@@ -1,6 +1,7 @@
 Audit the project's documents for internal coherence. Run this before any constitutional amendment lands, and periodically regardless.
 
-If `$ARGUMENTS` names documents, audit those. Otherwise audit `CLAUDE.md` and everything under `rfcs/`.
+If `$ARGUMENTS` names documents, audit those. Otherwise audit `CONSTITUTION.md`, `CLAUDE.md`,
+`README.md` and everything under `docs/`.
 
 ## Why this exists
 

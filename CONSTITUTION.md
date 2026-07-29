@@ -3,9 +3,9 @@
 > *Setonix does to operating systems what Rust did to systems languages:*
 > *keep the proven, prune the legacy.*
 >
-> This file is the project constitution. It doubles as the repo-root `CLAUDE.md`:
-> every Claude Code session reads it at start-up and is bound by it, exactly as
-> human contributors are.
+> This file is the project constitution. The repo-root `CLAUDE.md` binds every
+> Claude Code session to it at start-up; human contributors are bound the same
+> way. It is the single canonical copy and lives nowhere else.
 
 **What:** An original operating system, written from scratch in Rust, freely
 adopting the best proven ideas — and, where licensing permits, code — from four
@@ -152,8 +152,8 @@ replacing Linux, supporting every board on earth.
 ## 7. Development Environment
 
 - **Canonical setup: a VS Code devcontainer.** `.devcontainer/` (Dockerfile +
-  devcontainer.json) lives at the root of the `kernel` repository — beside the
-  code it serves, not beside this document — and pins the entire toolchain:
+  devcontainer.json) lives at the root of this repository, beside the code it
+  serves, and pins the entire toolchain:
   the project's reproducibility ethos applied to its own dev environment. Any
   contributor, human or AI, gets the identical environment via "Reopen in
   Container", locally or in GitHub Codespaces; **CI runs that same image**, built

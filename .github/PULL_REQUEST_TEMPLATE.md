@@ -54,4 +54,4 @@ delete this section, its emptiness is itself the useful signal.
 
 ## Related
 
-<!-- Fixes #123 / relates to an RFC in the docs repository -->
+<!-- Fixes #123 / relates to an RFC under docs/rfcs/ -->

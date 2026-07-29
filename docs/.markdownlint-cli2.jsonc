@@ -1,8 +1,0 @@
-{
-    // Files owned by upstream or by the repository owner — do not lint or modify.
-    // GitHub issue templates have their own frontmatter format requirements.
-    "ignores": [
-        "CODE_OF_CONDUCT.md",
-        ".github/ISSUE_TEMPLATE/**"
-    ]
-}

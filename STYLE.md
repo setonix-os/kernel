@@ -32,7 +32,8 @@ location.
 
 | Information | Canonical Source |
 |-------------|------------------|
-| The constitution, pillars, Borrow Ledger | `../docs/CLAUDE.md` (sibling repository) |
+| The constitution, pillars, Borrow Ledger | `CONSTITUTION.md` |
+| Design decisions and their rationale | `docs/rfcs/` |
 | Repo-local rules, `unsafe` policy, HAL boundary | `CLAUDE.md` |
 | Build commands | `CONTRIBUTING.md` § Development Setup |
 | Coding standards | `CONTRIBUTING.md` § Coding Standards |
@@ -197,6 +198,25 @@ Always fenced, always with a language.
 ### Trailing Whitespace
 
 Markdown files are exempt from trailing-whitespace trimming (needed for line breaks).
+
+---
+
+## Prose
+
+The constitution sets the register for the design documents: short declarative sentences, lineage
+named for every borrowed idea, verdicts stated rather than hedged. Habits worth keeping:
+
+- **Name the source.** "*(Haiku)*", "*(L4)*", "*(seL4; Fuchsia's downgradeable handle rights)*". An
+  idea without a lineage is harder to evaluate and harder to abandon.
+- **Record what was rejected**, not only what was chosen. Especially the attractive things — the
+  constitution calls this killing darlings, and the record of which darling died is what stops it
+  coming back.
+- **Prefer a verdict to a survey.** "Write ourselves" and "port code" are useful; "there are several
+  approaches" is not.
+- **State costs.** What a decision makes harder is as much a part of the decision as what it enables.
+
+Noongar words are used with acknowledgement and spelled as the language custodians spell them — never
+anglicised for convenience.
 
 ---
 

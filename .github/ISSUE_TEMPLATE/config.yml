@@ -4,8 +4,8 @@ contact_links:
       url: https://github.com/setonix-os/kernel/security/advisories/new
       about: Please report security vulnerabilities privately via GitHub Security Advisories
     - name: Design Discussion
-      url: https://github.com/setonix-os/docs/discussions
-      about: Design questions belong with the paper trail — discuss them in the docs repository
+      url: https://github.com/setonix-os/kernel/discussions
+      about: Design disagreements are settled on paper, where being wrong is cheap — start here or in an RFC
     - name: The Constitution
-      url: https://github.com/setonix-os/docs/blob/main/CLAUDE.md
+      url: https://github.com/setonix-os/kernel/blob/main/CONSTITUTION.md
       about: Read the founding document before proposing architectural changes

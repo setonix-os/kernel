@@ -85,6 +85,12 @@ Release codenames follow the six Noongar seasons — Birak, Bunuru, Djeran, Maku
 
 ### Changed
 
+- **The docs repository was merged into this repository, history and all.** The constitution now lives
+  at `CONSTITUTION.md` in the repository root, bound into every session by the repo-root `CLAUDE.md`;
+  RFCs and the documents' changelog live under `docs/`. The import was a true history merge rather than
+  a file copy, so every signed commit of the paper trail is ancestry of `main` and remains publicly
+  reachable after the old repository goes private. Rationale and consequences are recorded where they
+  belong: `docs/CHANGELOG.md` and RFC-0002's second amendment.
 - **Both Tier-1 targets are now soft-float**, `aarch64-unknown-none` becoming
   `aarch64-unknown-none-softfloat`. Found by booting: the kernel reached
   `console::write_str` and then took a synchronous exception to `0x200` — the
