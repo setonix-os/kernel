@@ -22,7 +22,9 @@ GPLv3 as permitted by the MIT licence.
 **Language:** Rust. No exceptions beyond the minimal assembly required for boot
 and context switching.
 
-**Status:** Pre-code. Design phase. This document precedes the first commit.
+**Status:** Phase 1. The kernel boots on QEMU aarch64 `virt` and greets you;
+scheduler, IPC, capabilities and MMU are the work in hand. The threat model is
+the last outstanding Phase 0 deliverable.
 
 ---
 
@@ -81,34 +83,44 @@ The kernel is hand-written and minimal. It provides mechanism, never policy.
 
 ## 4. The Borrow Ledger
 
-Initial verdicts — revised only by the maintainer. **Author** records who
-produces the code; the maintainer reviews and must understand everything
-regardless. Where a row cites an RFC, that document holds the reasoning and the
-alternatives rejected; the row is the verdict, not the argument.
+Initial verdicts — revised only by the maintainer. **Verdict** records provenance:
+whether a subsystem is written for Setonix or ported from elsewhere. **Author**
+records who produces the code — which, per §5.3, may be AI throughout; the
+maintainer reviews line by line, must understand everything regardless, and alone
+merges. The two columns are independent: "write ourselves" is a statement about
+where the design comes from, not about whose hands are on the keyboard. Where a
+row cites an RFC, that document holds the reasoning and the alternatives
+rejected; the row is the verdict, not the argument.
 
 | Subsystem | Verdict | Source / lineage | Author |
 |---|---|---|---|
-| Microkernel core (scheduler, IPC, capabilities, MMU) | Write ourselves | Earlier C++17 blueprint, re-expressed in Rust | Human-first, AI as sparring partner |
-| Boot path (asm stub, early init) | Write ourselves | Redox aarch64 port as reference | Human-first |
+| Microkernel core (scheduler, IPC, capabilities, MMU) | Write ourselves | Earlier C++17 blueprint, re-expressed in Rust | AI-first, maintainer reviews line by line |
+| Boot path (asm stub, early init) | Write ourselves | Redox aarch64 port as reference | AI-first, maintainer reviews line by line |
 | Hardware drivers | Port code | Redox driver corpus (MIT) | AI-first, human-reviewed |
 | Filesystem | Port code | RedoxFS (MIT). Serves `file://` for mutable data, and backs the store's substrate. Revisit only if verification at rest or measurement demands it — not on a schedule. *(RFC-0001)* | AI-first, human-reviewed |
 | libc / runtime | Port code | relibc pieces (MIT), trimmed | AI-first, human-reviewed |
 | Network stack | Port code | Redox (MIT) | AI-first, human-reviewed |
-| Scheme registry & namespace | Write ourselves | Redox schemes + Plan 9 namespaces, design only | Human-first |
-| Permission broker | Write ourselves | Android model, design only | Human-first |
-| App format, signing, content-addressed store | Write ourselves | Nix + Haiku, design only. This row owns the store's **semantics and interface** — which is what the pillars rest on — and not its on-disk substrate. *(RFC-0001)* | Human-first |
+| Scheme registry & namespace | Write ourselves | Redox schemes + Plan 9 namespaces, design only | AI-first, maintainer reviews line by line |
+| Permission broker | Write ourselves | Android model, design only | AI-first, maintainer reviews line by line |
+| App format, signing, content-addressed store | Write ourselves | Nix + Haiku, design only. This row owns the store's **semantics and interface** — which is what the pillars rest on — and not its on-disk substrate. *(RFC-0001)* | AI-first, maintainer reviews line by line |
 | App manager & updater | Write ourselves | Original project spec | Mixed |
 | Build system, CI, tests, tooling | Write ourselves | — | AI-first, human-reviewed |
 
 ## 5. Working Principles
 
 1. **The human holds the steering wheel.** AI builds; the maintainer directs,
-   oversees, and decides. Control and understanding are non-negotiable.
+   oversees, decides, and alone merges. Control and understanding are
+   non-negotiable.
 2. **Nothing merges un-understood.** If the maintainer cannot explain a change,
-   it does not land. AI compresses drudgery, never understanding.
-3. **Hand-write the learning core.** Kernel hot paths are written by the
-   maintainer; toil (ports, boilerplate, tooling, tests, docs) is delegated
-   with mandatory review.
+   it does not land. AI compresses the writing, never the understanding.
+3. **Review the learning core line by line.** Authorship may be delegated —
+   including the kernel core — but understanding may not, and merge authority
+   never is. Whoever types it, the maintainer must be able to explain every
+   line before it lands. Work therefore arrives in increments small enough to
+   review honestly: one subsystem at a time, design settled on paper first, and
+   never a volume that can only be rubber-stamped. **A change too large to
+   review is not delegation, it is abdication** — and the reviewer, not the
+   author, sets what is too large.
 4. **Coherence over accumulation.** Every addition must serve the primitive.
 5. **Documents before code.** Design disagreements are settled on paper, where
    being wrong is cheap.

@@ -40,6 +40,30 @@ recorded is indistinguishable from law that was never agreed.
 
 ### Changed
 
+- **§5.3 amended: authorship of the kernel core may be delegated; understanding and merge authority
+  may not.** The clause previously read "Hand-write the learning core", reserving kernel hot paths to
+  the maintainer. It now reads "Review the learning core line by line". The maintainer's decision,
+  and a narrower change than it first appears:
+    - §5.1 and §5.2 are untouched in substance and are now the load-bearing safeguards. The maintainer
+      still directs, decides, and **alone merges**; nothing lands that they cannot explain. §5.1 gains
+      the words "and alone merges" to say so explicitly rather than by implication.
+    - §4's **Author** column flips to "AI-first, maintainer reviews line by line" for the rows that
+      previously read human-first. The **Verdict** column is untouched: "write ourselves" is a claim
+      about where a design comes from, not about whose hands are on the keyboard, and the ledger's
+      preamble now says so, because conflating the two was the ambiguity that made the amendment
+      necessary.
+    - The amendment adds a pacing constraint rather than only removing a restriction: work arrives in
+      increments small enough to review honestly, one subsystem at a time, design settled on paper
+      first. **A change too large to review is not delegation, it is abdication** — and the reviewer,
+      not the author, decides what is too large. Without that clause the amendment would preserve the
+      letter of §5.2 while destroying its point, since an unreviewable diff is un-understood by
+      construction.
+    - Deliberately amended *in place* rather than by inserting a new principle: §5.4 and §5.5 are
+      cross-referenced from a dozen files across both repositories, and renumbering would have broken
+      every one of them silently.
+- **Status line corrected.** The opening said "Pre-code. Design phase. This document precedes the first
+  commit." It no longer does — the kernel boots on QEMU aarch64 `virt` and CI proves it on every push.
+  A document that misstates the state of the thing it governs is the first place a reader loses trust.
 - **The former name pruned from the opening.** The parenthetical recording that the project began as
   BlueOS and was renamed in July 2026 has been removed. It told a reader nothing about what Setonix is
   or why, which is the only job that opening paragraph has, and §1's coherence rule applies to the
