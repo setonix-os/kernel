@@ -58,6 +58,7 @@ every future reader guess. Check cross-references before merging.
 - [ ] Cross-references resolve; no clause left contradicting another
 - [ ] `CHANGELOG.md` updated under `[Unreleased]` for substantive changes
 - [ ] Commit messages follow Conventional Commits
+- [ ] Every commit is GPG-signed and shows **Verified** on GitHub
 
 ## Commit Messages
 
@@ -71,6 +72,10 @@ docs(rfcs): add RFC-0001 on the hardware-abstraction boundary
 ```
 
 Imperative mood, no capital after the colon, no full stop, subject under 72 characters.
+
+Every commit is GPG-signed — the constitution's third pillar is author-signed artefacts, and the
+project's own history holds itself to the same standard. Configure `git config commit.gpgsign true`
+with your signing key, and add the public key to your GitHub account so commits show **Verified**.
 
 ## Style
 
