@@ -67,9 +67,9 @@ special filesystem.
 ## What baking it in would cost
 
 - **It deletes the cheapest row in the ledger.** "Port RedoxFS initially" becomes "write a
-  content-addressed filesystem ourselves", which is human-first work. In a one-maintainer project the
-  maintainer's own hours are the scarcest resource in the system, and §5.3 spends them deliberately on
-  the learning core — scheduler, IPC, capabilities, MMU. A storage layer is not on that list.
+  content-addressed filesystem ourselves". *(Weakened by the 2026-07-26 amendment to §5.3 — see
+  Amendments below. The cost is now review effort rather than authoring effort, which is smaller but
+  not zero: an on-disk format still has to be understood line by line before it is merged.)*
 - **It does not remove the need for a conventional filesystem.** Pillar 1 is "immutable binaries,
   *mutable* data". Config, cache and state must be read-write. A content-addressed store cannot serve
   them. So the mutable filesystem is required either way, and baking in adds a second storage
@@ -147,3 +147,21 @@ the most likely direction from which this design could drift into a grave.
    it does not yet say what they sign.
 
 These are not blocking. They are the next three RFCs.
+
+## Amendments
+
+- **2026-07-26 — one supporting argument weakened; the verdict stands.** §5.3 was amended on the same
+  day this RFC was accepted, so that authorship of the kernel core may be delegated while understanding
+  and merge authority may not. One bullet under "What baking it in would cost" leaned on the old
+  reading: that writing a content-addressed filesystem would consume the maintainer's own scarcest
+  hours. That cost is now review effort rather than authoring effort — smaller, but not zero, since an
+  on-disk format must still be understood line by line before it merges.
+
+  The verdict is unchanged, because it never rested on that bullet. The three arguments that decide it
+  are untouched by the amendment: a conventional filesystem is required either way for mutable data;
+  garbage collection is the hard part and is hard independently of the substrate; and an on-disk format
+  is the least reversible decision in an operating system, so committing to one before the app format,
+  signing scheme and broker exist inverts §5.5.
+
+  Recorded rather than quietly rewritten, for the reason given in RFC-0002's amendment: an accepted RFC
+  is the record of a decision, and a decision log that edits itself is not one.
