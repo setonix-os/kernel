@@ -15,8 +15,8 @@ Please include:
 - Steps to reproduce, ideally with a QEMU command line
 - Which Tier-1 architecture you observed it on, and whether the other is affected
 
-You will get an acknowledgement within a week. This is a one-maintainer project, so please be patient
-with the timeline for a fix — but the acknowledgement will not be silent.
+You will get an acknowledgement within a week. Setonix is a deliberately small team, so please be
+patient with the timeline for a fix — but the acknowledgement will not be silent.
 
 ## Supported Versions
 

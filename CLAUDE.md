@@ -20,7 +20,7 @@ Drivers, filesystem, libc and the network stack are all *port* verdicts in the
 constitution's Borrow Ledger, and they will eventually want their own repos.
 They start life as members of this Cargo workspace instead, because the HAL and
 IPC ABI are still moving: splitting them out now would turn every interface
-change into a synchronised multi-repo dance for a single maintainer. Promote
+change into a synchronised multi-repo dance for a deliberately small team. Promote
 them out once the ABI stops moving — Phase 2 or 3, not before.
 
 Vendored MIT-licensed code (Redox and similar) goes under `vendor/`, one
