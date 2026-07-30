@@ -12,6 +12,17 @@ recorded is indistinguishable from law that was never agreed.
 
 ### Added
 
+- `docs/research/0001-capabilities-and-ipc-prior-art.md` — a literature and source review that
+  stress-tests RFC-0003 and RFC-0004 against the systems that already fought these fights (seL4,
+  Zircon/Fuchsia, KeyKOS/EROS, Barrelfish, CHERI, Genode, QNX, L4, and the Rust-OS field: Tock,
+  Hubris, RedLeaf, Asterinas, Theseus, Redox). The constitution's "keep the proven, prune the legacy"
+  turned into an actual audit. Verdict: both RFCs' spines are validated and correctly cited, with three
+  bounded corrections — one legacy mechanism to **prune** (RFC-0004's page-mapping large transfer is
+  L4's abandoned "long IPC"), proven refinements to **adopt** (first-class reply objects, virtual
+  message registers, priority-aware direct switch, seL4 badges by name), and one design question the
+  research **forces to a decision rather than a deferral** (RFC-0003's revocation knot). Every claim
+  carries a primary source.
+
 - `docs/rfcs/0003-capability-table.md` — **accepted** (2026-07-30; selective revocation's final
   verdict expressly deferred to RFC-0003a), the first Phase 1 design RFC and the first to
   cite the threat model's obligations by number, discharging O-1, O-2 and O-4 and part of O-3. Argues
@@ -85,6 +96,20 @@ recorded is indistinguishable from law that was never agreed.
 
 ### Changed
 
+- **RFC-0003 amended** (prior-art review, 2026-07-30): its spine holds, but the revocation deferral
+  (§7-B3) is upgraded to a decision RFC-0003a must make — §6's broker-bypassing `TRANSFER` makes
+  broker-mediated revocation unreachable, and "badges + one-level link" cannot express multi-level
+  transitive revocation; per-client eviction is named a day-one gap (O-3 half-discharged); §6's
+  compile-time claim is scoped to the kernel's internal representation (the cross-process transfer is
+  runtime, as RedLeaf's own group concluded ownership types cannot span protection domains); and the
+  generation scheme's load-bearing invariants are stated. Full reasoning in the research note.
+    - **Flagged for the maintainer, not taken — Constitution §3.** Its slogan "Rust's ownership and
+      move semantics model capability transfer at compile time" overreaches: the borrow checker sees
+      one compilation unit, so it models the kernel's *internal* capability handling, not the
+      userspace-observable cross-process transfer (a runtime table operation). Recommended reword:
+      *"…model the kernel's own capability handling at compile time — no accidental duplication or
+      use-after-move; cross-process transfer is a runtime table operation the generation scheme
+      secures."* §3 is constitution text, so this is the maintainer's to take or leave.
 - **Constitution touched, twice, on the maintainer's authorisation, when the threat model landed.**
   Both are factual or pointer updates rather than changes to any clause, and both are logged because
   constitutional amendments always are, however small.

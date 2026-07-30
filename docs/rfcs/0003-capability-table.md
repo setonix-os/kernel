@@ -281,3 +281,40 @@ a retrofit.
    system with no root.
 
 These are not blocking. They are the shape of the design conversation this RFC opens.
+
+## Amendments
+
+- **2026-07-30 — prior-art review; the spine holds, the revocation deferral is upgraded to a decision,
+  and one claim is scoped.** A literature and source review against seL4, Zircon/Fuchsia, KeyKOS/EROS,
+  Barrelfish, CHERI, Genode and the Rust-OS field
+  ([docs/research/0001](../research/0001-capabilities-and-ipc-prior-art.md)) validated the core of this
+  RFC — the flat table is the 60-year-old *C-list*, subset-only rights and no-ambient-authority are
+  textbook, and §9 is the direct cure for Hardy's confused deputy. Three corrections:
+    - **The revocation design (§7-B3) is a decision RFC-0003a must make, not a deferral it may keep.**
+      A broker can only revoke authority it interposed at grant time, but §6 lets a `TRANSFER`-carrying
+      capability move peer-to-peer, bypassing the broker — so broker-mediated revocation cannot reach a
+      transferred capability, and the kernel reaching it would require a global capability index with
+      cross-core consensus (exactly the Barrelfish cost the flat table avoided). "Badges + a one-level
+      parent link" also cannot express multi-level transitive revocation (A→B→C). RFC-0003a must choose:
+      **(a)** route all revocable authority through broker-interposed forwarders and constrain
+      `TRANSFER` so it cannot bypass them (kernel then needs only generations), or **(b)** accept a
+      capability derivation tree and its unbounded-revoke cost. The seL4 **badge** this RFC reinvented
+      should be cited by name.
+    - **Per-client eviction is a named day-one gap.** Until 0003a lands, the only revocation is bumping
+      the object's generation — destroying it for *everyone*. "This app is compromised, cut it off" is a
+      pillar-2 requirement, so O-3 is only half-discharged, and the RFC should say so plainly rather
+      than implying selective revocation is merely "designed, not settled".
+    - **§6's compile-time claim is scoped to the kernel's own representation.** The owned, no-`Clone`
+      `Capability` genuinely makes the borrow checker enforce single-ownership *inside kernel code* (as
+      RedLeaf's `RRef` does), but the *userspace-observable cross-process* transfer is a runtime table
+      operation — the compiler sees one compilation unit, and the generation counter is itself proof we
+      rely on runtime checks. RedLeaf's own group concluded ownership types alone are insufficient
+      across protection domains. The design is unchanged; the sentence is scoped.
+    - **Load-bearing invariants to state:** a resolved capability is never observed or cached outside
+      the kernel table (why a generation bump suffices where CHERI must sweep memory); the generation
+      counter's width and fail-closed wraparound; and the multi-core resolve→check→act path holding a
+      reference against concurrent revocation, which is a correctness dependency of the generation
+      scheme, not a later addition.
+    - Recorded as an amendment rather than a silent edit; the substance moves into RFC-0003a. **A
+      related correction to Constitution §3 (the "Rust's ownership models capability transfer at compile
+      time" slogan) is flagged for the maintainer — constitution text is theirs to amend.**
