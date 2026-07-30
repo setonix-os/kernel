@@ -195,6 +195,12 @@ ATX-style, with blank lines before and after.
 
 Always fenced, always with a language.
 
+### Tables
+
+Preferred for anything with two or more parallel attributes — the constitution's Borrow Ledger is the
+model, and the threat model's obligations-by-phase table follows it. Tables are exempt from the
+line-length limit.
+
 ### Trailing Whitespace
 
 Markdown files are exempt from trailing-whitespace trimming (needed for line breaks).

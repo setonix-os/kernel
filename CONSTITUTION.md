@@ -22,9 +22,10 @@ GPLv3 as permitted by the MIT licence.
 **Language:** Rust. No exceptions beyond the minimal assembly required for boot
 and context switching.
 
-**Status:** Phase 1. The kernel boots on QEMU aarch64 `virt` and greets you;
-scheduler, IPC, capabilities and MMU are the work in hand. The threat model is
-the last outstanding Phase 0 deliverable.
+**Status:** Phase 1. Phase 0 is complete — the constitution, the settled Borrow
+Ledger, and the threat model (`docs/threat-model.md`) are all written. The
+kernel boots on QEMU aarch64 `virt`, greets you, and reports its own faults;
+scheduler, IPC, capabilities and MMU are the work in hand.
 
 ---
 
@@ -261,7 +262,7 @@ replacing Linux, supporting every board on earth.
   people and language; naming and cultural use are checked with Noongar
   language custodians before public release.
 
-## 9. Threat Model (seed — to be expanded)
+## 9. Threat Model (seed; expanded in `docs/threat-model.md`)
 
 - **Assets:** app integrity, user data confidentiality, capability integrity,
   update-channel authenticity.

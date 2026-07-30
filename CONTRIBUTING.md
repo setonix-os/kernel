@@ -104,6 +104,14 @@ Number RFCs sequentially. Do not renumber or delete a rejected one: a rejected R
 record of a question already settled, and is often more useful than an accepted one. Accepted RFCs are
 never silently edited — changes go in an **Amendments** section, dated, with the reasoning.
 
+### Amending the constitution
+
+Only the maintainer may amend `CONSTITUTION.md`. When an amendment lands, it must leave no stale clause
+behind: a constitution with two clauses contradicting each other is worse than one that is merely
+wrong, because it makes every future reader guess which to obey. Check cross-references before merging —
+`/check-coherence` automates exactly this sweep — and never renumber a section that other documents
+cite, since the citations break silently.
+
 ---
 
 ## Development Setup
