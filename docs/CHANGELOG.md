@@ -56,6 +56,17 @@ recorded is indistinguishable from law that was never agreed.
 
 ### Changed
 
+- **Constitution touched, twice, on the maintainer's authorisation, when the threat model landed.**
+  Both are factual or pointer updates rather than changes to any clause, and both are logged because
+  constitutional amendments always are, however small.
+    - The **Status line** no longer calls the threat model "the last outstanding Phase 0 deliverable" —
+      false the moment it merged — and now reads that Phase 0 is complete: the constitution, the settled
+      Borrow Ledger and the threat model are all written, with the kernel booting, greeting and
+      reporting its own faults.
+    - **§9's header** was "(seed — to be expanded)"; it now reads "(seed; expanded in
+      `docs/threat-model.md`)". §9's body is unchanged and remains the seed and the one-screen summary
+      the full document expands — the pointer just stops the header promising an expansion that now
+      exists.
 - **The documents moved into the kernel repository, and the docs repository is retired** (2026-07-26,
   maintainer's decision; RFC-0002 amended to record it). The two-repository split was double overhead
   for a single maintainer — every cross-reference was a URL, every convention existed twice — and the

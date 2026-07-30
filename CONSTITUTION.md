@@ -262,7 +262,7 @@ replacing Linux, supporting every board on earth.
   people and language; naming and cultural use are checked with Noongar
   language custodians before public release.
 
-## 9. Threat Model (seed — to be expanded)
+## 9. Threat Model (seed; expanded in `docs/threat-model.md`)
 
 - **Assets:** app integrity, user data confidentiality, capability integrity,
   update-channel authenticity.
