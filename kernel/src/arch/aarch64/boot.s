@@ -11,11 +11,15 @@
 // Entry state on QEMU 'virt':
 //   - The image is loaded at 0x4000_0000 and entered at _start with the MMU off,
 //     caches off, and interrupts masked.
-//   - Execution begins at EL1 by default. This stub does not care which
-//     exception level it is at, because it only touches memory-mapped I/O and
-//     never programs a system register that is EL-specific. That stops being
-//     true the moment the MMU or the exception vectors are set up, at which
-//     point this stub must gain an explicit EL2-to-EL1 descent.
+//   - Execution begins at EL1: QEMU's built-in loader enters a `-kernel` image
+//     at EL1 unless the machine is created with virtualization=on, and the
+//     xtask harness never passes that. This stub now DOES program EL1-specific
+//     registers (VBAR_EL1 below; SPSel in the vector stub), so the EL1
+//     assumption is load-bearing. Before real hardware or virtualization=on,
+//     this stub owes an explicit CurrentEL check and EL2-to-EL1 descent —
+//     at EL2 the writes below would be legal but useless, and a later fault
+//     would vector through VBAR_EL2 = 0 into exactly the silent death the
+//     table exists to prevent.
 //   - Every core enters here simultaneously. Only the one with MPIDR_EL1.Aff0
 //     == 0 continues; the rest are parked until there is a scheduler able to
 //     receive them.
@@ -52,6 +56,15 @@ _start:
     str     xzr, [x1], #8
     b       .Lzero_bss
 .Lbss_zeroed:
+
+    // Install the exception vector table before entering Rust, so that even
+    // the first Rust instruction faults diagnosably instead of vectoring to
+    // address zero. VBAR_EL1 requires 2 KiB alignment; vectors.s guarantees it.
+    // The isb orders the write before any instruction that could fault.
+    adrp    x1, __vectors
+    add     x1, x1, :lo12:__vectors
+    msr     vbar_el1, x1
+    isb
 
     // Into Rust. The architecture-specific entry shim calls the kernel proper.
     bl      rust_entry

@@ -30,5 +30,13 @@ mod panic;
 /// smaller claim but the one everything else rests on.
 pub(crate) fn kernel_main() -> ! {
     console::greet();
+
+    // The exception self-test: greet first (proving the ordinary path), then
+    // fault on purpose and let CI grep the console for the decoded report.
+    // Nothing enables this feature by default.
+    #[cfg(feature = "provoke-exception")]
+    arch::provoke_exception();
+
+    #[cfg(not(feature = "provoke-exception"))]
     arch::halt()
 }

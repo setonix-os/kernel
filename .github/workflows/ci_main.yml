@@ -121,6 +121,7 @@ jobs:
                     set -euo pipefail
                     cargo xtask boot-test --arch aarch64 --expect "Kaya!"
                     cargo xtask boot-test --arch aarch64 --release --expect "Kaya!"
+                    cargo xtask boot-test --arch aarch64 --features provoke-exception --expect "BRK instruction"
 
     ci-success:
         name: CI Success

@@ -40,3 +40,13 @@ pub(crate) fn console_write_str(s: &str) {
 pub(crate) fn halt() -> ! {
     imp::halt()
 }
+
+/// Deliberately takes a synchronous exception, so the boot self-test can prove
+/// the exception reporter works end to end rather than trusting that it would.
+///
+/// Compiled only under the `provoke-exception` feature; nothing enables it by
+/// default, and the ordinary boot path never calls it.
+#[cfg(feature = "provoke-exception")]
+pub(crate) fn provoke_exception() -> ! {
+    imp::provoke_exception()
+}

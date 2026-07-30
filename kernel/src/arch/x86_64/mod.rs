@@ -57,6 +57,24 @@ extern "C" fn _start() -> ! {
 #[allow(clippy::missing_const_for_fn)]
 pub(super) fn console_write_str(_s: &str) {}
 
+/// Deliberately takes an exception — the x86_64 half of the HAL surface.
+///
+/// `ud2` is the architectural counterpart of AArch64's `brk`: an instruction
+/// that exists to fault. There is no IDT yet, so on this target the fault has
+/// nowhere diagnosable to land — but this target cannot boot either, so the
+/// function is unreachable in practice. It exists because the boundary rule
+/// says both implementations present the same surface: the moment the x86_64
+/// boot path and IDT land, this becomes the same self-test it is on AArch64.
+#[cfg(feature = "provoke-exception")]
+pub(super) fn provoke_exception() -> ! {
+    // SAFETY: `ud2` has no operands and no memory effects; it raises invalid
+    // opcode unconditionally, so execution cannot proceed past it and
+    // `noreturn` is sound.
+    unsafe {
+        core::arch::asm!("ud2", options(nomem, nostack, noreturn));
+    }
+}
+
 /// Parks this core in a low-power halt state, permanently.
 pub(super) fn halt() -> ! {
     loop {

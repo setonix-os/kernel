@@ -113,12 +113,18 @@ fn run() -> Result<()> {
         None => Arch::Aarch64,
     };
     let release = args.iter().any(|a| a == "--release");
+    let features = flag_value(&args, "--features");
 
     match command.as_str() {
-        "build" => build(arch, release).map(|image| {
+        "build" => build(arch, release, features.as_deref()).map(|image| {
             println!("xtask: {}", image.display());
         }),
-        "run-qemu" => run_qemu(arch, release, args.iter().any(|a| a == "--debug")),
+        "run-qemu" => run_qemu(
+            arch,
+            release,
+            args.iter().any(|a| a == "--debug"),
+            features.as_deref(),
+        ),
         "boot-test" => {
             let expect =
                 flag_value(&args, "--expect").ok_or("boot-test requires --expect <string>")?;
@@ -126,7 +132,7 @@ fn run() -> Result<()> {
                 Some(value) => Duration::from_secs(value.parse::<u64>()?),
                 None => Duration::from_secs(30),
             };
-            boot_test(arch, release, &expect, timeout)
+            boot_test(arch, release, &expect, timeout, features.as_deref())
         }
         "help" | "--help" | "-h" => {
             print_usage();
@@ -154,6 +160,8 @@ Commands:
 Options:
   --arch <aarch64|x86_64>   Target architecture (default: aarch64)
   --release                 Build with optimisations
+  --features <list>         Kernel cargo features, comma-separated
+                            (e.g. provoke-exception, for the exception self-test)
   --debug                   run-qemu only: halt at reset and await gdb on :1234
   --expect <string>         boot-test only: the string that must appear
   --timeout <seconds>       boot-test only: deadline (default: 30)"
@@ -182,7 +190,7 @@ fn cargo() -> String {
 }
 
 /// Cross-compiles the kernel and returns the path to the resulting image.
-fn build(arch: Arch, release: bool) -> Result<PathBuf> {
+fn build(arch: Arch, release: bool, features: Option<&str>) -> Result<PathBuf> {
     let root = workspace_root()?;
 
     let mut command = Command::new(cargo());
@@ -195,6 +203,9 @@ fn build(arch: Arch, release: bool) -> Result<PathBuf> {
     ]);
     if release {
         command.arg("--release");
+    }
+    if let Some(features) = features {
+        command.args(["--features", features]);
     }
 
     println!("xtask: building setonix-kernel for {}", arch.triple());
@@ -228,9 +239,9 @@ fn require_bootable(arch: Arch) -> Result<()> {
 }
 
 /// Boots the kernel with the serial console attached to this terminal.
-fn run_qemu(arch: Arch, release: bool, debug: bool) -> Result<()> {
+fn run_qemu(arch: Arch, release: bool, debug: bool, features: Option<&str>) -> Result<()> {
     require_bootable(arch)?;
-    let image = build(arch, release)?;
+    let image = build(arch, release, features)?;
 
     let mut command = Command::new(arch.qemu());
     command.args(arch.machine_args());
@@ -254,9 +265,15 @@ fn run_qemu(arch: Arch, release: bool, debug: bool) -> Result<()> {
 }
 
 /// Boots the kernel and requires `expect` to appear on the serial console.
-fn boot_test(arch: Arch, release: bool, expect: &str, timeout: Duration) -> Result<()> {
+fn boot_test(
+    arch: Arch,
+    release: bool,
+    expect: &str,
+    timeout: Duration,
+    features: Option<&str>,
+) -> Result<()> {
     require_bootable(arch)?;
-    let image = build(arch, release)?;
+    let image = build(arch, release, features)?;
 
     let mut command = Command::new(arch.qemu());
     command.args(arch.machine_args());
