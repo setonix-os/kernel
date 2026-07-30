@@ -79,12 +79,25 @@ jobs:
                         cargo clippy --package setonix-kernel --all-features --target "$target" -- -D warnings
                         cargo build --verbose --package setonix-kernel --target "$target"
                         cargo build --release --verbose --package setonix-kernel --target "$target"
+                        # The capability crate is architecture-independent no_std
+                        # logic; building it for both Tier-1 targets proves it
+                        # stays no_std-clean.
+                        cargo clippy --package setonix-capability --target "$target" -- -D warnings
+                        cargo build --package setonix-capability --target "$target"
                         echo "::endgroup::"
                     done
 
                     echo "::group::xtask (host)"
                     cargo clippy --package xtask --all-targets --all-features -- -D warnings
                     cargo test --verbose --package xtask
+                    echo "::endgroup::"
+
+                    # Host-testable kernel logic. The capability table's pure logic
+                    # lives in its own crate precisely so it can run a test harness
+                    # (a bare-metal target cannot).
+                    echo "::group::capability (host)"
+                    cargo clippy --package setonix-capability --all-targets --all-features -- -D warnings
+                    cargo test --verbose --package setonix-capability
                     echo "::endgroup::"
 
     boot:

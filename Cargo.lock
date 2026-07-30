@@ -3,6 +3,10 @@
 version = 4
 
 [[package]]
+name = "setonix-capability"
+version = "0.0.0"
+
+[[package]]
 name = "setonix-kernel"
 version = "0.0.0"
 

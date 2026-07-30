@@ -1,0 +1,28 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+//! Errors from capability-table operations.
+
+/// Why a capability-table operation failed.
+///
+/// Every variant fails closed: the operation grants no authority and changes no
+/// state a caller could mistake for success. There is no "partial" outcome.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum CapabilityError {
+    /// The handle's index lies outside the table.
+    OutOfBounds,
+    /// The slot the handle names is empty.
+    Empty,
+    /// The slot's generation no longer matches the handle's: the capability it
+    /// named has been closed, or the slot reused — a stale handle (RFC-0003 O-1).
+    StaleGeneration,
+    /// The requested rights are not a subset of the source capability's: a
+    /// widening was attempted, which the type refuses (RFC-0003 O-2).
+    RightsNotSubset,
+    /// The source capability lacks `DUPLICATE`, so nothing may be derived from it.
+    NotDuplicable,
+    /// The table has no free slot to mint into.
+    TableFull,
+    /// A slot's generation counter is exhausted; the slot is retired rather than
+    /// wrapped (the fail-closed boundary — see [`Generation`](crate::Generation)).
+    GenerationExhausted,
+}

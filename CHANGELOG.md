@@ -11,6 +11,25 @@ Release codenames follow the six Noongar seasons — Birak, Bunuru, Djeran, Maku
 
 ### Added
 
+- **The capability table begins — RFC-0003 turns into code, first increment.** A new `no_std`
+  workspace crate, `setonix-capability`, holding the pure, architecture-independent logic of the
+  capability spine so it can be **host-unit-tested** — a bare-metal target has no test harness, so the
+  security-critical logic lives where it can be exercised exhaustively. This increment is the value
+  types the table is built from, each with a compiler-checked invariant:
+    - `Rights` — a closed bitmask (`DUPLICATE`, `TRANSFER`, `READ`, `WRITE`, `REVOKE`) whose only
+      attenuation operation, `diminish`, is subset-only. Non-widenability (O-2) is a property of the
+      type: there is no constructor from arbitrary bits and no operation that adds a right. A test
+      checks *exhaustively* over all 32 rights combinations that a successful `diminish` is always a
+      subset of its source.
+    - `Generation` — a 64-bit counter, **fail-closed on exhaustion** (`next` returns `None` rather than
+      wrapping to a value a stale handle could match), the defence behind O-1's reuse case and O-3's
+      destruction case.
+    - `Handle` — the userspace-facing name: a table index plus the generation its slot held when
+      minted; carries no authority by itself.
+    - `CapabilityError` — a fail-closed error for every table operation.
+  Twelve host tests, clippy-clean under `-D warnings`, and built for both Tier-1 targets to prove it
+  stays `no_std`. CI gains a capability host-test group and per-target build. The owned no-`Clone`
+  `Capability` value and the flat table follow in the next increment (§5.3: small, reviewable steps).
 - **Exception vectors, and a reporter that says what went wrong in one line** — the instrument the
   soft-float bug had to be diagnosed without. `boot.s` installs a 2 KiB-aligned sixteen-entry vector
   table into `VBAR_EL1` before the first Rust instruction runs, so even the earliest fault is reported
