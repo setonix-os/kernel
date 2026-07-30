@@ -25,9 +25,9 @@ Do not run it anywhere that matters.
 
 ## Threat Model
 
-The project's threat model will live at `docs/threat-model.md` in this repository — it is the last
-outstanding Phase 0 deliverable, and becomes the authoritative statement once written. Until then, the
-seed in [the constitution §9](CONSTITUTION.md) is the statement of what Setonix defends against:
+The project's threat model is [docs/threat-model.md](docs/threat-model.md), the authoritative
+statement of what Setonix defends and the obligations (`O-1`, `O-2`, …) its design must discharge. It
+expands the seed in [the constitution §9](CONSTITUTION.md):
 
 **Assets:** app integrity, user-data confidentiality, capability integrity, update-channel
 authenticity.

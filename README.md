@@ -46,8 +46,9 @@ The paper trail lives in this repository, beside the code it governs:
   rationale and the alternatives rejected.
 - [docs/CHANGELOG.md](docs/CHANGELOG.md) — the amendment log for the
   constitution and the design documents.
-- `docs/threat-model.md` — expansion of the constitution's seed threat model.
-  *(to come — the last outstanding Phase 0 deliverable)*
+- [docs/threat-model.md](docs/threat-model.md) — what Setonix defends and the
+  numbered obligations its design must discharge; expands the constitution's §9
+  seed.
 
 ## Status
 

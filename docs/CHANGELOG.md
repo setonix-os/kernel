@@ -12,6 +12,21 @@ recorded is indistinguishable from law that was never agreed.
 
 ### Added
 
+- **`docs/threat-model.md` — the last Phase 0 deliverable.** Expands the constitution's §9 seed into
+  the authoritative statement of what Setonix defends: five assets, five adversaries, six trust
+  boundaries, and twenty numbered obligations (`O-1` … `O-20`) the design must discharge. The
+  obligations are the contract between the model and the code — RFCs cite them by number ("this
+  mechanism discharges O-3 at B1"), and each carries an honest status: **Built** (three, today —
+  kernel memory safety, the pinned build, signed commits), **Designed** (most), or **Deferred** (with
+  a stated precondition, e.g. DMA confinement needs an IOMMU). §8 states which obligations bind at
+  which roadmap phase, so the gap between designed and built is never hidden. Writing it now, mostly
+  unbuilt, is §5.5: the capability, IPC and app-format RFCs are about to be argued, and this is the
+  paper they are argued against.
+- Two pieces of guidance recovered from the retired docs repository during a completeness sweep, both
+  describing practices already followed but written down nowhere in this repository: `CONTRIBUTING.md`
+  gains **Amending the constitution** (leave no stale clause, check cross-references, never renumber a
+  cited section — the discipline `/check-coherence` automates), and `STYLE.md` gains a **Tables** rule
+  (preferred for parallel attributes; exempt from the line-length limit).
 - `CLAUDE.md` — the founding document, placed under version control for the first time. This
   repository is now its single canonical home; the organisation superfolder holds only a pointer to it,
   so the two can never diverge.
