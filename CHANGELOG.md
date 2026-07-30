@@ -85,6 +85,12 @@ Release codenames follow the six Noongar seasons — Birak, Bunuru, Djeran, Maku
 
 ### Changed
 
+- Contributor documents no longer assume a permanent team of one. `SECURITY.md`, `CONTRIBUTING.md` and
+  `CLAUDE.md` now say "deliberately small team" — the project anticipates at least one more member, and
+  a document that promises "one maintainer" would start lying the day they join. The constitution's §5
+  is deliberately untouched: its wording is role-based ("the maintainer") and still true, and the real
+  §5 amendment — who reviews, who may merge — depends on the member's actual role, which is the
+  maintainer's to write when that person exists.
 - **The docs repository was merged into this repository, history and all.** The constitution now lives
   at `CONSTITUTION.md` in the repository root, bound into every session by the repo-root `CLAUDE.md`;
   RFCs and the documents' changelog live under `docs/`. The import was a true history merge rather than

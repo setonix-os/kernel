@@ -300,4 +300,4 @@ Update `CHANGELOG.md`'s `[Unreleased]` section for all notable changes, and bump
 
 - Design questions belong in [discussions](https://github.com/setonix-os/kernel/discussions) or an RFC
 - Check existing issues first
-- Be patient — this is a one-maintainer project by design
+- Be patient — Setonix is a deliberately small team, and every change crosses the maintainer's desk
