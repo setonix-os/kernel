@@ -21,8 +21,7 @@ recorded is indistinguishable from law that was never agreed.
   L4's abandoned "long IPC"), proven refinements to **adopt** (first-class reply objects, virtual
   message registers, priority-aware direct switch, seL4 badges by name), and one design question the
   research **forces to a decision rather than a deferral** (RFC-0003's revocation knot). Every claim
-  carries a primary source. The RFC-0004 corrections land as their own follow-up; this note is the
-  evidence they cite.
+  carries a primary source.
 - `docs/rfcs/0004-ipc.md` — **proposed**, the second half of the kernel's core and the paper "IPC is
   the product" is argued on. Endpoints are RFC-0003 capability objects: send/receive rights on the
   same endpoint give a client/server split for free, and there is no global endpoint registry the
@@ -35,8 +34,8 @@ recorded is indistinguishable from law that was never agreed.
   capabilities gives RPC without ambient "who called me" state (O-4 preserved), and bounded
   notifications give async signalling without payload or flood. Open questions named rather than
   solved: slow-path copy-vs-map (joins the MMU RFC), multi-core rendezvous (the hardest, joins the
-  scheduler), timeouts, and the exact register budget (joins the syscall ABI RFC). *(The prior-art
-  review below revises §5–§6 and §8; see the follow-up.)*
+  scheduler), timeouts, and the exact register budget (joins the syscall ABI RFC). *(Revised the same
+  day by the prior-art review — see Changed.)*
 
 - `docs/rfcs/0003-capability-table.md` — **accepted** (2026-07-30; selective revocation's final
   verdict expressly deferred to RFC-0003a), the first Phase 1 design RFC and the first to
@@ -111,6 +110,17 @@ recorded is indistinguishable from law that was never agreed.
 
 ### Changed
 
+- **RFC-0004 revised** (prior-art review, 2026-07-30): its spine held, but four corrections were folded
+  in. **§5 no longer maps pages during IPC** — that is L4's abandoned "long IPC", removed by every
+  modern L4 and hostile to verification; bulk data now goes through a shared `Region` capability
+  established out of band, with IPC carrying only a small descriptor, and the in-message slow path is a
+  bounded small copy. The **fast path uses virtual message registers** (seL4), not a hard-committed
+  physical set, and the ~100-cycle figure is reframed as software-logic, not round-trip. **Direct
+  switch is priority-aware and `call` is scheduling-context donation** — the real synchronous-IPC
+  hazard the review surfaced is scheduling coupling, not deadlock, so IPC couples to the scheduler RFC.
+  The **reply is a first-class one-time object** (seL4 MCS), destroyed on caller death, with the
+  withheld-reply denial (Shapiro 2003) named and answered by the userspace watchdog. The fast path is
+  stated to be capability-transfer-free by design.
 - **RFC-0003 amended** (prior-art review, 2026-07-30): its spine holds, but the revocation deferral
   (§7-B3) is upgraded to a decision RFC-0003a must make — §6's broker-bypassing `TRANSFER` makes
   broker-mediated revocation unreachable, and "badges + one-level link" cannot express multi-level
