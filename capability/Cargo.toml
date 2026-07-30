@@ -1,0 +1,21 @@
+[package]
+name = "setonix-capability"
+version = "0.0.0"
+description = "The Setonix capability table — unforgeable, rights-attenuating object references (RFC-0003)"
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+publish = false
+
+# No dependencies, deliberately. A security-critical primitive is read far more
+# often than it is written, and every line of it must be explainable (§5.2).
+# `#![no_std]` in the kernel build, `std` under `cargo test` so the pure logic
+# is host-unit-tested — the kernel crate cannot run a test harness on bare metal.
+
+[lib]
+name = "setonix_capability"
+path = "src/lib.rs"
+
+[lints]
+workspace = true

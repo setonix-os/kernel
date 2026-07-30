@@ -38,8 +38,15 @@ kernel/          the kernel crate (no_std, no_main)
   src/main.rs    architecture-independent entry; contains no unsafe, ever
   src/arch/      the HAL boundary — the only tree that knows the architecture
   link/          per-architecture linker scripts
+capability/      the capability table (RFC-0003): pure no_std logic, host-tested
 xtask/           build, run and boot-test automation (host binary, no deps)
 ```
+
+Architecture-independent kernel logic that benefits from host unit tests lives in
+its own `no_std` workspace crate (like `capability/`), because the kernel crate
+cannot run a test harness on a bare-metal target. Such a crate is `#![no_std]` in
+the kernel build and `std` under `cargo test`; it builds for both Tier-1 targets
+in CI to prove it stays `no_std`.
 
 ## Architectures
 

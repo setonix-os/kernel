@@ -8,7 +8,7 @@
 
 [workspace]
 resolver = "3"
-members = ["kernel", "xtask"]
+members = ["kernel", "xtask", "capability"]
 
 [workspace.package]
 edition = "2024"
