@@ -12,6 +12,18 @@ recorded is indistinguishable from law that was never agreed.
 
 ### Added
 
+- `docs/rfcs/0003-capability-table.md` — **proposed**, the first Phase 1 design RFC and the first to
+  cite the threat model's obligations by number, discharging O-1, O-2 and O-4 and part of O-3. Argues
+  for a flat per-process handle table (Zircon lineage) carrying seL4's invariants — handles as
+  indices, kernel-owned capabilities, monotone subset-only derivation, generation counters against
+  reuse — while explicitly steering around the "baroque capability hierarchies" grave that seL4's
+  CNode radix would risk. Capability transfer is a Rust *move* (no `Clone`), cashing out §3's claim
+  that ownership models transfer at compile time. Constrains the future syscall ABI to
+  capability-indexed operations only, so O-4 is inherited as a birth constraint rather than
+  retrofitted. States honestly that selective transitive revocation is proposed (badges + shallow
+  derivation records) but not settled, deferring it to RFC-0003a with the broker's needs as input —
+  naming that gap on paper being precisely what §5.5 is for.
+
 - **The last of the retired docs repository, recovered by an exhaustive re-audit** (file-by-file and
   git-history, not just prose shingles). The provenance check confirmed all eleven docs commits are
   ancestry of `main` bar the retirement-banner commit, which correctly stays only in the retired repo;
