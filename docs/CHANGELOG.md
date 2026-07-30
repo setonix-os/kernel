@@ -12,7 +12,8 @@ recorded is indistinguishable from law that was never agreed.
 
 ### Added
 
-- `docs/rfcs/0003-capability-table.md` — **proposed**, the first Phase 1 design RFC and the first to
+- `docs/rfcs/0003-capability-table.md` — **accepted** (2026-07-30; selective revocation's final
+  verdict expressly deferred to RFC-0003a), the first Phase 1 design RFC and the first to
   cite the threat model's obligations by number, discharging O-1, O-2 and O-4 and part of O-3. Argues
   for a flat per-process handle table (Zircon lineage) carrying seL4's invariants — handles as
   indices, kernel-owned capabilities, monotone subset-only derivation, generation counters against

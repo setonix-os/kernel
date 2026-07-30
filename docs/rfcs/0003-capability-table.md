@@ -4,11 +4,18 @@
 
 | Field | Value |
 |-------|-------|
-| Status | **Proposed** — the paper the design is argued on, awaiting the maintainer's verdict |
+| Status | **Accepted** — 2026-07-30, by the maintainer |
 | Author | Drafted by Claude Code as sparring partner; verdict the maintainer's |
 | Date | 2026-07-30 |
 | Affects | Constitution §3 (kernel doctrine), pillar 2; the syscall ABI; every later subsystem |
 | Discharges | Threat-model obligations O-1 (unforgeability), O-2 (non-widenability), O-3 (revocability), O-4 (no ambient authority) |
+
+> **Accepted.** The flat per-process handle table (§4, Option B) is the capability representation;
+> derivation is subset-only; transfer is a move; the syscall ABI is capability-indexed from its first
+> syscall (§9). Selective transitive revocation remains **open**, deferred to RFC-0003a with B3
+> (badges + shallow derivation records) as the proposal on the table — accepting this RFC does not
+> pre-empt that verdict. The open questions in §14 are the next design work, and anything the first
+> implementation PR proves wrong comes back here as a dated amendment, per house practice.
 
 ## 1. The question
 
