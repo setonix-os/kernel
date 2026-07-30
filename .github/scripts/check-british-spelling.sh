@@ -70,6 +70,7 @@ ALLOWED_PATTERNS=(
     'FORCE_COLOR|NO_COLOR'      # de facto environment-variable standards
     '--color'                   # command-line flags of external tools
     'colorspace|ColorSpace'     # graphics API names (Vulkan, DRM)
+    'virtualization='           # QEMU -machine property name, quoted literally
 )
 
 allow_re=$(IFS='|'; echo "${ALLOWED_PATTERNS[*]}")

@@ -109,13 +109,19 @@ jobs:
             # -kernel, so that path needs a UEFI stub before it can boot at all.
             # `cargo xtask boot-test --arch x86_64` says so explicitly rather
             # than failing obscurely.
+            # Two boots: the ordinary path must greet, and the provoked path
+            # must fault into the exception reporter and decode the BRK — so the
+            # vector table is proven on every pull request, not trusted.
             - name: Boot in the devcontainer and expect the greeting
               uses: devcontainers/ci@513af61f4de4f75d37e4438f184ba4358f0fc1ca # v0.3.1900000450
               with:
                 imageName: ${{ env.DEVCONTAINER_IMAGE }}
                 cacheFrom: ${{ env.DEVCONTAINER_IMAGE }}
                 push: never
-                runCmd: cargo xtask boot-test --arch aarch64 --expect "Kaya!"
+                runCmd: |
+                    set -euo pipefail
+                    cargo xtask boot-test --arch aarch64 --expect "Kaya!"
+                    cargo xtask boot-test --arch aarch64 --features provoke-exception --expect "BRK instruction"
 
     ci-success:
         name: CI Success

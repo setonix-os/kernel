@@ -11,6 +11,25 @@ Release codenames follow the six Noongar seasons — Birak, Bunuru, Djeran, Maku
 
 ### Added
 
+- **Exception vectors, and a reporter that says what went wrong in one line** — the instrument the
+  soft-float bug had to be diagnosed without. `boot.s` installs a 2 KiB-aligned sixteen-entry vector
+  table into `VBAR_EL1` before the first Rust instruction runs, so even the earliest fault is reported
+  rather than vectoring to address zero and dying mute. Every entry routes to a reporter that prints
+  which vector fired, the exception class decoded into a sentence — EC 0x07 names `CPACR_EL1.FPEN`
+  outright — and raw `ESR`/`ELR`/`FAR`/`SPSR`, then halts.
+    - The common stub forces `SPSel` back to SP_ELx first, so even the never-used SP_EL0 group lands
+      on a real stack instead of the uninitialised SP_EL0.
+    - **Self-testing in CI**: a `provoke-exception` feature (never on by default) boots, greets, then
+      executes `brk #0`; the boot job greps the console for the decoded "BRK instruction" report. The
+      handler is proven on every pull request, not trusted.
+    - `cargo xtask` grows `--features` passthrough for exactly that.
+    - Terminal by design: until there is a scheduler, every exception is a report and a halt —
+      recovery is policy, and there is nothing yet to recover to. When the timer interrupt arrives,
+      the IRQ entries grow a real save/restore frame; the clobber-freely discipline in `vectors.s` is
+      documented as ending on that day.
+    - The EL1 assumption in `boot.s` is now load-bearing (`VBAR_EL1`, `SPSel`) and its header says so:
+      an explicit CurrentEL check and EL2 descent are owed before real hardware or
+      `virtualization=on`.
 - **The kernel boots.** On QEMU aarch64 `virt` it reaches the PL011 UART and
   prints `Kaya!` and the resident critter (constitution §8). Nothing else: no
   scheduler, no IPC, no capability table, no MMU. What it establishes is the chain
