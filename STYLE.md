@@ -241,6 +241,12 @@ See `CONTRIBUTING.md` § British Spelling for the rule, and
 use American spelling where it matches a Rust or hardware-API convention — a register field named in
 a datasheet is quoted, not corrected.
 
+**Exceptions, matching what the checker actually excludes:** quoted external text and proper nouns;
+API, environment-variable and hardware identifiers where American spelling is the convention (each
+recorded in the script's `ALLOWED_PATTERNS` with the convention it honours); and `LICENCE` and
+`CODE_OF_CONDUCT.md`, excluded as legal and upstream text. Noongar words are spelled as the language
+custodians spell them — see § Prose.
+
 ---
 
-*Last updated: 2026-07-26*
+*Last updated: 2026-07-30*
