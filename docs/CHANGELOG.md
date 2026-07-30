@@ -12,6 +12,22 @@ recorded is indistinguishable from law that was never agreed.
 
 ### Added
 
+- **The last of the retired docs repository, recovered by an exhaustive re-audit** (file-by-file and
+  git-history, not just prose shingles). The provenance check confirmed all eleven docs commits are
+  ancestry of `main` bar the retirement-banner commit, which correctly stays only in the retired repo;
+  the content check found three genuine omissions, now closed:
+    - The pull-request template gains an **"If this changes a document or the constitution"** section —
+      the constitution-amendment guidance the docs repository's own template carried and the code-first
+      kernel template lacked: state what an amendment supersedes and invalidates, leave no stale clause,
+      renumber no cited section. Its `CLAUDE.md` section references, stale since the rename, are
+      corrected to `CONSTITUTION.md` in the same pass.
+    - `.gitignore` ignores `book/` and `_site/`, the rendered-documentation output RFC-0002 commits to
+      at Phase 4, so a first local mdBook render cannot be committed by accident.
+    - `.gitattributes` marks `*.pdf` binary.
+  Everything else the audit surfaced was reworded-in-place, superseded by a newer kernel version, or
+  docs-repo-specific framing that correctly does not belong. The retired repository now holds nothing of
+  substance absent here.
+
 - **`docs/threat-model.md` — the last Phase 0 deliverable.** Expands the constitution's §9 seed into
   the authoritative statement of what Setonix defends: five assets, five adversaries, six trust
   boundaries, and twenty numbered obligations (`O-1` … `O-20`) the design must discharge. The

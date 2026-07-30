@@ -17,6 +17,13 @@
 /gdb-history
 perf.data*
 
+# Rendered documentation. RFC-0002 commits to publishing docs/ in place with
+# mdBook at Phase 4; its default output is book/, and _site/ covers the Pages
+# alternative. Ignored now so a first local render cannot be committed by
+# accident.
+/book/
+/_site/
+
 # Local Claude Code state. The committed parts of .claude/ (CLAUDE.md, commands/)
 # are shared project configuration; settings.local.json is per-machine.
 /.claude/settings.local.json

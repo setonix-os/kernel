@@ -12,6 +12,7 @@
 # Binaries must never be normalised.
 *.png  binary
 *.jpg  binary
+*.pdf  binary
 *.ico  binary
 *.img  binary
 *.iso  binary
