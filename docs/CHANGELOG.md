@@ -21,7 +21,22 @@ recorded is indistinguishable from law that was never agreed.
   L4's abandoned "long IPC"), proven refinements to **adopt** (first-class reply objects, virtual
   message registers, priority-aware direct switch, seL4 badges by name), and one design question the
   research **forces to a decision rather than a deferral** (RFC-0003's revocation knot). Every claim
-  carries a primary source.
+  carries a primary source. The RFC-0004 corrections land as their own follow-up; this note is the
+  evidence they cite.
+- `docs/rfcs/0004-ipc.md` — **proposed**, the second half of the kernel's core and the paper "IPC is
+  the product" is argued on. Endpoints are RFC-0003 capability objects: send/receive rights on the
+  same endpoint give a client/server split for free, and there is no global endpoint registry the
+  kernel arbitrates, so IPC is the enforcement surface rather than a hole beside it. The base primitive
+  is a synchronous unbuffered rendezvous (L4) — no kernel message buffer, which is what discharges O-7
+  (nothing to flood, nothing to size) and avoids the multi-copy-IPC grave (Mach). A register fast path
+  carries small messages with no allocation and no copy; a bounded slow path copies now and can map
+  (zero-copy) once the MMU exists, behind an ABI that hides the choice. Messages move capabilities as
+  RFC-0003 moves them — atomically, `TRANSFER`-gated, fail-closed. `call` with single-use reply
+  capabilities gives RPC without ambient "who called me" state (O-4 preserved), and bounded
+  notifications give async signalling without payload or flood. Open questions named rather than
+  solved: slow-path copy-vs-map (joins the MMU RFC), multi-core rendezvous (the hardest, joins the
+  scheduler), timeouts, and the exact register budget (joins the syscall ABI RFC). *(The prior-art
+  review below revises §5–§6 and §8; see the follow-up.)*
 
 - `docs/rfcs/0003-capability-table.md` — **accepted** (2026-07-30; selective revocation's final
   verdict expressly deferred to RFC-0003a), the first Phase 1 design RFC and the first to
