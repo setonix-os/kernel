@@ -12,6 +12,16 @@ recorded is indistinguishable from law that was never agreed.
 
 ### Added
 
+- `docs/research/0001-capabilities-and-ipc-prior-art.md` — a literature and source review that
+  stress-tests RFC-0003 and RFC-0004 against the systems that already fought these fights (seL4,
+  Zircon/Fuchsia, KeyKOS/EROS, Barrelfish, CHERI, Genode, QNX, L4, and the Rust-OS field: Tock,
+  Hubris, RedLeaf, Asterinas, Theseus, Redox). The constitution's "keep the proven, prune the legacy"
+  turned into an actual audit. Verdict: both RFCs' spines are validated and correctly cited, with three
+  bounded corrections — one legacy mechanism to **prune** (RFC-0004's page-mapping large transfer is
+  L4's abandoned "long IPC"), proven refinements to **adopt** (first-class reply objects, virtual
+  message registers, priority-aware direct switch, seL4 badges by name), and one design question the
+  research **forces to a decision rather than a deferral** (RFC-0003's revocation knot). Every claim
+  carries a primary source.
 - `docs/rfcs/0004-ipc.md` — **proposed**, the second half of the kernel's core and the paper "IPC is
   the product" is argued on. Endpoints are RFC-0003 capability objects: send/receive rights on the
   same endpoint give a client/server split for free, and there is no global endpoint registry the
@@ -24,7 +34,8 @@ recorded is indistinguishable from law that was never agreed.
   capabilities gives RPC without ambient "who called me" state (O-4 preserved), and bounded
   notifications give async signalling without payload or flood. Open questions named rather than
   solved: slow-path copy-vs-map (joins the MMU RFC), multi-core rendezvous (the hardest, joins the
-  scheduler), timeouts, and the exact register budget (joins the syscall ABI RFC).
+  scheduler), timeouts, and the exact register budget (joins the syscall ABI RFC). *(Revised the same
+  day by the prior-art review — see Changed.)*
 
 - `docs/rfcs/0003-capability-table.md` — **accepted** (2026-07-30; selective revocation's final
   verdict expressly deferred to RFC-0003a), the first Phase 1 design RFC and the first to
@@ -99,6 +110,31 @@ recorded is indistinguishable from law that was never agreed.
 
 ### Changed
 
+- **RFC-0004 revised** (prior-art review, 2026-07-30): its spine held, but four corrections were folded
+  in. **§5 no longer maps pages during IPC** — that is L4's abandoned "long IPC", removed by every
+  modern L4 and hostile to verification; bulk data now goes through a shared `Region` capability
+  established out of band, with IPC carrying only a small descriptor, and the in-message slow path is a
+  bounded small copy. The **fast path uses virtual message registers** (seL4), not a hard-committed
+  physical set, and the ~100-cycle figure is reframed as software-logic, not round-trip. **Direct
+  switch is priority-aware and `call` is scheduling-context donation** — the real synchronous-IPC
+  hazard the review surfaced is scheduling coupling, not deadlock, so IPC couples to the scheduler RFC.
+  The **reply is a first-class one-time object** (seL4 MCS), destroyed on caller death, with the
+  withheld-reply denial (Shapiro 2003) named and answered by the userspace watchdog. The fast path is
+  stated to be capability-transfer-free by design.
+- **RFC-0003 amended** (prior-art review, 2026-07-30): its spine holds, but the revocation deferral
+  (§7-B3) is upgraded to a decision RFC-0003a must make — §6's broker-bypassing `TRANSFER` makes
+  broker-mediated revocation unreachable, and "badges + one-level link" cannot express multi-level
+  transitive revocation; per-client eviction is named a day-one gap (O-3 half-discharged); §6's
+  compile-time claim is scoped to the kernel's internal representation (the cross-process transfer is
+  runtime, as RedLeaf's own group concluded ownership types cannot span protection domains); and the
+  generation scheme's load-bearing invariants are stated. Full reasoning in the research note.
+    - **Flagged for the maintainer, not taken — Constitution §3.** Its slogan "Rust's ownership and
+      move semantics model capability transfer at compile time" overreaches: the borrow checker sees
+      one compilation unit, so it models the kernel's *internal* capability handling, not the
+      userspace-observable cross-process transfer (a runtime table operation). Recommended reword:
+      *"…model the kernel's own capability handling at compile time — no accidental duplication or
+      use-after-move; cross-process transfer is a runtime table operation the generation scheme
+      secures."* §3 is constitution text, so this is the maintainer's to take or leave.
 - **Constitution touched, twice, on the maintainer's authorisation, when the threat model landed.**
   Both are factual or pointer updates rather than changes to any clause, and both are logged because
   constitutional amendments always are, however small.
