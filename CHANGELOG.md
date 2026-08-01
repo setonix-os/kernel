@@ -11,6 +11,46 @@ Release codenames follow the six Noongar seasons — Birak, Bunuru, Djeran, Maku
 
 ### Added
 
+- **The capability table itself — RFC-0003's second increment.** `setonix-capability` grows the owned
+  `Capability` value and the flat per-process `CapabilityTable` (§4, Option B): the structure every
+  future syscall resolves against.
+    - `Capability<O>` is **owned and deliberately neither `Clone` nor `Copy`** (§6): transfer between
+      tables is a Rust move, and the sole duplication is `derive` — explicit, rights-checked,
+      subset-only (O-2). A `compile_fail` doctest (pinned to E0277, instantiated with a real
+      `ObjectRef` type) guards the absence of `Clone` on every test run, rather than asserting it in
+      prose; the type is also `#[must_use]`, since dropping a capability is a close and must never
+      happen by accident. Minting reads the generation from the object itself, so a capability can
+      never be back-dated to a generation its object no longer occupies.
+    - `CapabilityTable<O, N>` — a fixed-capacity flat array (the kernel has no allocator; bounded by
+      construction), free-list recycling, O(1) everything. Resolution is one index plus two generation
+      checks: slot against handle (the ABA defence, O-1) and object against capability (destruction
+      revocation, O-3). A slot's generation is bumped **when it is vacated**, so a closed handle dies
+      at the instant of closing, not merely when its slot is reused; a slot whose generation cannot
+      advance is **retired** outright — capacity is the price of failing closed. All three of the RFC
+      amendment's load-bearing invariants are now *stated where they bind*: a resolve yields a borrow,
+      never a copy, and the caller holds that borrow across its whole check→act window — the property
+      any future multi-core synchronisation story must preserve, documented on `resolve` and in the
+      `ObjectRef` contract rather than assumed.
+    - The trait bounds carry the design: `insert`/`remove` are object-blind slot mechanics (the
+      plumbing a transfer is built from), while `resolve`/`derive` require the new `ObjectRef` trait —
+      one method, *what generation is the object at now* — which is all the table ever asks of a
+      kernel object. The kernel crate implements it when kernel objects exist; a test double implements
+      it today, which is what keeps the whole scheme host-testable.
+    - A full table hands the capability **back** in the error rather than dropping it: destroying
+      in-flight authority because a receiver had no room would turn a resource limit into silent
+      revocation.
+    - Twenty-seven new host tests, hardened by an adversarial multi-lens review with mutation testing
+      (every surviving mutant found got a test that kills it). Among them: an exhaustive forged-handle
+      sweep (only the exact minted handle resolves — for both `resolve` *and* `remove`, so a dangling
+      handle can neither use nor steal a reused slot's occupant); object destruction making parent and
+      derived child inert with no list of holders, while a *removed* parent leaves its derived sibling
+      untouched (the flat table has no parent link — pinned so RFC-0003a cannot regress it silently);
+      generation-exhaustion retirement alone and amid live neighbours; free-list LIFO order;
+      transfer-as-move between two tables; the two defensive fail-closed branches driven by
+      deliberately corrupted private state; and an 8192-operation churn test against a shadow model —
+      inserts, subset-random derivations, object destructions, object-blind cleanup and removals
+      interleaved — in which no dead handle ever resolves or removes anything. The lifecycle is also a
+      running doctest.
 - **The capability table begins — RFC-0003 turns into code, first increment.** A new `no_std`
   workspace crate, `setonix-capability`, holding the pure, architecture-independent logic of the
   capability spine so it can be **host-unit-tested** — a bare-metal target has no test harness, so the
