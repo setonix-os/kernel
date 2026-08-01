@@ -12,6 +12,23 @@ recorded is indistinguishable from law that was never agreed.
 
 ### Added
 
+- `docs/research/0002-virtualisation-and-containment-prior-art.md` — the second prior-art review, on
+  the maintainer's initiative: what the virtualisation and containerisation fields learned under
+  production fire, mined for Setonix. Six research sweeps (hypervisors/microVMs, container
+  runtimes/sandboxes, images/supply chain, resource control at scale, plus two critic-identified gaps:
+  control-plane confused-deputy failures and the path-resolution escape corpus), 69 lessons, primary
+  sources only, every lesson mapped to a pillar, an obligation by number, or the RFC it feeds.
+  Verdict: sixteen lessons are production-quantified validation of decisions already made (the
+  container era's survivors each rebuilt part of Setonix's architecture as a retrofit, at retrofit
+  prices); the genuinely new inputs are decision-forcing — the store's Merkle naming scheme must be
+  fixed before the store is built (resolving RFC-0001's open questions 1–3), the broker inherits a
+  decade of confused-deputy CVEs as design rules plus three proposed obligations (O-21 mediation
+  auditability, O-22 broker compromise containment, O-23 fail-closed mediation), the scheme
+  registry's resolution semantics arrive essentially specified (Capsicum/`openat2`: resolve once to
+  a held capability, by construction, within O-2's calculus), and seL4 MCS's budget-expiry hole
+  yields a proposed RFC-0004 amendment. Three mechanisms rejected by name (eBPF-style in-kernel
+  extensibility, command-keyed build caches, a bootstrap superuser); three graves proposed for the
+  constitution's §3 list, flagged for the maintainer, not taken.
 - `docs/research/0001-capabilities-and-ipc-prior-art.md` — a literature and source review that
   stress-tests RFC-0003 and RFC-0004 against the systems that already fought these fights (seL4,
   Zircon/Fuchsia, KeyKOS/EROS, Barrelfish, CHERI, Genode, QNX, L4, and the Rust-OS field: Tock,
