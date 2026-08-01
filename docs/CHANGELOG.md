@@ -308,9 +308,11 @@ recorded is indistinguishable from law that was never agreed.
 
 ### Outstanding Phase 0 deliverables
 
-The constitution's roadmap §10 named two items before Phase 1 may begin. One remains:
+The constitution's roadmap §10 named two items before Phase 1 may begin. Both are done — Phase 0 is
+complete, as the constitution's status line records:
 
-- `threat-model.md` — expansion of the §9 seed.
+- ~~`threat-model.md` — expansion of the §9 seed~~ — done; landed as `docs/threat-model.md`,
+  recorded under Added above.
 - ~~Settling the Borrow Ledger~~ — done, by RFC-0001 and the §4 amendment above.
 
 [Unreleased]: https://github.com/setonix-os/kernel/commits/main
