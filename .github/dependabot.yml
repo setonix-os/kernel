@@ -14,9 +14,9 @@ updates:
     # single review. Weekly still catches advisories within ~7 days.
     #
     # Note: Dependabot must never be allowed to bump the Rust toolchain — that
-    # version is pinned in three places at once and is verified by
+    # version is pinned in two places at once and is verified by
     # .github/scripts/check-toolchain-pin.sh. Toolchain bumps are deliberate,
-    # human commits (CLAUDE.md §7).
+    # human commits (CONSTITUTION.md §7).
     - package-ecosystem: "cargo"
       directory: "/"
       schedule:
@@ -31,5 +31,5 @@ updates:
       ignore:
         # Vendored MIT code is updated by a deliberate re-vendor, not by a bot:
         # each import must be reviewed for licence notices and understood
-        # (CLAUDE.md §5.2, §11.5).
+        # (CONSTITUTION.md §5.2, §11.5).
         - dependency-name: "redox*"

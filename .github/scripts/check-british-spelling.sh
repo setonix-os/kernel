@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-# Enforces CLAUDE.md §11.6 — British English in all documentation and comments.
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# Enforces CONSTITUTION.md §11.6 — British English in all documentation and comments.
 #
 # Derived from the `/check-spelling` slash command in the maintainer's tron_grid
 # project, promoted from a thing you must remember to run into a thing CI will
@@ -7,7 +9,7 @@
 #
 # Scope and deliberate exclusions:
 #
-#   vendor/            Vendored MIT code is preserved verbatim (CLAUDE.md §11.5).
+#   vendor/            Vendored MIT code is preserved verbatim (CONSTITUTION.md §11.5).
 #                      Rewording an upstream's American spelling would corrupt
 #                      the very provenance the licence obliges us to keep.
 #   LICENCE            Legal text, quoted exactly.
@@ -108,7 +110,7 @@ done
 
 if [[ $violations -ne 0 ]]; then
     echo >&2
-    echo "ERROR: $violations British-spelling violation(s) — see CLAUDE.md §11.6." >&2
+    echo "ERROR: $violations British-spelling violation(s) — see CONSTITUTION.md §11.6." >&2
     echo "If a hit is a legitimate API identifier, add it to ALLOWED_PATTERNS in" >&2
     echo "$0 with a comment naming the convention it honours." >&2
     exit 1
