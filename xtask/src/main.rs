@@ -7,7 +7,7 @@
 //! ```text
 //! cargo xtask build     --arch aarch64 [--release]
 //! cargo xtask run-qemu  --arch aarch64 [--release] [--debug]
-//! cargo xtask boot-test --arch aarch64 --expect "Kaya!" [--timeout 30]
+//! cargo xtask boot-test --arch aarch64 [--release] --expect "Kaya!" [--timeout 30]
 //! ```
 //!
 //! `boot-test` is the one CI depends on: it boots the kernel under QEMU, watches
@@ -107,13 +107,26 @@ fn run() -> Result<()> {
         return Err("no command given".into());
     };
 
-    let arch = match flag_value(&args, "--arch") {
+    let arch = match flag_value(&args, "--arch")? {
         Some(value) => Arch::parse(&value)?,
         // Defaulting to the lead architecture keeps the common case short.
         None => Arch::Aarch64,
     };
     let release = args.iter().any(|a| a == "--release");
-    let features = flag_value(&args, "--features");
+    let features = flag_value(&args, "--features")?;
+
+    // Reject anything unrecognised: a typo or the unsupported `--flag=value`
+    // form must not silently change what gets built.
+    let mut tokens = args.iter().skip(1);
+    while let Some(token) = tokens.next() {
+        match token.as_str() {
+            "--arch" | "--features" | "--expect" | "--timeout" => {
+                let _ = tokens.next();
+            }
+            "--release" | "--debug" => {}
+            other => return Err(format!("unknown argument '{other}'").into()),
+        }
+    }
 
     match command.as_str() {
         "build" => build(arch, release, features.as_deref()).map(|image| {
@@ -127,8 +140,8 @@ fn run() -> Result<()> {
         ),
         "boot-test" => {
             let expect =
-                flag_value(&args, "--expect").ok_or("boot-test requires --expect <string>")?;
-            let timeout = match flag_value(&args, "--timeout") {
+                flag_value(&args, "--expect")?.ok_or("boot-test requires --expect <string>")?;
+            let timeout = match flag_value(&args, "--timeout")? {
                 Some(value) => Duration::from_secs(value.parse::<u64>()?),
                 None => Duration::from_secs(30),
             };
@@ -168,10 +181,17 @@ Options:
     );
 }
 
-/// Returns the value following `flag`, if present.
-fn flag_value(args: &[String], flag: &str) -> Option<String> {
-    let index = args.iter().position(|a| a == flag)?;
-    args.get(index + 1).cloned()
+/// Returns the value following `flag`: `Ok(None)` when the flag is absent, an
+/// error when it is present without a usable value. A value may not begin with
+/// `--`, so a forgotten value cannot silently swallow the next flag.
+fn flag_value(args: &[String], flag: &str) -> Result<Option<String>> {
+    let Some(index) = args.iter().position(|a| a == flag) else {
+        return Ok(None);
+    };
+    match args.get(index + 1) {
+        Some(value) if !value.starts_with("--") => Ok(Some(value.clone())),
+        _ => Err(format!("{flag} requires a value").into()),
+    }
 }
 
 /// The workspace root, derived from this crate's location rather than the
@@ -291,7 +311,14 @@ fn boot_test(
         "-no-reboot",
     ]);
     command.arg("-kernel").arg(&image);
-    command.stdout(Stdio::piped()).stderr(Stdio::piped());
+    // stdin is nulled so QEMU's stdio chardev never puts the invoking terminal
+    // into raw mode (the kill below would bypass its restoring atexit handler);
+    // stderr is inherited so QEMU's own diagnostics reach the terminal and a
+    // chatty emulator cannot block on an undrained pipe.
+    command
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::inherit());
 
     println!(
         "xtask: booting under {}, expecting {expect:?} within {}s",
@@ -323,6 +350,7 @@ fn boot_test(
     let deadline = Instant::now() + timeout;
     let mut transcript = Vec::new();
     let mut found = false;
+    let mut qemu_exited = false;
 
     while Instant::now() < deadline {
         match receiver.recv_timeout(Duration::from_millis(200)) {
@@ -336,13 +364,19 @@ fn boot_test(
                 }
             }
             Err(mpsc::RecvTimeoutError::Timeout) => {}
-            Err(mpsc::RecvTimeoutError::Disconnected) => break,
+            // The reader thread ends only when QEMU's stdout closes — the
+            // emulator itself died, which is a different failure from a silent
+            // kernel and must be reported as one.
+            Err(mpsc::RecvTimeoutError::Disconnected) => {
+                qemu_exited = true;
+                break;
+            }
         }
     }
 
     // Always reap QEMU: leaving an emulator running would wedge a CI runner.
     let _ = child.kill();
-    let _ = child.wait();
+    let status = child.wait();
 
     if found {
         println!("xtask: found {expect:?} — boot test passed");
@@ -350,6 +384,15 @@ fn boot_test(
     }
 
     if transcript.is_empty() {
+        if qemu_exited {
+            return Err(format!(
+                "QEMU exited before producing any console output ({}); this is \
+                 an emulator-side failure, not a kernel one — its stderr above \
+                 has the reason.",
+                status.map_or_else(|error| error.to_string(), |exit| exit.to_string())
+            )
+            .into());
+        }
         return Err(format!(
             "no console output at all within {}s. The kernel did not reach its \
              console: suspect the load address in the link script, the entry \
@@ -379,4 +422,57 @@ fn missing_qemu(arch: Arch, error: &std::io::Error) -> Box<dyn Error> {
         .into();
     }
     format!("failed to start {}: {error}", arch.qemu()).into()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn args(list: &[&str]) -> Vec<String> {
+        list.iter().map(|s| (*s).to_owned()).collect()
+    }
+
+    #[test]
+    fn arch_parse_accepts_every_documented_name() {
+        assert!(matches!(Arch::parse("aarch64"), Ok(Arch::Aarch64)));
+        assert!(matches!(Arch::parse("arm64"), Ok(Arch::Aarch64)));
+        assert!(matches!(Arch::parse("x86_64"), Ok(Arch::X86_64)));
+        assert!(matches!(Arch::parse("amd64"), Ok(Arch::X86_64)));
+    }
+
+    #[test]
+    fn arch_parse_rejects_unknown_names() {
+        assert!(Arch::parse("riscv64").is_err());
+        assert!(Arch::parse("").is_err());
+    }
+
+    #[test]
+    fn triples_are_the_soft_float_targets() {
+        assert_eq!(Arch::Aarch64.triple(), "aarch64-unknown-none-softfloat");
+        assert_eq!(Arch::X86_64.triple(), "x86_64-unknown-none");
+    }
+
+    #[test]
+    fn flag_value_returns_the_following_token() {
+        let given = args(&["build", "--arch", "aarch64"]);
+        assert!(matches!(flag_value(&given, "--arch"), Ok(Some(value)) if value == "aarch64"));
+    }
+
+    #[test]
+    fn flag_value_treats_an_absent_flag_as_none() {
+        let given = args(&["build"]);
+        assert!(matches!(flag_value(&given, "--arch"), Ok(None)));
+    }
+
+    #[test]
+    fn flag_value_rejects_a_dangling_flag() {
+        let given = args(&["build", "--arch"]);
+        assert!(flag_value(&given, "--arch").is_err());
+    }
+
+    #[test]
+    fn flag_value_never_takes_another_flag_as_a_value() {
+        let given = args(&["boot-test", "--expect", "--timeout", "30"]);
+        assert!(flag_value(&given, "--expect").is_err());
+    }
 }
