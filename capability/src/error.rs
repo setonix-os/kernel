@@ -22,7 +22,14 @@ pub enum CapabilityError {
     NotDuplicable,
     /// The table has no free slot to mint into.
     TableFull,
-    /// A slot's generation counter is exhausted; the slot is retired rather than
-    /// wrapped (the fail-closed boundary — see [`Generation`](crate::Generation)).
+    /// An object's generation counter is exhausted, so the object must be
+    /// retired: kept inert, its identity never reused, nothing minted to it
+    /// again (the fail-closed boundary — see the generation contract on
+    /// [`ObjectRef`](crate::ObjectRef)). Reserved vocabulary for the kernel's
+    /// object-destruction path: no *table* operation returns it. Slot-side
+    /// exhaustion is handled silently by retiring the slot —
+    /// [`remove`](crate::CapabilityTable::remove) still succeeds, resolve
+    /// reports [`StaleGeneration`](Self::StaleGeneration) and insert reports
+    /// [`TableFull`](Self::TableFull).
     GenerationExhausted,
 }

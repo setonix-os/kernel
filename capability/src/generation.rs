@@ -45,6 +45,17 @@ impl Generation {
 }
 
 #[cfg(test)]
+impl Generation {
+    /// The last representable generation — test-only, so the fail-closed
+    /// exhaustion boundary can be reached without 2^64 bumps. Kernel builds
+    /// never see this constructor; outside tests a generation is only ever
+    /// [`FIRST`](Self::FIRST) or the successor of an existing one.
+    pub(crate) const fn last() -> Self {
+        Self(u64::MAX)
+    }
+}
+
+#[cfg(test)]
 #[allow(clippy::panic, clippy::unwrap_used, clippy::expect_used)]
 mod tests {
     use super::Generation;
