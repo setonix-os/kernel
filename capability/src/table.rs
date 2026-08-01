@@ -429,6 +429,10 @@ mod tests {
                         table.resolve(forged).is_err(),
                         "forged handle {forged:?} must not resolve"
                     );
+                    assert!(
+                        table.remove(forged).is_err(),
+                        "forged handle {forged:?} must not remove"
+                    );
                 }
             }
             generation = generation.next().expect("small generations exist");
@@ -1137,11 +1141,12 @@ mod tests {
     fn churn_never_resolves_a_dead_handle() {
         // Property test against a shadow model: thousands of random inserts,
         // subset-random derivations, object destructions, removals and
-        // resolves, checking after every step that live handles resolve to
-        // the right object with the right rights, that handles to destroyed
-        // objects are inert but still removable (object-blind cleanup), that
-        // closed handles never resolve and never remove, and that occupancy
-        // agrees with the model. All three generation-checked behaviours —
+        // resolves, checking as each operation is drawn that live handles
+        // resolve to the right object with the right rights, that handles to
+        // destroyed objects are inert but still removable (object-blind
+        // cleanup), and that closed handles never resolve and never remove —
+        // and after every step that occupancy agrees with the model. All
+        // three generation-checked behaviours —
         // slot reuse (O-1), derivation (O-2) and destruction (O-3) — at
         // scale rather than as anecdotes.
         let mut churn = Churn::new();
