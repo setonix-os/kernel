@@ -127,6 +127,26 @@ recorded is indistinguishable from law that was never agreed.
 
 ### Changed
 
+- **Threat model amended (2026-08-01): seven obligations from the second prior-art review, and a
+  fast-forward clause on O-15.** The [virtualisation and containment review](research/0002-virtualisation-and-containment-prior-art.md)
+  surfaced gaps that no existing obligation covered; per §11's "new surface, new obligation" rule they
+  are appended with the next free numbers (never renumbered): **O-21** mediation auditability, **O-22**
+  broker compromise containment, **O-23** fail-closed mediation (the three broker obligations that
+  close O-10's neighbourhood — the only obligation the review's completeness critic found unfed);
+  **O-24** update closure integrity (mix-and-match and wrong-software) and **O-25** bounded update
+  transfer (endless-data); **O-26** bounded service per client (A5's userspace half, where O-7 is its
+  kernel half); and **O-27** explicit authority at spawn (the runc leaked-fd escape as a capability
+  obligation). O-15 gains a fast-forward clause. The §8 phase table binds each to its phase, and the
+  Built ratio is restated honestly as three of twenty-seven — the additions raised the denominator,
+  not the numerator.
+- **RFC-0004 amended (2026-08-01): the budget-donation temporal-denial protocol.** The second
+  prior-art review found that seL4 MCS — the scheduling-context-donation model §4/§8 borrow — ships
+  with a named hole: a donated budget expiring inside a passive server stalls it holding request
+  state, the temporal twin of §8's withheld-reply denial. A new Amendments section commits to the
+  two-part answer for the scheduler RFC to implement (a minimum-budget threshold checked at `call` on
+  the endpoint, per seL4 RFC-14, plus a defined recovery in which the reply object delivers a visible
+  timeout failure rather than a silent stall), naming the third scheduling hazard synchronous IPC must
+  handle.
 - **RFC-0004 accepted** (2026-08-01, by the maintainer). The IPC design — synchronous unbuffered
   rendezvous, endpoints as RFC-0003 capability objects, virtual-register fast path with a bounded
   copying slow path, move-only capability transfer, `call` with single-use reply objects, bounded

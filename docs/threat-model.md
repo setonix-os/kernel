@@ -196,8 +196,10 @@ and a mechanism that cannot name the obligation it discharges has not justified 
   signature is rejected however cryptographically valid. **Designed.**
 - **O-15 — Rollback and freeze resistance.** The update path rejects a correctly-signed *older*
   version, and surfaces staleness rather than presenting an un-updated app as current — the two moves
-  M3 uses to keep a known-vulnerable version installed while breaking nothing cryptographically.
-  **Designed.**
+  M3 uses to keep a known-vulnerable version installed while breaking nothing cryptographically. A
+  *fast-forward* attack — inflating an app's version counter so no legitimate future update can ever
+  exceed it, bricking the channel — is the same family and is recovered only by an author-key-signed
+  epoch reset. *(TUF's rollback, freeze and fast-forward attacks; research/0002.)* **Designed.**
 - **O-16 — Bounded key compromise.** Author-key revocation is a first-class operation, and a compromised
   author's blast radius is bounded to that author's own apps — never system-wide. This is the price and
   the point of pillar 3: removing the distro gatekeeper also removes it as a single compromise target,
@@ -223,6 +225,57 @@ and a mechanism that cannot name the obligation it discharges has not justified 
 - **O-20 — Signed project artefacts.** Every commit is GPG-signed and verified; the paper trail is
   author-signed from the root commit. **Built** for commits; release-artefact signing is **Designed**,
   landing with the first release.
+
+### Second-review additions (research/0002)
+
+The [virtualisation and containment prior-art review](research/0002-virtualisation-and-containment-prior-art.md)
+mined two decades of production failures in the fields nearest to Setonix's model. Seven obligations
+it surfaced are appended here with the next free numbers, per §11 — the numbers ascend even though
+these sit topically beside earlier obligations, because a number, once assigned, never moves. Each
+names the boundary it guards and the failure that earned it.
+
+- **O-21 — Mediation auditability (B2).** Every action the broker performs on an app's behalf is
+  attributable to the specific principal *and* the specific capability that authorised it, bound at
+  the kernel boundary where designation and authority are fused — not to a record the broker writes
+  about itself. "Acting as" is never indistinguishable from "being". The confused-deputy escalation
+  and the audit-blindness of CVE-2018-1002105 were the same bug: a mediator that re-originates a
+  request severs the trail back to the true principal. This is the auditability half of O-10.
+  *(Kubernetes impersonation's dual-attribution contract; CVE-2018-1002105; research/0002.)*
+  **Designed.**
+- **O-22 — Broker compromise containment (B2).** A compromised broker's blast radius is the authority
+  it transiently holds for in-flight mediations, never the system: the broker holds only capabilities
+  handed to it for pending requests and no standing ambient authority, and the broker RFC must *prove*
+  that bound rather than assume it. The single all-powerful mediating component is exactly where
+  decade-deep failures cluster. *(CNCF/Trail of Bits Kubernetes audit; the Xen dom0 record — Xoar;
+  research/0002.)* **Designed.**
+- **O-23 — Fail-closed mediation (B2, A5).** When the broker is unavailable, new grants are denied,
+  never defaulted open — fail-open on a permission broker is ambient authority by outage, which would
+  contradict O-4. This is bounded, not brittle: already-granted capabilities are kernel-held and do
+  not re-consult the broker per use, so a broker outage stalls *new* grants without revoking live
+  authority — the structural reason the broker is not on the hot path of every operation.
+  *(Kubernetes admission-webhook `failurePolicy`; research/0002.)* **Designed.**
+- **O-24 — Update closure integrity (A4, B4, B5).** An app installs as exactly the set of blobs named
+  by its author-signed closure root — never a combination of individually-valid blobs that never
+  coexisted as a release (mix-and-match), never a validly-signed artefact other than the one named
+  (wrong-software). Names bind to hashes only through signed metadata, never a mutable tag. *(TUF's
+  mix-and-match and wrong-software attacks; OCI ChainID; research/0002.)* **Designed.**
+- **O-25 — Bounded update transfer (A4, B4).** Every fetch on the update and install path carries an
+  expected length and content hash known *before* the bytes flow, so a malicious or faulty source
+  cannot exhaust the client with endless or arbitrarily slow data. This is O-7's discipline extended
+  to the update transport. *(TUF's endless-data and slow-retrieval attacks; research/0002.)*
+  **Designed.**
+- **O-26 — Bounded service per client (A5, B2).** Every userspace server that multiplexes a resource
+  among clients owes each client a bounded share: one client cannot starve another *through* a shared
+  driver or scheme server. Where O-7 is A5's kernel half, this is its userspace half — the enforcement
+  point is the multiplexing server, which alone sees per-client identity and per-request cost, with
+  the broker attaching the policy at grant time. *(Firecracker's per-device rate limiters;
+  research/0002.)* **Designed.**
+- **O-27 — Explicit authority at spawn (A1; a corollary of O-4).** A newly created process receives
+  exactly the capabilities its spawner explicitly transfers to it and nothing implicitly inherited;
+  there is no ambient descriptor table or handle namespace carried across process creation. An
+  inherited-by-default handle is ambient authority smuggled across the exec boundary — the whole of
+  the runc leaked-fd escape. *(runc CVE-2024-21626; Landlock's documented inability to restrict
+  pre-existing descriptors; research/0002.)* **Designed.**
 
 ## 7. Out of scope
 
@@ -263,13 +316,15 @@ hidden.
 
 | Phase | What lands | Obligations that become buildable, or bind |
 |-------|-----------|---------------------------------------------|
-| **Phase 1 — Iron** *(current)* | scheduler, IPC, capabilities, MMU | O-1..O-5, O-7, O-8, O-13 become implementable and must be discharged by the code that lands them; O-6, O-19, O-20 are already **Built** and must stay so |
-| **Phase 2 — Voice** | scheme registry, first userspace driver | O-9, O-10, O-11, O-17 bind; O-18 becomes relevant as soon as a driver can DMA |
-| **Phase 3 — App format** | signing, store, updater | O-12, O-14, O-15, O-16 bind; O-13's W^X becomes load-path-enforced |
+| **Phase 1 — Iron** *(current)* | scheduler, IPC, capabilities, MMU | O-1..O-5, O-7, O-8, O-13 become implementable and must be discharged by the code that lands them; O-27 binds as soon as processes can be spawned; O-6, O-19, O-20 are already **Built** and must stay so |
+| **Phase 2 — Voice** | scheme registry, first userspace driver | O-9, O-10, O-11, O-17 bind; O-26 binds with the first multiplexing server; O-18 becomes relevant as soon as a driver can DMA |
+| **Phase 3 — Soul** | broker, signing, store, updater | O-12, O-14, O-15, O-16 bind; O-21, O-22, O-23 bind with the broker; O-24, O-25 bind with the store and updater; O-13's W^X becomes load-path-enforced |
 
-Today, three of twenty obligations are Built. That ratio is the honest status of a Phase-1 kernel, and
-stating it is the point: this document is the specification the ratio is meant to climb against, not a
-description of a system that already holds the line.
+Today, three of twenty-seven obligations are Built. That ratio is the honest status of a Phase-1
+kernel, and stating it is the point: this document is the specification the ratio is meant to climb
+against, not a description of a system that already holds the line. The seven obligations the second
+prior-art review added (O-21..O-27) raised the denominator, not the numerator — new guarantees owed,
+each bound to a phase above, none yet built.
 
 ## 9. Residual risks accepted
 
