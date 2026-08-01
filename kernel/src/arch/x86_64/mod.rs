@@ -2,7 +2,7 @@
 
 //! x86_64 support — **placeholder**.
 //!
-//! The bring-up order in `CLAUDE.md` §6 is QEMU aarch64 `virt` first, then QEMU
+//! The bring-up order in `CONSTITUTION.md` §6 is QEMU aarch64 `virt` first, then QEMU
 //! x86_64 `q35`. This module exists so that the second Tier-1 target keeps
 //! compiling and keeps failing to compile when the hardware-abstraction boundary
 //! is violated, which is the whole reason for building both from day one. It
@@ -14,7 +14,8 @@
 //!   this needs a proper PE/COFF stub or a bootloader shim plus an ESP image.
 //! - A console. The 16550 UART at `0x3f8` is the counterpart of the PL011, and
 //!   is where the console will land; the UEFI GOP framebuffer comes later.
-//! - GDT, IDT and a stack, none of which AArch64 needs before its first print.
+//! - GDT and IDT, neither of which AArch64 needs before its first print, and a
+//!   stack, which on AArch64 `boot.s` installs before anything else.
 //!
 //! Designated `unsafe` module: privileged instructions.
 #![allow(unsafe_code)]
@@ -30,8 +31,8 @@
 /// against this hardware-abstraction implementation. An entry point that merely
 /// halted would leave every line above [`crate::arch`] as dead code on this
 /// target, and the second Tier-1 build would prove nothing at all — which is the
-/// opposite of why `CLAUDE.md` §6 insists both architectures are first-class from
-/// day one. The compiler caught exactly that mistake in the first draft.
+/// opposite of why `CONSTITUTION.md` §6 insists both architectures are first-class
+/// from day one. The compiler caught exactly that mistake in the first draft.
 ///
 /// # Safety
 ///

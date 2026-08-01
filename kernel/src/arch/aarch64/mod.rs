@@ -24,7 +24,8 @@ core::arch::global_asm!(include_str!("vectors.s"));
 ///
 /// Architecture-specific one-time setup belongs here, before the kernel proper
 /// is entered. At present there is none: the console needs no initialisation on
-/// QEMU's `virt`, because the firmware has already configured the PL011.
+/// QEMU's `virt`, because no firmware runs in the `-kernel` boot path and
+/// QEMU's PL011 model transmits without being configured.
 ///
 /// # Safety
 ///

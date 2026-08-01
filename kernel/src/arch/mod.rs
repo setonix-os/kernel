@@ -6,7 +6,7 @@
 //! is being built for. Nothing above it may name one, and no `cfg(target_arch)`
 //! belongs outside this tree — the whole point of both Tier-1 architectures
 //! being first-class from day one is that the boundary is forced honest by use
-//! rather than by intention (CLAUDE.md §6).
+//! rather than by intention (CONSTITUTION.md §6).
 //!
 //! The interface below is deliberately tiny. It grows one function at a time,
 //! each added only when a caller above genuinely needs it, because a

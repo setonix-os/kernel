@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 //! Build script: hands the linker the architecture's memory layout.
 //!
 //! The link script cannot be named in `.cargo/config.toml`, because a relative
