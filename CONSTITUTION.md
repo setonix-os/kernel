@@ -82,7 +82,9 @@ The kernel is hand-written and minimal. It provides mechanism, never policy.
   *(Fuchsia/Zircon)*
 - **Known graves to avoid:** multi-copy IPC (Mach), policy in the kernel
   (early microkernels), baroque capability hierarchies (KeyKOS), bolted-on
-  multicore support.
+  multicore support, drivers pulled into the kernel for the fast path
+  (vhost-net), compiled-in but unused device paths (VENOM), and the catch-all
+  right that decays into root (CAP_SYS_ADMIN).
 
 ## 4. The Borrow Ledger
 
@@ -282,9 +284,12 @@ replacing Linux, supporting every board on earth.
   IPC fast path, capability tables, MMU, UART console. Then the same kernel
   on QEMU x86_64 `q35`, proving the HAL boundary.
 - **Phase 2 — Voice.** Scheme registry, first userspace driver (virtio),
-  minimal runtime; port first Redox drivers.
-- **Phase 3 — Soul.** The pillars: broker, signed content-addressed app
-  format, updater. First real app runs confined.
+  minimal runtime; port first Redox drivers. Scheme mediation begins here — the
+  registry is the first broker-shaped component — so the confused-deputy and
+  scheme-escape obligations bind from this phase, ahead of the full broker.
+- **Phase 3 — Soul.** The pillars: the full broker (grant policy, prompt
+  surface, revocation), signed content-addressed app format, updater. First
+  real app runs confined.
 - **Phase 4 — Company.** Publish, write the show-don't-tell posts, open to
   contributors.
 

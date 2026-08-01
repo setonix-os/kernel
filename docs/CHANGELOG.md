@@ -127,6 +127,23 @@ recorded is indistinguishable from law that was never agreed.
 
 ### Changed
 
+- **Constitution §3 amended, on the maintainer's authorisation (2026-08-01): three graves added from
+  the second prior-art review.** The "known graves to avoid" list gains *drivers pulled into the
+  kernel for the fast path* (vhost-net's CVE-2019-14835 guest-to-host-kernel escape, the userspace-
+  driver doctrine argued by counterexample), *compiled-in but unused device paths* (VENOM,
+  CVE-2015-3456 — a floppy controller exploitable with no floppy configured; "absent beats disabled"),
+  and *the catch-all right that decays into root* (CAP_SYS_ADMIN — a standing review rule on `Rights`
+  growth). All three are documented production disasters the review mapped to Setonix decisions;
+  taking them as graves makes the doctrine list say so.
+- **Constitution §10 clarified, and the threat model's §8 reconciled with it (2026-08-01): where the
+  broker binds.** The roadmap's Phase 2 — Voice now states that scheme mediation begins there (the
+  scheme registry is the first broker-shaped component), and Phase 3 — Soul names the *full* broker
+  (grant policy, prompt surface, revocation). This removes a disagreement the second prior-art
+  review's follow-through exposed: the threat model's §8 binds O-10 (confused deputy) and O-11 (scheme
+  escape) in Phase 2, which is correct because mediation exists from the scheme registry — but §10 had
+  grouped the whole broker under Phase 3, so §8 appeared to contradict the roadmap it maps against.
+  Both documents now agree: *mediation* (the O-10 surface) starts in Phase 2; the *broker pillar* and
+  its own obligations O-21..O-23 land in Phase 3. §8 gains a paragraph stating the split explicitly.
 - **Threat model amended (2026-08-01): seven obligations from the second prior-art review, and a
   fast-forward clause on O-15.** The [virtualisation and containment review](research/0002-virtualisation-and-containment-prior-art.md)
   surfaced gaps that no existing obligation covered; per §11's "new surface, new obligation" rule they

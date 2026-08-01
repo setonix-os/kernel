@@ -320,6 +320,13 @@ hidden.
 | **Phase 2 — Voice** | scheme registry, first userspace driver | O-9, O-10, O-11, O-17 bind; O-26 binds with the first multiplexing server; O-18 becomes relevant as soon as a driver can DMA |
 | **Phase 3 — Soul** | broker, signing, store, updater | O-12, O-14, O-15, O-16 bind; O-21, O-22, O-23 bind with the broker; O-24, O-25 bind with the store and updater; O-13's W^X becomes load-path-enforced |
 
+The broker's obligations bind across two phases on purpose, and the constitution's §10 was clarified
+to match: O-10 and O-11 bind in **Phase 2** because the scheme registry that lands then is itself the
+first broker-shaped mediator, so the confused-deputy and scheme-escape disciplines apply the moment
+mediation exists — while the full-broker obligations O-21..O-23 bind in **Phase 3** with the broker
+pillar (grant policy, prompt surface, revocation). "Broker" is therefore a Phase-3 deliverable, but
+*mediation* — the surface O-10 guards — is not deferred to it.
+
 Today, three of twenty-seven obligations are Built. That ratio is the honest status of a Phase-1
 kernel, and stating it is the point: this document is the specification the ratio is meant to climb
 against, not a description of a system that already holds the line. The seven obligations the second
