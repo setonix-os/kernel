@@ -110,6 +110,19 @@ recorded is indistinguishable from law that was never agreed.
 
 ### Changed
 
+- **Constitution §3 amended, on the maintainer's authorisation (2026-08-01): the compile-time claim
+  is scoped.** The kernel-doctrine slogan "Rust's ownership and move semantics model capability
+  transfer at compile time" now reads "…model the kernel's own capability handling at compile time —
+  no accidental duplication or use-after-move; cross-process transfer is a runtime table operation
+  the generation scheme secures" — the reword the 2026-07-30 prior-art review recommended and flagged
+  below, taken exactly as flagged. The borrow checker sees one compilation unit: it genuinely forbids
+  a kernel-side capability being duplicated or used after a move (the no-`Clone` `Capability` in the
+  capability crate makes that a compiler-checked property), but what a *process* observes when
+  authority transfers is a runtime table operation, and the generation checks are what secure it —
+  which is why they exist at all. With this amendment the constitution agrees with RFC-0003's
+  amendment, the research note and the capability crate's own documentation; it had become the last
+  place in the repository making the unscoped claim. RFC-0003 §6 and the research note still quote
+  the old sentence, deliberately unedited — they are the historical record of what was reviewed.
 - **RFC-0004 revised** (prior-art review, 2026-07-30): its spine held, but four corrections were folded
   in. **§5 no longer maps pages during IPC** — that is L4's abandoned "long IPC", removed by every
   modern L4 and hostile to verification; bulk data now goes through a shared `Region` capability

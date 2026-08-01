@@ -70,7 +70,9 @@ The kernel is hand-written and minimal. It provides mechanism, never policy.
   taking the system down. *(Redox, QNX)*
 - **Capabilities are the only authority.** Unforgeable, kernel-validated,
   explicitly passed, and reducible in rights. Rust's ownership and move
-  semantics model capability transfer at compile time. *(seL4; Fuchsia's
+  semantics model the kernel's own capability handling at compile time — no
+  accidental duplication or use-after-move; cross-process transfer is a
+  runtime table operation the generation scheme secures. *(seL4; Fuchsia's
   downgradeable handle rights)*
 - **IPC is the product.** Register-based fast path for small messages, direct
   sender→receiver switch, zero-copy page transfer for large ones. *(L4)*
