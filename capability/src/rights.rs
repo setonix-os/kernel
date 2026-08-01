@@ -23,7 +23,8 @@ impl Rights {
     /// No rights: a capability that permits nothing, though it still names its
     /// object.
     pub const NONE: Self = Self(0);
-    /// May derive further capabilities from this one (see [`diminish`](Self::diminish)).
+    /// May derive further capabilities from this one (see
+    /// [`Capability::derive`](crate::Capability::derive)).
     pub const DUPLICATE: Self = Self(1 << 0);
     /// May transfer this capability to another process (in an IPC message).
     pub const TRANSFER: Self = Self(1 << 1);
@@ -63,7 +64,7 @@ impl Rights {
     ///
     /// This is a constructor convenience, not an operation on a held capability:
     /// the only way a *held* capability's rights change is [`diminish`](Self::diminish),
-    /// which cannot widen. Union is never applied to narrow an existing
+    /// which cannot widen. Union is never applied to widen an existing
     /// capability, so O-2 is not at risk from its existence.
     #[must_use]
     pub const fn union(self, other: Self) -> Self {

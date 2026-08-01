@@ -24,8 +24,9 @@ use core::fmt;
 /// ```compile_fail,E0277
 /// // A capability cannot be cloned — duplication is `derive`. The object
 /// // type implements `ObjectRef` so this guards the instantiation the
-/// // kernel will actually use: any `Clone` impl on `Capability`, however
-/// // bounded, would make this compile and the test fail.
+/// // kernel will actually use: any `Clone` impl on `Capability` bounded by
+/// // traits an object reference satisfies (`Clone`, `ObjectRef`) would make
+/// // this compile and the test fail.
 /// use setonix_capability::{Capability, Generation, ObjectRef};
 ///
 /// #[derive(Clone)]
