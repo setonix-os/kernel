@@ -70,11 +70,8 @@ cargo fmt --all --check # Check without modifying
 
 ### Linting
 
-`clippy` with warnings as errors, configured by `[workspace.lints]` in `Cargo.toml`. CI enforces it.
-
-```bash
-cargo clippy --all-targets --all-features -- -D warnings
-```
+`clippy` with warnings as errors, configured by `[workspace.lints]` in `Cargo.toml`. CI enforces it
+package by package — see `CONTRIBUTING.md` § Development Setup for the exact scoped invocations.
 
 ### Naming Conventions
 
@@ -136,7 +133,7 @@ jobs:
 
         steps:
             - name: Checkout
-              uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+              uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 ```
 
 ### List Item Indentation
@@ -165,7 +162,8 @@ Shell content inside `run: |` blocks uses **4-space indentation** for shell cons
 
 - Blank line between top-level keys (`on`, `env`, `jobs`)
 - Blank line between jobs
-- Comments on their own line, never inline
+- Comments on their own line, never inline — except the trailing `# vX.Y.Z` pin comment that
+  § Action Pinning requires
 
 ### Formatter
 
@@ -249,4 +247,4 @@ custodians spell them — see § Prose.
 
 ---
 
-*Last updated: 2026-07-30*
+*Last updated: 2026-08-01*

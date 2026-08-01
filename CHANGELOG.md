@@ -76,8 +76,10 @@ Release codenames follow the six Noongar seasons — Birak, Bunuru, Djeran, Maku
   rather than vectoring to address zero and dying mute. Every entry routes to a reporter that prints
   which vector fired, the exception class decoded into a sentence — EC 0x07 names `CPACR_EL1.FPEN`
   outright — and raw `ESR`/`ELR`/`FAR`/`SPSR`, then halts.
-    - The common stub forces `SPSel` back to SP_ELx first, so even the never-used SP_EL0 group lands
-      on a real stack instead of the uninitialised SP_EL0.
+    - The common stub re-asserts `SPSel` before touching memory. Exception entry already sets
+      `PSTATE.SP` to 1, so the handler always starts on SP_ELx whichever vector group it arrived
+      through — the `msr` is defence in depth, not the thing that keeps the never-used SP_EL0 group
+      off the uninitialised SP_EL0.
     - **Self-testing in CI**: a `provoke-exception` feature (never on by default) boots, greets, then
       executes `brk #0`; the boot job greps the console for the decoded "BRK instruction" report. The
       handler is proven on every pull request, not trusted.
@@ -160,6 +162,58 @@ Release codenames follow the six Noongar seasons — Birak, Bunuru, Djeran, Maku
   known graves.
 - Contributor documentation: `CONTRIBUTING.md`, `STYLE.md`, `SECURITY.md`, `CODE_OF_CONDUCT.md`, issue
   and pull-request templates.
+
+### Fixed
+
+- **A repository-wide bug hunt, and what it found.** Eight review passes over the source, the
+  tooling, the configuration and the documents, each finding independently verified before anything
+  was changed. Nothing found was a kernel logic defect — the capability crate and the boot path both
+  survived the sweep — but a great deal of the tree described itself inaccurately, which for a
+  project whose thesis is that documents and code must not diverge is the defect that matters.
+    - **`xtask` fails closed on malformed input and on QEMU's own failures.** `boot-test` piped
+      QEMU's stderr into a pipe nobody drained: every emulator-side diagnostic was discarded, and
+      enough of them would have blocked QEMU on a full buffer and surfaced as a bogus timeout blamed
+      on the kernel. stderr is now inherited, stdin is nulled so the stdio chardev can no longer
+      leave an interactive terminal in raw mode after the reap, and a QEMU that dies before the
+      first console line now says so instead of asserting a timeout that never elapsed. Argument
+      parsing no longer lets a flag swallow the next flag as its value, silently default when a
+      value is forgotten, or ignore an unrecognised token — `--arch=x86_64` used to build aarch64
+      without a word. Seven unit tests now cover the pure helpers, so CI's `cargo test --package
+      xtask` verifies something for the first time.
+    - **The forged-handle sweep now covers `remove` as well as `resolve`**, which is what this
+      changelog already claimed of it. Every forged (index, generation) pair in the space is denied
+      at both entry points, so a dangling handle can neither use nor steal a reused slot's occupant —
+      proven rather than asserted.
+    - **Comments that misdescribed the machine.** Two credited "QEMU's firmware" with configuring the
+      PL011, when no firmware runs in the `-kernel` boot path at all — the console works because
+      QEMU's device model transmits without initialisation, which is the load-bearing fact. The
+      `SPSel` write in `vectors.s` was described as what keeps an SP_EL0-group exception off the
+      uninitialised SP_EL0; per the architecture, exception entry already sets `PSTATE.SP`, the
+      vector group records the *interrupted* context's stack, and the instruction is defence in
+      depth. The x86_64 placeholder claimed AArch64 needs no stack before its first print,
+      contradicting `boot.s`, which installs one before anything else.
+    - **Configuration that could not do what it said.** The aarch64 debug configuration pointed at
+      the pre-soft-float target directory, silently attaching to stale symbols. `rust-toolchain.toml`
+      instructed bumping a `dtolnay/rust-toolchain` pin that no longer exists and that
+      `check-toolchain-pin.sh` fails the build over — following the comment would have broken CI.
+      That same script's hand-install detector was anchored to line starts and so could never match
+      the idiom it exists to catch. `.gitignore` ignored a GDB history file GDB never writes;
+      `.gitattributes`' `*.S` rule never matched this tree's lowercase `.s` assembly on the
+      case-sensitive filesystems it exists for; the devcontainer's history volume had no `HISTFILE`
+      pointing into it. The cache-cleanup workflow and script are deleted outright: no workflow here
+      uses `actions/cache`, and the script described another repository's cache groups — absent beats
+      disabled, which is now one of the constitution's own graves.
+    - **Documents that had drifted from the tree.** The clippy command in `CONTRIBUTING.md`, the pull-
+      request template and `STYLE.md` was unscoped, so it lint the kernel for the host triple and
+      never for either Tier-1 target — not what CI runs, and contradicting the same file's own rule
+      about always naming the package. The RFC-writing guidance and `/check-primitive` still listed
+      four graves after §3 grew to seven, so an audit run from either silently skipped three. The
+      toolchain was described as pinned in three places in four separate files. `README.md` still
+      advertised zero-copy page transfer as the IPC design for bulk data — the mechanism RFC-0004
+      pruned as L4's abandoned long IPC. The feature-request template called Setonix "a
+      credential-handling project", boilerplate from another repository. Twenty-nine comments across
+      fifteen files cited constitution sections as "CLAUDE.md §N", stale since the rename.
+    - `build.rs` and the two CI scripts gained the SPDX headers every other file in the tree carries.
 
 ### Changed
 

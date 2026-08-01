@@ -45,7 +45,8 @@ an RFC.
 
 Constitution §4. Check that every subsystem the documents discuss appears in the ledger with a verdict
 and an author, and that no verdict has been silently outgrown by what the design now needs. The
-filesystem row is the known live case: flag it if it is still unsettled.
+filesystem row was the known live case until RFC-0001 settled it; confirm no other row has quietly
+become one.
 
 ## 6. Single source of truth
 

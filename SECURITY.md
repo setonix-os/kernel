@@ -69,7 +69,8 @@ A driver crash that is *contained* is working as designed, not a vulnerability.
 - Every `unsafe` block states the invariant that makes it sound
 - Capabilities are unforgeable, kernel-validated and reducible in rights — never widenable
 - CI pins every GitHub Action to a commit SHA; a mutable tag is treated as a supply-chain hole
-- The Rust toolchain is pinned in three places and CI refuses to build if they disagree
+- The Rust toolchain is pinned in two places and CI refuses to build if they disagree — or if any
+  workflow reintroduces a toolchain of its own
 
 ## Disclosure
 

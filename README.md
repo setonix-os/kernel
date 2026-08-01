@@ -27,8 +27,9 @@ faith pending confirmation with Noongar language custodians.
 
 Capabilities are the only authority: unforgeable, kernel-validated, explicitly
 passed, and reducible in rights. IPC is the product — a register-based fast path
-for small messages with a direct sender-to-receiver switch, and zero-copy page
-transfer for large ones. Drivers live in userspace, so a crashing driver
+for small messages with a direct sender-to-receiver switch, and bulk data moving
+through shared-memory regions established out of band, never through the message
+itself (RFC-0004). Drivers live in userspace, so a crashing driver
 restarts without taking the system down. The kernel is minimal by construction,
 because everything above it is reached through broker-mediated schemes rather
 than ambient authority.

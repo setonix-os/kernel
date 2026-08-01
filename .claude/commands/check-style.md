@@ -8,7 +8,12 @@ Run these first and report their output rather than re-deriving it by eye:
 
 ```bash
 cargo fmt --all --check
-cargo clippy --all-targets --all-features -- -D warnings
+cargo clippy --package setonix-kernel --all-features --target aarch64-unknown-none-softfloat -- -D warnings
+cargo clippy --package setonix-kernel --all-features --target x86_64-unknown-none -- -D warnings
+cargo clippy --package setonix-capability --target aarch64-unknown-none-softfloat -- -D warnings
+cargo clippy --package setonix-capability --target x86_64-unknown-none -- -D warnings
+cargo clippy --package setonix-capability --all-targets --all-features -- -D warnings
+cargo clippy --package xtask --all-targets --all-features -- -D warnings
 markdownlint-cli2 "**/*.md"
 bash .github/scripts/check-toolchain-pin.sh
 bash .github/scripts/check-british-spelling.sh
@@ -31,7 +36,7 @@ Your job is the part no tool checks.
 - 4-space structure indentation
 - 2-space continuation from list items
 - Blank lines between top-level keys and between jobs
-- Comments on their own line, never inline
+- Comments on their own line, never inline (the trailing `# vX.Y.Z` pin comment is the one exception)
 - Every `uses:` is pinned to a full commit SHA with a `# vX.Y.Z` comment — a bare tag is a finding
 
 ## JSON, JSONC, TOML
@@ -49,7 +54,7 @@ Your job is the part no tool checks.
 - **Single source of truth**: flag any fact stated in two places. Name which one should be canonical
   and which should become a cross-reference. This is the rule most often broken and the most
   expensive to leave, because the copies diverge silently.
-- British spelling in documentation and comments (CLAUDE.md §11.6)
+- British spelling in documentation and comments (CONSTITUTION.md §11.6)
 
 ## Output
 
