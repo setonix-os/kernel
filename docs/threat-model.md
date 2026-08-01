@@ -153,7 +153,7 @@ and a mechanism that cannot name the obligation it discharges has not justified 
   capability index; every syscall and IPC argument is validated against the caller's authority before
   use. **Designed** (there is no syscall surface yet).
 - **O-6 — Kernel memory safety.** No spatial or temporal memory-safety violation in the kernel. `unsafe`
-  is confined to modules the constitution designates (`arch/**`, `mm/**`), each block carrying a
+  is confined to the modules `CLAUDE.md` designates (`arch/**`, `mm/**`), each block carrying a
   soundness argument, enforced by `unsafe_code = "deny"` at the workspace level and greppable in one
   command. **Built** — this is real today: the lint policy compiles the rule, and the `unsafe`
   register is reviewed per pull request.
@@ -214,7 +214,7 @@ and a mechanism that cannot name the obligation it discharges has not justified 
   driver's capabilities cover. Without a programmed IOMMU this obligation *cannot* hold — a
   bus-mastering device bypasses the capability system entirely — and the model records that as a
   hardware precondition, not a defect to be fixed in software. **Designed** on IOMMU-equipped hardware;
-  **Deferred** where no IOMMU is present (see §7).
+  **Deferred** where no IOMMU is present (see §9).
 
 ### Supply chain and provenance (cross-cutting)
 
@@ -371,7 +371,7 @@ The obligations are the contract between this model and the code:
   at B1" is a checkable claim; "it is secure" is not.
 - **New surface, new obligation.** A subsystem that opens an attack surface this model does not cover
   adds an obligation, appended with the next free number. Obligations are never renumbered or deleted;
-  a superseded one is marked, for the same reason a rejected RFC is kept (RFC-0002's practice).
+  a superseded one is marked, for the same reason a rejected RFC is kept (CONTRIBUTING.md's RFC rule).
 - **A flaw in this model is a security report,** not a pull request — see [SECURITY.md](../SECURITY.md).
   A design flaw found on paper is the cheapest kind to fix, which is the whole argument for writing this
   before the code.
