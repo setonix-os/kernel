@@ -8,7 +8,7 @@
 | Author | Drafted by Claude Code as sparring partner; verdict the maintainer's |
 | Date | 2026-07-30 |
 | Affects | Constitution §3 (kernel doctrine), pillar 2; the syscall ABI; every later subsystem |
-| Discharges | Threat-model obligations O-1 (unforgeability), O-2 (non-widenability), O-3 (revocability), O-4 (no ambient authority) |
+| Discharges | Threat-model obligations O-1 (unforgeability), O-2 (non-widenability), O-3 (revocability — destruction case only; selective revocation deferred to RFC-0003a), O-4 (no ambient authority) |
 
 > **Accepted.** The flat per-process handle table (§4, Option B) is the capability representation;
 > derivation is subset-only; transfer is a move; the syscall ABI is capability-indexed from its first
@@ -318,3 +318,14 @@ These are not blocking. They are the shape of the design conversation this RFC o
     - Recorded as an amendment rather than a silent edit; the substance moves into RFC-0003a. **A
       related correction to Constitution §3 (the "Rust's ownership models capability transfer at compile
       time" slogan) is flagged for the maintainer — constitution text is theirs to amend.**
+
+- **2026-08-05 — §6's derivation-record wording scoped by the implementation, on the maintainer's
+  authorisation.** §6 says `derive` "records the parent" and that duplication is an operation "which
+  the kernel records"; the built table records nothing — derivation mints a flat sibling with no
+  parent link, and a test (`a_removed_parent_leaves_its_derived_sibling_untouched`) pins that absence
+  so RFC-0003a cannot regress it silently. Whether any derivation record exists at all is exactly the
+  B1/B2/B3 decision §7 defers to RFC-0003a. Read §6 as constraining duplication to an explicit,
+  rights-checked kernel operation — not as promising a derivation record before RFC-0003a decides
+  one. The header's Discharges field is qualified in the same pass ("destruction case only"), which
+  is what §13 and the 2026-07-30 amendment already said of O-3; the header had been the last place
+  claiming it unqualified.
