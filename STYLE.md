@@ -247,4 +247,4 @@ custodians spell them — see § Prose.
 
 ---
 
-*Last updated: 2026-08-01*
+*Last updated: 2026-08-05*

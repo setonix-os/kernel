@@ -127,7 +127,7 @@ recorded is indistinguishable from law that was never agreed.
 
 ### Changed
 
-- **Four broken cross-references corrected in the accepted documents (2026-08-01), found by a
+- **Four broken cross-references corrected in the accepted documents (2026-08-05), found by a
   repository-wide bug hunt.** All four are mechanical: a citation pointing at the wrong section or
   the wrong document, with no change to what any document decides. Recorded here rather than edited
   silently, because an accepted document's body is a record.
