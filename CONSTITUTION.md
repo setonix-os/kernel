@@ -75,7 +75,9 @@ The kernel is hand-written and minimal. It provides mechanism, never policy.
   runtime table operation the generation scheme secures. *(seL4; Fuchsia's
   downgradeable handle rights)*
 - **IPC is the product.** Register-based fast path for small messages, direct
-  sender→receiver switch, zero-copy page transfer for large ones. *(L4)*
+  sender→receiver switch; bulk data moves zero-copy through shared-memory
+  regions established out of band, IPC carrying only small descriptors. *(L4,
+  as corrected by RFC-0004)*
 - **Everything is a message**, with priority inheritance to prevent priority
   inversion. *(QNX)*
 - **Typed, bidirectional channels** as the userspace-facing IPC abstraction.
@@ -185,8 +187,8 @@ replacing Linux, supporting every board on earth.
 - **Repository location:** clone into a container volume (or the WSL-side
   filesystem), never bind-mount from `/mnt/c` — the Windows-filesystem bridge
   is many times slower and is felt on every kernel rebuild.
-- **Toolchain (pinned in the Dockerfile):** rustup with `aarch64-unknown-none`
-  and `x86_64-unknown-none` targets; `qemu-system-aarch64` /
+- **Toolchain (pinned in the Dockerfile):** rustup with
+  `aarch64-unknown-none-softfloat` and `x86_64-unknown-none` targets; `qemu-system-aarch64` /
   `qemu-system-x86_64`; `gdb-multiarch` against QEMU's gdb stub over TCP;
   OVMF/AAVMF UEFI firmware; `mtools` for building boot images without root.
 - **Emulation:** plain TCG is adequate for a microkernel and needs no

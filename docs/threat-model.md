@@ -124,7 +124,8 @@ The §9 seed's four, plus two the design has since made explicit.
 
 The obligations the design must discharge, numbered for citation. Each carries a status:
 
-- **Built** — the mechanism exists in the tree today and is exercised by CI.
+- **Built** — the mechanism exists in the tree today, is exercised by CI, and is enforced at the
+  boundary it guards.
 - **Designed** — the design commits to it; the mechanism is not yet implemented. Most obligations are
   here, because the kernel currently boots, greets and reports faults, and little else.
 - **Deferred** — acknowledged and deliberately not met in the initial target, with a stated reason
@@ -137,10 +138,12 @@ and a mechanism that cannot name the obligation it discharges has not justified 
 
 - **O-1 — Unforgeability.** Userspace cannot fabricate a capability referring to an object it was not
   granted; capabilities are kernel-held tokens, never bare integers userspace can guess or construct.
-  *(seL4.)* **Designed.**
+  *(seL4.)* **Designed** — the mechanism (handles as indices, kernel-held capabilities, generation
+  checks) is host-proven in the capability crate; it binds at B1 when the syscall surface lands.
 - **O-2 — Non-widenability.** No operation increases the rights carried by a held capability;
   derivation only narrows. A held read capability can never become a read-write one. *(seL4; Fuchsia's
-  downgradeable handle rights.)* **Designed.**
+  downgradeable handle rights.)* **Designed** — subset-only derivation is host-proven in the
+  capability crate; it binds at B1 with the syscall surface.
 - **O-3 — Revocability.** Authority once granted can be withdrawn, and revocation reaches capabilities
   transitively derived from the revoked one. *(KeyKOS/EROS.)* **Designed.**
 - **O-4 — No ambient authority.** Every resource access names a capability; there is no path to any

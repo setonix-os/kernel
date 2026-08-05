@@ -127,6 +127,39 @@ recorded is indistinguishable from law that was never agreed.
 
 ### Changed
 
+- **Constitution §3 and §7 amended, on the maintainer's authorisation (2026-08-05): the IPC
+  doctrine's bulk-data clause, and the pinned AArch64 triple.** §3's "zero-copy page transfer for
+  large ones" had become the last doctrinal statement of the mechanism accepted RFC-0004 pruned as
+  L4's abandoned long IPC; it now reads "bulk data moves zero-copy through shared-memory regions
+  established out of band, IPC carrying only small descriptors", the lineage note crediting the
+  correction to RFC-0004. §7 named the pre-soft-float `aarch64-unknown-none` — the triple the code
+  changelog records as fatal (FP/SIMD emitted with `CPACR_EL1.FPEN` = 0, dead before the first
+  character reached the UART); it now names `aarch64-unknown-none-softfloat`, matching
+  `rust-toolchain.toml`, the Dockerfile and the pin check. Both surfaced by the 2026-08-05 bug hunt.
+- **RFC-0004's acceptance note and §5 corrected, with this changelog's transcription (2026-08-05, the
+  maintainer's).** The acceptance note said "the slow-path copy-vs-map verdict joins the MMU RFC",
+  but the revised body it accepted had already settled copy-vs-map by pruning map — the question that
+  joins the MMU RFC is shared-memory establishment, and the note (and this file's acceptance entry,
+  which transcribed it faithfully) now says so. §5 attributed the "~100 cycle" figure to constitution
+  §3, which has never contained a cycle figure; it was the earlier C++ blueprint's, as the RFC's
+  original draft correctly recorded.
+- **RFC-0003 amended (2026-08-05): §6's derivation-record wording scoped, and the header's O-3
+  qualified.** §6 asserted that `derive` "records the parent"; the built table records nothing — a
+  test pins the absence of a parent link — and whether any derivation record exists is exactly the
+  decision §7 defers to RFC-0003a. A dated amendment scopes §6 to what is actually promised:
+  duplication only through an explicit, rights-checked kernel operation. The header's Discharges
+  field now says of O-3 what §13 and the earlier amendment already did: destruction case only,
+  selective revocation deferred to RFC-0003a.
+- **RFC-0001 amended (2026-08-05): the graves check re-run against the grown list.** Its "None of the
+  four apply directly" predates §3's growth to seven; a dated amendment records that the three
+  additions do not apply to a userspace store either — and that the section's own recorded risk, the
+  store acquiring kernel support "for speed", is precisely the first of the new graves.
+- **Threat model §6 amended (2026-08-05): the Built definition gains its missing clause.** "Built"
+  now requires the mechanism be enforced at the boundary it guards, not merely exist in the tree and
+  be exercised by CI — closing a reading under which O-1 and O-2 would already qualify through the
+  host-proven capability crate while nothing yet enforces either at B1. O-1 and O-2 gain notes
+  recording exactly that state: mechanism host-proven, binding at B1 when the syscall surface lands.
+  The Built ratio remains three of twenty-seven, now unambiguously.
 - **Four broken cross-references corrected in the accepted documents (2026-08-05), found by a
   repository-wide bug hunt.** All four are mechanical: a citation pointing at the wrong section or
   the wrong document, with no change to what any document decides. Recorded here rather than edited
@@ -184,8 +217,8 @@ recorded is indistinguishable from law that was never agreed.
   rendezvous, endpoints as RFC-0003 capability objects, virtual-register fast path with a bounded
   copying slow path, move-only capability transfer, `call` with single-use reply objects, bounded
   notifications — is accepted in the form the 2026-07-30 prior-art review revised it to. The §9 open
-  questions remain expressly open and join their named RFCs (copy-vs-map → MMU, multi-core rendezvous
-  → scheduler, register budget → syscall ABI). With both halves of the core mechanism now accepted on
+  questions remain expressly open and join their named RFCs (shared-memory establishment → MMU,
+  multi-core rendezvous → scheduler, register budget → syscall ABI). With both halves of the core mechanism now accepted on
   paper — RFC-0003 already built and host-proven — the next design work is the initial kernel object
   set and bootstrap (RFC-0003 §14.4), after which endpoints become the capability table's first real
   consumer.

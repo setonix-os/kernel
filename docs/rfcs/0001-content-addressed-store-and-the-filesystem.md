@@ -165,3 +165,11 @@ These are not blocking. They are the next three RFCs.
 
   Recorded rather than quietly rewritten, for the reason given in RFC-0002's amendment: an accepted RFC
   is the record of a decision, and a decision log that edits itself is not one.
+
+- **2026-08-05 — the graves list this RFC was checked against has since grown.** "None of the four
+  apply directly" was true at acceptance; the constitution's §3 now names seven graves, the three
+  additions taken on 2026-08-01 (drivers pulled into the kernel for the fast path, compiled-in but
+  unused device paths, the catch-all right that decays into root). None of the three applies to a
+  userspace store either — and the risk the section already records, the store acquiring kernel
+  support "for speed", is precisely the first of the new graves, so the addition strengthens the
+  check rather than reopening it.
