@@ -165,6 +165,13 @@ Release codenames follow the six Noongar seasons — Birak, Bunuru, Djeran, Maku
 
 ### Fixed
 
+- **xtask validates its workspace root at the source.** CodeQL's one open alert flagged the image
+  path as depending on a user-provided value (`CARGO_MANIFEST_DIR`). There is no privilege boundary
+  in xtask for a hostile value to cross — cargo sets the variable, and the tool runs with the
+  invoker's own authority — but the honest response was to make the validation real rather than
+  argue: the root is now canonicalised and checked to hold the workspace manifest, so a mangled
+  environment is reported at the source instead of surfacing downstream, and the image path's
+  containment under the root is asserted rather than assumed. One new test pins the behaviour.
 - **A repository-wide bug hunt, and what it found.** Eight review passes over the source, the
   tooling, the configuration and the documents, each finding independently verified before anything
   was changed. Nothing found was a kernel logic defect — the capability crate and the boot path both
