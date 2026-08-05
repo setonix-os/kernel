@@ -196,12 +196,28 @@ fn flag_value(args: &[String], flag: &str) -> Result<Option<String>> {
 
 /// The workspace root, derived from this crate's location rather than the
 /// current directory, so that `cargo xtask` behaves the same from anywhere.
+///
+/// The result is canonicalised and checked to hold the workspace manifest, so
+/// a mangled `CARGO_MANIFEST_DIR` is reported here, at the source, rather than
+/// surfacing as a confusing failure downstream. Trust model, for the avoidance
+/// of doubt: cargo itself sets the variable, and xtask runs with the invoker's
+/// own authority — there is no privilege boundary here for a hostile value to
+/// cross. The checks are fail-closed hygiene, not a security control.
 fn workspace_root() -> Result<PathBuf> {
     let manifest = env::var("CARGO_MANIFEST_DIR")?;
-    Path::new(&manifest)
+    let root = Path::new(&manifest)
         .parent()
-        .map(Path::to_path_buf)
-        .ok_or_else(|| "cannot locate workspace root from xtask manifest".into())
+        .ok_or("cannot locate workspace root from xtask manifest")?
+        .canonicalize()
+        .map_err(|error| format!("cannot canonicalise the workspace root: {error}"))?;
+    if !root.join("Cargo.toml").is_file() {
+        return Err(format!(
+            "{} does not hold the workspace manifest — is CARGO_MANIFEST_DIR mangled?",
+            root.display()
+        )
+        .into());
+    }
+    Ok(root)
 }
 
 /// The cargo binary that invoked us, so the pinned toolchain is preserved.
@@ -240,6 +256,13 @@ fn build(arch: Arch, release: bool, features: Option<&str>) -> Result<PathBuf> {
         .join(arch.triple())
         .join(profile)
         .join("setonix-kernel");
+
+    // Every component under `root` is a fixed string, so this cannot fire; it
+    // is the containment the construction promises, asserted rather than
+    // assumed.
+    if !image.starts_with(&root) {
+        return Err("computed image path escapes the workspace root".into());
+    }
 
     if !image.exists() {
         return Err(format!("expected image at {} but it is missing", image.display()).into());
@@ -474,5 +497,18 @@ mod tests {
     fn flag_value_never_takes_another_flag_as_a_value() {
         let given = args(&["boot-test", "--expect", "--timeout", "30"]);
         assert!(flag_value(&given, "--expect").is_err());
+    }
+
+    #[test]
+    fn workspace_root_is_canonical_and_holds_the_manifest() {
+        // Under `cargo test`, CARGO_MANIFEST_DIR is the xtask crate directory,
+        // so the real workspace root must resolve and carry Cargo.toml.
+        let root = workspace_root().expect("the workspace root must resolve");
+        assert!(root.join("Cargo.toml").is_file());
+        assert_eq!(
+            root.canonicalize().expect("an existing root canonicalises"),
+            root,
+            "workspace_root must return the canonical form"
+        );
     }
 }
