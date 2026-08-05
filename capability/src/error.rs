@@ -12,8 +12,12 @@ pub enum CapabilityError {
     OutOfBounds,
     /// The slot the handle names is empty.
     Empty,
-    /// The slot's generation no longer matches the handle's: the capability it
-    /// named has been closed, or the slot reused — a stale handle (RFC-0003 O-1).
+    /// The handle or capability is stale: the slot is occupied at a different
+    /// generation than the handle's, or is retired (a reused or dead handle,
+    /// RFC-0003 O-1) — or the capability's minted generation no longer matches
+    /// its object's, because the object was destroyed (the destruction half of
+    /// O-3). A closed handle whose slot is still empty reports
+    /// [`Empty`](Self::Empty) instead: the state check answers first.
     StaleGeneration,
     /// The requested rights are not a subset of the source capability's: a
     /// widening was attempted, which the type refuses (RFC-0003 O-2).

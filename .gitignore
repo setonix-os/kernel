@@ -14,7 +14,7 @@
 
 # Debug and profiling
 *.log
-/gdb-history
+.gdb_history
 perf.data*
 
 # Rendered documentation. RFC-0002 commits to publishing docs/ in place with

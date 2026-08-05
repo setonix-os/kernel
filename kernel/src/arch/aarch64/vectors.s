@@ -21,10 +21,10 @@
 //
 // Lower-EL entries are unreachable until userspace exists, and the SP_EL0
 // group is unreachable while the kernel stays on SP_ELx — but the architecture
-// requires the slots, and wiring them to the reporter costs nothing. The
-// common stub forces SPSel back to SP_ELx before touching memory, so even a
-// freak SP_EL0 entry lands on the boot stack rather than on SP_EL0, which is
-// never initialised.
+// requires the slots, and wiring them to the reporter costs nothing. Exception
+// entry sets PSTATE.SP to 1, so the handler always starts on SP_ELx whichever
+// group it arrived through; the common stub re-asserts SPSel before touching
+// memory as defence in depth.
 //
 // Register discipline in the stub: x0 carries the vector index from the entry;
 // x1-x4 receive the four syndrome registers; nothing is preserved, because
@@ -95,8 +95,9 @@ __vectors:
     b       .Lvector_common
 
 .Lvector_common:
-    // Force SP_ELx selection so the Rust handler runs on the boot stack even
-    // if the exception arrived through the SP_EL0 group.
+    // Re-assert SP_ELx selection. Exception entry already sets PSTATE.SP to 1
+    // — the SP_EL0 group records the interrupted code's stack, not the
+    // handler's — so this is defence in depth, not a required step.
     msr     spsel, #1
 
     // The four syndrome registers, in argument order for aarch64_exception:

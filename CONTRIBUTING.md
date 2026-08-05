@@ -12,6 +12,7 @@ Thank you for your interest in Setonix. Please read this before opening a pull r
 - [Commit Messages](#commit-messages)
 - [Testing](#testing)
 - [Documentation](#documentation)
+- [Questions?](#questions)
 
 ---
 
@@ -70,7 +71,7 @@ whether it belongs at all.
 #### PR Requirements
 
 - [ ] Builds for both Tier-1 targets (`aarch64-unknown-none-softfloat`, `x86_64-unknown-none`)
-- [ ] Clippy passes (`cargo clippy --all-targets --all-features -- -D warnings`)
+- [ ] Clippy passes for every package, exactly as CI runs it (see [Development Setup](#development-setup))
 - [ ] Formatted (`cargo fmt --all --check`)
 - [ ] Toolchain pins agree (`bash .github/scripts/check-toolchain-pin.sh`)
 - [ ] British spelling (`bash .github/scripts/check-british-spelling.sh`)
@@ -97,7 +98,9 @@ this order:
 4. **The lineage.** Which prior system solved this, and what it got wrong. The constitution's ledger
    names lineage for every borrowed idea; keep the habit.
 5. **The graves.** Whether the design walks into one of the failures §3 names — multi-copy IPC, policy
-   in the kernel, baroque capability hierarchies, bolted-on multicore.
+   in the kernel, baroque capability hierarchies, bolted-on multicore, drivers pulled into the kernel
+   for the fast path, compiled-in but unused device paths, and the catch-all right that decays into
+   root.
 6. **What it costs.** What becomes harder, not just what becomes possible.
 
 Number RFCs sequentially. Do not renumber or delete a rejected one: a rejected RFC is a permanent
@@ -152,15 +155,18 @@ cargo xtask boot-test --arch aarch64 --expect "Kaya!"
 cargo fmt --all
 ```
 
-When invoking cargo directly, **always name the package**. The workspace holds two
-crates with incompatible targets — `setonix-kernel` only ever cross-compiles,
-`xtask` only ever builds for the host — so an unscoped `--target` tries to build
-the host tool for bare metal and fails for a reason unrelated to your change:
+When invoking cargo directly, **always name the package**. The workspace's crates
+have incompatible targets — `setonix-kernel` only ever cross-compiles, `xtask`
+only ever builds for the host, and `setonix-capability` builds for both — so an
+unscoped `--target` tries to build the host tool for bare metal and fails for a
+reason unrelated to your change:
 
 ```bash
 cargo clippy --package setonix-kernel --target aarch64-unknown-none-softfloat -- -D warnings
 cargo clippy --package setonix-kernel --target x86_64-unknown-none  -- -D warnings
+cargo clippy --package setonix-capability --all-targets --all-features -- -D warnings
 cargo clippy --package xtask --all-targets -- -D warnings
+cargo test   --package setonix-capability
 cargo test   --package xtask
 ```
 
@@ -239,7 +245,7 @@ feat(ipc): add register-based fast path for messages under 32 bytes
 
 fix(mmu): invalidate TLB after unmapping a range
 
-chore(toolchain): bump Rust to 1.95.0 in all three pinned locations
+chore(toolchain): bump Rust to 1.95.0 in both pinned locations
 ```
 
 ### Rules
@@ -274,7 +280,7 @@ A kernel cannot run a normal test harness on its target, so tests are split by w
 |------|-------|---------|
 | Unit tests of architecture-independent logic | `#[cfg(test)]` beside the code | Host |
 | Integration tests | `tests/` | Host |
-| Boot and hardware behaviour | `cargo xtask boot-test` | QEMU, both architectures |
+| Boot and hardware behaviour | `cargo xtask boot-test` | QEMU (aarch64 today; x86_64 once its UEFI boot path lands) |
 
 The boot smoke test is the one that matters most and the cheapest to keep honest: the kernel must
 reach its console and print its greeting. If that breaks, nothing above it can be trusted.

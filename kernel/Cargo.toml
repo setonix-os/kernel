@@ -21,7 +21,8 @@ bench = false
 [features]
 # Boot, greet, then take a deliberate BRK — so the boot self-test can prove the
 # exception vector table and reporter work end to end. Never on by default;
-# enabled by `cargo xtask boot-test --features provoke-exception`.
+# enabled by `cargo xtask boot-test --features provoke-exception
+# --expect "BRK instruction"`.
 provoke-exception = []
 
 [lints]

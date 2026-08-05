@@ -1,10 +1,11 @@
 # Pinned toolchain — the single source of truth for the Rust version.
 #
-# Three places name this version and CI refuses to build if they disagree:
-# this file, `.devcontainer/Dockerfile`'s ARG RUST_VERSION, and the
-# `dtolnay/rust-toolchain` pin in `.github/workflows/`. Bump all three together
-# in one deliberate commit, then run `.github/scripts/check-toolchain-pin.sh`.
-# (CLAUDE.md §7: pinned, never drifting.)
+# Two places name this version and CI refuses to build if they disagree:
+# this file and `.devcontainer/Dockerfile`'s ARG RUST_VERSION. Bump both
+# together in one deliberate commit, then run
+# `.github/scripts/check-toolchain-pin.sh` — which also fails if any workflow
+# reintroduces a toolchain of its own. (CONSTITUTION.md §7: pinned, never
+# drifting.)
 
 [toolchain]
 channel = "1.97.1"

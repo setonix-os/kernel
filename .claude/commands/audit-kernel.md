@@ -67,4 +67,4 @@ For each issue found, report:
 
 Summarise with a count of issues by severity at the end. Report `unsafe`-outside-designated-modules
 findings first regardless of their other severity, and list every new `unsafe` block you saw — that
-list is required by CLAUDE.md §11.3 whether or not anything was wrong with it.
+list is required by CONSTITUTION.md §11.3 whether or not anything was wrong with it.

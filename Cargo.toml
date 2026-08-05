@@ -25,7 +25,7 @@ authors = ["MatejGomboc"]
 # ---------------------------------------------------------------------------
 
 [workspace.lints.rust]
-# CLAUDE.md §11.3 restricts `unsafe` to explicitly designated modules.
+# CONSTITUTION.md §11.3 restricts `unsafe` to explicitly designated modules.
 #
 # `deny` rather than `forbid` is the whole point: `forbid` cannot be lifted
 # anywhere, which would make a kernel impossible, whereas `deny` means a
@@ -43,7 +43,7 @@ authors = ["MatejGomboc"]
 unsafe_code = "deny"
 
 # A kernel is read far more often than it is written, and by a maintainer who
-# must be able to explain every line (CLAUDE.md §5.2).
+# must be able to explain every line (CONSTITUTION.md §5.2).
 missing_docs = "warn"
 missing_debug_implementations = "warn"
 unreachable_pub = "warn"

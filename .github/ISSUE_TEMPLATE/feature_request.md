@@ -18,13 +18,13 @@ A clear and concise description of what you want to happen.
 
 ## Security Considerations
 
-Since this is a credential-handling project, please consider:
+Since this is a capability-based microkernel, please consider:
 
-- [ ] Does this feature handle any sensitive data?
-- [ ] Could this feature potentially expose credentials?
-- [ ] Are there any security implications to consider?
+- [ ] Does this feature widen any process's ambient authority?
+- [ ] Could it bypass or weaken capability checks?
+- [ ] Which threat-model obligations (docs/threat-model.md) does it touch?
 
-If yes to any of these, please describe how security would be maintained.
+If any of these apply, please describe how the design keeps its guarantees.
 
 ## Alternatives Considered
 

@@ -48,10 +48,10 @@ macro_rules! kprintln {
 
 pub(crate) use kprintln;
 
-/// The greeting, per `CLAUDE.md` §8.
+/// The greeting, per `CONSTITUTION.md` §8.
 const GREETING: &str = "Kaya!";
 
-/// The resident console critter, per `CLAUDE.md` §8.
+/// The resident console critter, per `CONSTITUTION.md` §8.
 const CRITTER: &str = r"  (\_/)
  ( •_•)
  / ></";

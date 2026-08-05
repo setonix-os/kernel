@@ -1,6 +1,6 @@
 {
     // Debugging a kernel means attaching to QEMU's gdb stub over TCP, not
-    // launching a host binary (CLAUDE.md §7). Start QEMU paused with its stub
+    // launching a host binary (CONSTITUTION.md §7). Start QEMU paused with its stub
     // listening — `cargo xtask run-qemu --arch aarch64 --debug` — then attach
     // with one of the configurations below.
     //
@@ -14,7 +14,7 @@
             "type": "lldb",
             "request": "custom",
             "targetCreateCommands": [
-                "target create ${workspaceFolder}/target/aarch64-unknown-none/debug/setonix-kernel"
+                "target create ${workspaceFolder}/target/aarch64-unknown-none-softfloat/debug/setonix-kernel"
             ],
             "processCreateCommands": [
                 "gdb-remote localhost:1234"

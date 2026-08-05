@@ -244,7 +244,7 @@ a retrofit.
 - **Multi-copy IPC (Mach).** Capability transfer is a move, not a copy (§6); it does not force message
   copying and composes with the zero-copy IPC the "IPC is the product" doctrine wants.
 - **Bolted-on multicore.** The table is per-process; concurrent access from a process's threads on
-  different cores needs a defined synchronisation story. Flagged as an open question (§13), not
+  different cores needs a defined synchronisation story. Flagged as an open question (§14), not
   bolted on later.
 
 ## 12. Costs — what this makes harder

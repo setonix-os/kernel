@@ -54,13 +54,13 @@ delete this section, its emptiness is itself the useful signal.
 
 - New `unsafe` blocks: <!-- None, or a list of file:line with the invariant each relies on -->
 - [ ] Every new `unsafe` block carries a `// SAFETY:` comment
-- [ ] Every `unsafe` block is inside a module CONSTITUTION.md designates for it
+- [ ] Every `unsafe` block is inside a module CLAUDE.md designates for it
 - [ ] I have listed them in the session summary / PR description above
 
 ## Checklist
 
 - [ ] Builds for both Tier-1 targets (`aarch64-unknown-none-softfloat` and `x86_64-unknown-none`)
-- [ ] Clippy passes (`cargo clippy --all-targets --all-features -- -D warnings`)
+- [ ] Clippy passes for every package, exactly as CI runs it (see `CONTRIBUTING.md` § Development Setup)
 - [ ] Formatted (`cargo fmt --all --check`)
 - [ ] Toolchain pins agree (`bash .github/scripts/check-toolchain-pin.sh`)
 - [ ] British spelling (`bash .github/scripts/check-british-spelling.sh`)

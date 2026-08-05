@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
 # Verifies that this repository has exactly one source of truth for every tool
 # version, and that nothing has quietly grown a second one.
 #
@@ -93,11 +95,14 @@ for action in "${forbidden_actions[@]}"; do
 done
 
 # Installing a toolchain by hand inside a workflow step defeats the same rule.
-if grep -rnE '^[[:space:]]*(run:.*)?(sh\.rustup\.rs|rustup (default|toolchain install))' \
+# Deliberately unanchored: the install idiom usually appears mid-line inside a
+# `run: |` block scalar (`curl ... sh.rustup.rs | sh`), where an anchored
+# pattern never matches.
+if grep -rnE '(sh\.rustup\.rs|rustup (default|toolchain install))' \
         .github/workflows/ >/dev/null 2>&1; then
     echo "ERROR: a workflow installs or switches a Rust toolchain by hand." >&2
     echo "       The image's pinned toolchain is the only one CI may use (§7)." >&2
-    grep -rnE '^[[:space:]]*(run:.*)?(sh\.rustup\.rs|rustup (default|toolchain install))' \
+    grep -rnE '(sh\.rustup\.rs|rustup (default|toolchain install))' \
         .github/workflows/ >&2
     fail=1
 fi

@@ -5,6 +5,7 @@
 * text=auto eol=lf
 
 # Assembly, linker scripts and shell must never be touched.
+*.s    text eol=lf
 *.S    text eol=lf
 *.ld   text eol=lf
 *.sh   text eol=lf

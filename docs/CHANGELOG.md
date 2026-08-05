@@ -127,6 +127,22 @@ recorded is indistinguishable from law that was never agreed.
 
 ### Changed
 
+- **Four broken cross-references corrected in the accepted documents (2026-08-05), found by a
+  repository-wide bug hunt.** All four are mechanical: a citation pointing at the wrong section or
+  the wrong document, with no change to what any document decides. Recorded here rather than edited
+  silently, because an accepted document's body is a record.
+    - **RFC-0003 §11** cited the open questions as "(§13)"; §13 is *Obligations discharged* and the
+      open questions are §14 — as the RFC's own acceptance note and the capability crate both already
+      said. A typo present since the RFC was drafted.
+    - **RFC-0004 §14** said the scheduler RFC is what "§6 and §9.2 wait on"; §6 is capability
+      transfer and names no scheduler dependency. The scheduling-context donation that waits on the
+      scheduler is §4, which the RFC's own §12 confirms.
+    - **Threat model O-18** pointed at "(see §7)" for its deferral on IOMMU-less hardware; §7 (Out of
+      scope) carries no DMA item. The acceptance is §9's, *Residual risks accepted*.
+    - **Threat model O-6 and §11** attributed to the constitution a designation it does not make (the
+      module list `arch/**`, `mm/**` is `CLAUDE.md`'s; the constitution requires designation without
+      naming modules), and to RFC-0002 a keep-rejected-RFCs practice it never states (the rule is
+      `CONTRIBUTING.md`'s).
 - **Constitution §3 amended, on the maintainer's authorisation (2026-08-01): three graves added from
   the second prior-art review.** The "known graves to avoid" list gains *drivers pulled into the
   kernel for the fast path* (vhost-net's CVE-2019-14835 guest-to-host-kernel escape, the userspace-

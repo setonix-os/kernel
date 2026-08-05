@@ -3,10 +3,11 @@
 //! PL011 UART — the console on QEMU's AArch64 `virt` machine.
 //!
 //! Deliberately the smallest thing that can carry a character: no initialisation,
-//! no interrupt path, no receive path. QEMU's firmware leaves the PL011 already
-//! configured, and a console that only has to survive long enough to report a
-//! fault is worth more early on than a complete driver. It will move to userspace
-//! once there is a userspace to move it to — the Borrow Ledger puts drivers there.
+//! no interrupt path, no receive path. QEMU's PL011 model transmits without being
+//! configured — nothing runs before a `-kernel` image — and a console that only
+//! has to survive long enough to report a fault is worth more early on than a
+//! complete driver. It will move to userspace once there is a userspace to move
+//! it to — the Borrow Ledger puts drivers there.
 //!
 //! Designated `unsafe` module: all hardware access is memory-mapped I/O.
 #![allow(unsafe_code)]

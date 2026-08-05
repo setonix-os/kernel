@@ -1,4 +1,4 @@
-// Setonix devcontainer — see CLAUDE.md §7. Reopen in Container and the identical
+// Setonix devcontainer — see CONSTITUTION.md §7. Reopen in Container and the identical
 // workshop exists for every contributor, human or AI. CI runs this same image, so
 // there is one environment and no "works on my machine" to argue about.
 {
@@ -36,10 +36,15 @@
     },
 
     // Persist Claude Code auth and shell history across container rebuilds.
+    // The volume alone is not enough for history: bash writes ~/.bash_history
+    // unless HISTFILE points into the mounted directory.
     "mounts": [
         "source=setonix-claude-home,target=/root/.claude,type=volume",
         "source=setonix-history,target=/root/.history,type=volume"
     ],
+    "containerEnv": {
+        "HISTFILE": "/root/.history/bash_history"
+    },
 
     // QEMU's VNC display for the rare occasions a screen is wanted; the serial
     // console remains the default workflow.

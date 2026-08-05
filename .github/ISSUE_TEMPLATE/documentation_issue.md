@@ -8,7 +8,7 @@ assignees: ''
 
 ## Which document?
 
-<!-- File and section, e.g. CLAUDE.md §4 (Borrow Ledger) -->
+<!-- File and section, e.g. CONSTITUTION.md §4 (Borrow Ledger) -->
 
 ## Nature of the problem
 
@@ -28,8 +28,9 @@ depends on which one is the darling and which one is load-bearing.
 ## Why it matters
 
 <!--
-CLAUDE.md §5.5: design disagreements are settled on paper, where being wrong is
-cheap. What would go wrong in code if someone acted on the document as written?
+CONSTITUTION.md §5.5: design disagreements are settled on paper, where being
+wrong is cheap. What would go wrong in code if someone acted on the document as
+written?
 -->
 
 ## Suggested wording

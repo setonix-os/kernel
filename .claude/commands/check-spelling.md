@@ -18,7 +18,7 @@ Then, for each reported hit, decide which of three things it is:
    to `ALLOWED_PATTERNS` in the script with a comment naming the convention it honours.
 3. **Vendored code** — should already be excluded. If a `vendor/` path appears in the output, the
    exclusion has broken; fix the pathspec rather than the file. Rewording upstream MIT code corrupts
-   the provenance the licence obliges us to preserve (CLAUDE.md §11.5).
+   the provenance the licence obliges us to preserve (CONSTITUTION.md §11.5).
 
 If `$ARGUMENTS` names specific files, restrict your attention to those.
 

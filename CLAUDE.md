@@ -58,8 +58,9 @@ nothing above it may name an architecture. Bring-up order is QEMU aarch64
 **Both targets are soft-float**, and the AArch64 one needs its `-softfloat`
 variant named explicitly. The plain `aarch64-unknown-none` permits NEON, LLVM
 emits FP/SIMD for ordinary data movement in debug builds, and `CPACR_EL1.FPEN`
-is 0 at reset — so the first such instruction traps to a vector table that does
-not exist yet and the kernel dies before its first character reaches the UART.
+is 0 at reset — so the first such instruction trapped to a vector table that
+did not yet exist, and the kernel died before its first character reached the
+UART — the fault the exception reporter now names outright.
 Independently of that, a microkernel must not touch registers it would have to
 save and restore on every context switch: FP/SIMD belongs to userspace, enabled
 per process and saved lazily, once there is a userspace.
@@ -78,10 +79,10 @@ cargo xtask run-qemu  --arch aarch64 [--debug]        # --debug: gdb stub on :12
 cargo xtask boot-test --arch aarch64 --expect "Kaya!"
 ```
 
-Always name the package when invoking cargo directly. The workspace holds two
-crates with incompatible targets — the kernel only cross-compiles, `xtask` only
-builds for the host — so an unscoped `--target` will try to build the host tool
-for bare metal:
+Always name the package when invoking cargo directly. The workspace's crates
+have incompatible targets — the kernel only cross-compiles, `xtask` only builds
+for the host, and `capability` builds for both — so an unscoped `--target` will
+try to build the host tool for bare metal:
 
 ```bash
 cargo clippy --package setonix-kernel --target aarch64-unknown-none-softfloat -- -D warnings
