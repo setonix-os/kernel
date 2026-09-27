@@ -56,48 +56,43 @@ and 47-bit user and kernel halves whose top level uses 256 entries each** — AA
 | Accessed | `AF` (bit 10), set by software on this CPU | bit 5 (A), set by hardware |
 | Address-space tag | 16-bit ASID in `TTBR0_EL1[63:48]` | 12-bit PCID in `CR3[11:0]` |
 
-*(Bits checked against Linux's `arch/arm64/include/asm/pgtable-hwdef.h` — Arm's site was unreachable — and
-Intel SDM Vol. 3A §4.5. QEMU's `cortex-a72` has 44-bit physical addresses, 16-bit ASIDs, no hardware
-access-flag update and no PAN: `target/arm/tcg/cpu64.c` sets `ID_AA64MMFR0_EL1 = 0x1124`, `MMFR1` 0.)*
-Hence **one table engine**, generic over a per-architecture `Descriptor` encoder and a frame-access trait,
-host-tested on both in `memory/`; only turning a frame number into `&mut [u64; 512]` through a kernel window
-(§6, §13) is `unsafe`, in `kernel/src/mm/`.
+*(Checked against Linux's `arch/arm64/include/asm/pgtable-hwdef.h` — Arm's site was unreachable — and SDM
+Vol. 3A §4.5. QEMU's `cortex-a72` has 44-bit physical addresses, 16-bit ASIDs, no hardware access flag and
+no PAN: `target/arm/tcg/cpu64.c`, `ID_AA64MMFR0_EL1 = 0x1124`, `MMFR1` 0.)* Hence **one table engine**,
+generic over a `Descriptor` encoder and a frame-access trait, host-tested in `memory/`; only turning a frame
+number into `&mut [u64; 512]` through a kernel window (§6, §13) is `unsafe`, in `kernel/src/mm/`.
 
 ## 4. Physical memory: discovery and the frame allocator
 
-**Discovery.** QEMU fixes two facts about `virt` — flash at 0, RAM at 0x4000_0000 — and says every other
-address "may vary" and must be read from the DTB, found "at the start of RAM" with no register pointing at
-it (`docs/system/arm/virt.rst`); `hw/arm/boot.c` places it only *below* the image (`dtb_limit`). Checked on
-QEMU 8.2.2 on 2026-09-27: an ELF at 0x4000_0000 boots with **no DTB in RAM**; at 0x4020_0000 one is found at
-0x4000_0000. **So the image loads at 0x4020_0000**, block-aligned, capping the DTB at 2 MiB; increment 1
-re-checks the pinned QEMU 11.0.3. A minimal FDT reader (Borrow Ledger boot-path row; Devicetree
-Specification v0.4) reads the cell sizes, `/memory`, `/memreserve/` and `/reserved-memory`, bounds-checks
-every offset and fails closed. Threat model §10 gains a proposed first firmware assumption — *firmware
-tables describe memory truthfully* — via `docs/CHANGELOG.md`. On x86_64 the UEFI stub (no RFC yet) hands
-over `GetMemoryMap` after `ExitBootServices`. **Both produce one `MemoryMap`**: same-kind neighbours
-coalesced, then at most **256** sorted, disjoint `(PhysRange, Kind)` entries (6 KiB; raw UEFI maps run to
-100–200) — `Usable`, `KernelImage`, `DeviceTree`, `Reserved`, `Mmio` — failing closed beyond that; image,
-boot stack, DTB and boot tables tagged first. Phase 1's `Mmio` entries are the interim hard-coded
-addresses (§18). Nothing above `arch` names FDT or UEFI.
+**Discovery.** QEMU fixes RAM at 0x4000_0000 on `virt`; every other address "may vary" and comes from the
+DTB, "at the start of RAM" with no register naming it (`docs/system/arm/virt.rst`) — and `hw/arm/boot.c`
+puts it only *below* the image (`dtb_limit`). Checked on QEMU 8.2.2 on 2026-09-27: an ELF at 0x4000_0000
+finds **no DTB in RAM**; at 0x4020_0000 it finds one at 0x4000_0000. **So the image loads at 0x4020_0000**,
+capping the DTB at 2 MiB; increment 1 re-checks QEMU 11.0.3. A minimal FDT reader (Borrow Ledger boot-path
+row; Devicetree Specification v0.4) reads the cell sizes, `/memory`, `/memreserve/` and `/reserved-memory`,
+bounds-checks every offset and fails closed; threat model §10 gains a proposed assumption, *firmware tables
+describe memory truthfully*. x86_64's UEFI stub (no RFC yet) hands over `GetMemoryMap` after
+`ExitBootServices`. **Both produce one `MemoryMap`**: same-kind neighbours coalesced, then at most **256**
+sorted, disjoint `(PhysRange, Kind)` entries (raw UEFI maps run to 100–200) — `Usable`, `KernelImage`,
+`DeviceTree`, `Reserved`, and `Mmio` from Phase 1's hard-coded addresses — failing closed beyond that; image,
+boot stack, DTB and boot tables tagged first. Nothing above `arch` names FDT or UEFI.
 
-**The frame allocator is a bitmap** — one bit per 4 KiB frame, stored in the first free frames (16 KiB per
-512 MiB) — allocating from a *colour set*, or runs of `n` at an alignment; a double free fails closed.
-Colour is `pfn mod C`, `C = 1` until time protection *(Ge et al., EuroSys '19, via research/0002 Part 6)*. A
-run search is O(frames / 64) words, bounded by RAM rather than the caller; a per-alignment cursor is the
-remedy if measurement asks. **Fresh frames are zeroed before a process can observe them, and a table frame
-before its parent descriptor is written** (a `DSB` between): a recycled table's stale entries would
-translate into another process's frames. *Rejected:* a **buddy allocator** *(Linux)*, whose coalescing
-fights colouring; a **free list**, which cannot find `n` contiguous frames without a scan.
+**The frame allocator is a bitmap** (16 KiB per 512 MiB, in the first free frames) allocating from a *colour
+set* — `pfn mod C`, `C = 1` until time protection *(Ge et al., EuroSys '19, via research/0002 Part 6)* — or
+runs of `n` at an alignment; a double free fails closed. A run search is bounded by RAM, not the caller; a
+per-alignment cursor if measurement asks. **Fresh frames are zeroed before a process can observe them, and a
+table frame before its parent descriptor is written** (a `DSB` between), lest stale entries translate into
+another's frames. *Rejected:* a **buddy allocator** *(Linux)*, whose coalescing fights colouring; a **free
+list**, which cannot find `n` contiguous frames without a scan.
 
 ## 5. Who pays: the object store and Pools (O-7)
 
-The kernel has no heap and must never acquire one a process can drain. **A — seL4 Untyped and retype**:
-reusing an Untyped revokes what was retyped from it through a derivation tree, deciding RFC-0003a's B1 by
-the back door (RFC-0003 §7 and its 2026-07-30 amendment) and making object layouts ABI. **Rejected.** **B — a
-kernel heap with creation policy** *(Zircon)* limits *whether* a process creates objects, not how much memory
-they take. **Rejected.** **C — static per-type tables** *(Hubris)* cannot say *who* filled one (research/0002
-Part 6's Kinesis outage). **Rejected alone.** **D — C with counted attribution: verdict sought** *(the
-requester pays, as in seL4; counted quotas, as in Fiasco.OC's factory limits and Genode's quota trading)*.
+The kernel has no heap and must never acquire one a process can drain. **A — seL4 Untyped/retype** reclaims
+through a derivation tree, deciding RFC-0003a's B1 by the back door (RFC-0003 §7 and its 2026-07-30
+amendment), and makes object layouts ABI: **rejected**. **B — a heap with creation policy** *(Zircon)* limits
+*whether*, not *how much*: **rejected**. **C — static per-type tables** *(Hubris)* cannot say *who* filled one
+(research/0002 Part 6): **rejected alone**. **D — C with counted attribution: verdict sought** *(the requester
+pays, as in seL4; counted quotas, as in Fiasco.OC's factory limits and Genode's quota trading)*.
 
 **The store is typed slot arrays**, one fixed-capacity array per type in `.bss`; a slot holds the object, a
 generation and a count. The kernel's implementation of `ObjectRef` (`capability/src/object.rs`, a trait) is
@@ -107,10 +102,10 @@ counts nothing on clone or drop. A destroyed object's slot is therefore **reused
 advanced**, stale capabilities failing closed — what RFC-0003 §8's generation exists for — and no past holder
 pins another's charge. A slot whose generation cannot advance retires, debited once from its payer (objects
 keep 64-bit generations, RFC-0007 (proposed) §6). `object.rs`'s "takes a reference count" is qualified to
-match in increment 7. **Where it lives:** the generic array and Pool are safe code in `memory/`; the concrete
-store — one `Kernel` value with every type's array, RFC-0004/0006/0007 objects included — sits behind **one**
-`static` wrapper in `kernel/src/mm/` with one SAFETY argument: one core, kernel entered with interrupts
-masked (RFC-0006 (proposed) V1), the big lock once SMP lands. No other kernel global accretes.
+match in increment 7. **Where it lives:** generic array and Pool in `memory/`; the concrete store, one
+`Kernel` value with every type's array (RFC-0004/0006/0007 objects too), behind **one** `static` in
+`kernel/src/mm/` whose SAFETY argument is one core entered with interrupts masked (RFC-0006 (proposed) V1),
+then the big lock. No other kernel global accretes.
 
 **A Pool is the accounting layer**: an RFC-0003 object holding balances of frames and of each type's slots.
 At boot every free unit becomes the balance of one root Pool (RFC-0007 (proposed) hands it over). Then:
@@ -132,19 +127,17 @@ every unit of r in use       ==  kept by the kernel (at boot, or retired), or ch
   its charges come home — a chain bounded by the Pool slot count; the root's balance goes to the kernel.
 - **Rights:** `READ` queries; `WRITE` spends and moves; `EXECUTE` lets minted Regions carry `EXECUTE` (§9).
 
-**One accounting domain — decided here, since the programme gives this RFC O-7's model.** research/0002
-Part 6 asks for one capability-named domain for memory, object quotas and scheduling contexts. **The Pool is
-that domain for every counted unit**, Threads' and SchedContexts' slots included. **Time is not a unit**:
-RFC-0006 (proposed) sells per-core bandwidth through `Core`, which moving balance cannot conserve, and
-folding it in would make every Pool holder a seller of CPU — a deliberate split from the research, with
-congruence kept by attribution. O-7's text would add *"kernel memory is charged to a capability-named Pool;
-CPU time to a SchedContext funded through a `Core`"*, proposed through `docs/CHANGELOG.md`.
+**One accounting domain — decided here, as the programme gives this RFC O-7's model.** research/0002 Part 6
+wants one for memory, object quotas and scheduling contexts. **The Pool is it for every counted unit**,
+SchedContext slots included. **Time is not a unit**: RFC-0006 (proposed) sells per-core bandwidth through
+`Core`, which moving balance cannot conserve, and folding it in would make every Pool holder a CPU seller — a
+deliberate split, congruent by attribution. O-7 would add *"kernel memory is charged to a capability-named
+Pool; CPU time to a SchedContext funded through a `Core`"*, via `docs/CHANGELOG.md`.
 
 ## 6. The kernel's virtual layout
 
-Both architectures get the **same layout**, the cheapest way to keep the HAL honest. The image sits in the
-top 2 GiB, which `x86_64-unknown-none`'s default kernel code model expects (overridable, as RFC-0007 does
-for userspace, but that buys nothing); AArch64 follows.
+Both architectures get the **same layout**, the cheapest way to keep the HAL honest; the image sits in the
+top 2 GiB, as `x86_64-unknown-none`'s default kernel code model expects (overridable, but that buys nothing).
 
 | Range (both architectures) | Contents | Attributes |
 |----------------------------|----------|------------|
@@ -162,10 +155,9 @@ for userspace, but that buys nothing); AArch64 follows.
   unmapped**, closing Intel's `SYSRET` hazard (CVE-2012-0217) for RFC-0007 by layout. The physmap is RAM only.
 - **The kernel's top-level entries never change after boot.** AArch64 shares `TTBR1_EL1`; x86_64 copies PML4
   entries 256–511 into each address space *(seL4 x86)*, so every kernel-half PML4E ever used is populated at
-  boot — one filled later would be missing from earlier copies (Linux's vmalloc-sync bugs). Lower kernel
-  tables may change, as global changes invalidated on every core (§12). *Rejected:* an identity-mapped
-  kernel, which sits where user addresses go and breaks the symmetric halves; no physmap, which costs an
-  invalidation per IPC-buffer touch.
+  boot — one filled later would be missing from earlier copies (Linux's vmalloc-sync bugs); lower kernel
+  tables may change, invalidated on every core (§12). *Rejected:* an identity-mapped kernel, where user
+  addresses go; no physmap, an invalidation per IPC-buffer touch.
 
 ## 7. The objects: Region, AddressSpace and Mapping
 
@@ -178,31 +170,28 @@ under a live mapping *(Zircon: a mapping keeps its VMO alive)*. One object, thre
 - **Ordinary** (`region_create`): eager, zeroed, charged; unmet in eight extents it fails `Fragmented`; DMA
   memory is one extent at an alignment. Zeroing runs 512 pages per step between RFC-0006 (proposed)'s
   preemption points, the half-built Region held on the caller's thread; no capability exists until done.
-- **Boot-minted, read-only**, once, over the DTB and each boot module RFC-0007 (proposed) embeds: their
-  `DeviceTree`/`KernelImage` frames **move** into the Region, never zeroed (public boot data: O-8 is
-  untouched), never charged, never `WRITE`. The DTB gets `READ`; a module `READ | EXECUTE | DUPLICATE |
-  TRANSFER`, so text maps `RX` in place and W^X holds because no writable use can exist. RFC-0007's bundle
-  must page-align every module segment.
+- **Boot-minted, read-only**, over the DTB and each boot module RFC-0007 (proposed) embeds (every segment
+  page-aligned): their frames **move** into the Region, never zeroed (public boot data, so O-8 is untouched),
+  never charged, never `WRITE` — the DTB `READ`, a module `READ | EXECUTE | DUPLICATE | TRANSFER`, so text
+  maps `RX` in place and W^X holds because no writable use can exist.
 - **Device**, minted at boot over `Mmio` the kernel does not keep; never executable, zeroed or charged;
   Phase 2. No operation maps a physical address given as a number: the catch-all right in costume.
 
-What the kernel fills for the root before handover (writable segments, stack, BootInfo) is ordinary Regions,
-charged to the root Pool, bytes copied in through the physmap, and only then a capability minted.
-
+What the kernel fills for the root before handover (writable segments, stack, BootInfo) goes into ordinary
+Regions, charged to the root Pool, bytes copied in through the physmap, and only then a capability minted.
 **An AddressSpace** is a user root table, a tag (§12), the Pool paying for its tables — the only Pool `map`
-may charge — and its mappings; `WRITE` permits `map`/`unmap`/`protect`, `READ` a query. Binding it to a
+may charge — and its mappings; `WRITE` permits `map`/`unmap`/`protect`, `READ` a query; binding it to a
 process is RFC-0007's. **A Mapping** is a charged kernel record, not a capability: `{as, region, first_page,
-vaddr, pages, perms}`, linked by slot index into its AddressSpace's list and its Region's — because RFC-0003's
-2026-07-30 amendment makes load-bearing that *a resolved capability is never cached outside the kernel
-table*, and **a page-table entry is exactly such a cache**, which hardware never re-checks. *Rejected:*
-**Zircon VMOs and VMARs** — lazy commit, copy-on-write, pagers and nesting are policy-rich and put faults in
-kernel paths; **seL4's capability per frame** — 256 handles per MiB; **userspace-built tables** (Xen PV).
+vaddr, pages, perms}`, linked into its AddressSpace's list and its Region's, because RFC-0003's 2026-07-30
+amendment makes load-bearing that *a resolved capability is never cached outside the kernel table* — and **a
+page-table entry is exactly such a cache**. *Rejected:* **Zircon VMOs and VMARs** (lazy commit, copy-on-write,
+pagers, nesting: policy, and faults in kernel paths); **seL4's capability per frame**; **user-built tables** (Xen PV).
 
 ## 8. Map, unmap, protect — and the rights they check
 
-Every operation takes handles (RFC-0003 §9); RFC-0007 (proposed) encodes them as methods. A second handle —
-`map`'s Region and Pool — travels as a **handle word in a message register**, resolved in the caller's
-table, never transferred: RFC-0003 §6's move would take the Region from its mapper.
+Every operation takes handles (RFC-0003 §9), encoded as methods by RFC-0007 (proposed); a further handle
+(`map`'s Region and Pool) is a **handle word in a message register**, resolved in the caller's table, never
+transferred — RFC-0003 §6's move would take the Region from its mapper.
 
 | Operation | Needs | Refused when |
 |-----------|-------|--------------|
@@ -213,23 +202,21 @@ table, never transferred: RFC-0003 §6's move would take the Region from its map
 | `protect(as, vaddr, perms)` | as `WRITE` | `perms` not a subset of the mapping's current `perms` |
 
 User numbers are validated *as numbers*; **the kernel never chooses a virtual address** *(seL4's VSpace
-discipline)*. **`map` names a Pool because spending is authority** (O-4): an AddressSpace capability alone
-cannot drain one, and requiring the space's *own* Pool keeps one payer per space, so refunds need no
-per-table record *(seL4 has the caller supply page-table objects)*. *Rejected:* any Pool (a payer record per
-table frame); a Pool bound at `as_create` and spent through `WRITE` (spending never granted). **`map` is
-atomic**: it charges missing tables and the Mapping slot before writing anything, then zeroes and links
-tables, writes leaves and ends with `DSB ISHST`, so the walker sees them before `eret`; at most 512 leaves
-and six new tables per call. `protect` only narrows; widening is `map` again *(seL4's remap)*. 4 KiB pages
-only; blocks later, invisible in the ABI.
+discipline)*. **`map` names a Pool because spending is authority** (O-4); requiring the space's *own* Pool
+keeps one payer per space, so refunds need no per-table record *(seL4's caller-supplied page tables)*.
+*Rejected:* any Pool (a payer record per table); a Pool bound at `as_create` and spent through `WRITE`
+(spending never granted). **`map` is atomic**: it charges missing tables and the Mapping slot first, then
+zeroes and links tables, writes leaves and ends with `DSB ISHST` before `eret`; at most 512 leaves and six
+new tables. `protect` only narrows; widening is `map` again *(seL4)*. 4 KiB pages; blocks later.
 
-**Verdict sought: `EXECUTE` joins RFC-0003's rights as bit 5**, as RFC-0003 §5 allows "when a subsystem
-needs one". Folding it into `READ` makes every readable Region potential code; a Region *kind* fails the
-loader, which writes code before running it. seL4 leaves execution ungoverned; Fuchsia's `ZX_RIGHT_EXECUTE`
-is the lineage. It means *may map executable* on a Region, *may mint executable Regions* on a Pool, and is
-**refused at mint on every other type** by the store (host-tested, increment 7); `derive` cannot add it.
-`rights.rs`'s `ALL` is an explicit union despite its comment; increment 4 edits both. **On acceptance,
-RFC-0003 gains a dated amendment adding `EXECUTE` to §5's table, logged in `docs/CHANGELOG.md`.** RFC-0003
-§14.3's handshake: **the installed permission is `perms`, refused unless a subset of the Region's rights.**
+**Verdict sought: `EXECUTE` joins RFC-0003's rights as bit 5**, as §5 there allows "when a subsystem needs
+one". Folded into `READ`, every readable Region is potential code; a Region *kind* fails the loader, which
+writes code before running it. seL4 leaves execution ungoverned; Fuchsia's `ZX_RIGHT_EXECUTE` is the lineage.
+It means *map executable* on a Region, *mint executable Regions* on a Pool, and is **refused at mint on every
+other type** (increment 7); `derive` cannot add it. `rights.rs`'s `ALL` is an explicit union despite its
+comment; increment 4 fixes both. **On acceptance, RFC-0003 gains a dated amendment adding `EXECUTE` to §5's
+table, logged in `docs/CHANGELOG.md`.** RFC-0003 §14.3's handshake: **installed permission is `perms`,
+refused unless a subset of the Region's rights.**
 
 | perms | needs on the Region | AArch64 stage 1 | x86_64 |
 |-------|---------------------|-----------------|--------|
@@ -248,20 +235,18 @@ execute-only exists on AArch64 but not on x86_64 without protection keys, so nei
    bindings) and `RX` mappings: `map RX` is refused while any writable use exists, `map RW` and binding while
    any `RX` mapping does. `unmap`, `protect` and unbinding decrement **only once their invalidation has
    completed on every core** (§12) — until then a stale writable entry may be live somewhere.
-3. **Over time.** `EXECUTE` is minted only from a Pool carrying it: the broker hands apps Pools without it,
-   the loader holds one, a JIT gets one by explicit grant *(Fuchsia's `VmexResource`)*. O-13's Phase-3
-   load-path clause is policy on this.
+3. **Over time.** `EXECUTE` is minted only from a Pool carrying it — the loader holds one, a JIT gets one by
+   explicit grant *(Fuchsia's `VmexResource`)*. O-13's Phase-3 load-path clause is policy on this.
 4. **Hardware backstop.** AArch64 sets `SCTLR_EL1.WXN` (bit 19) once the final tables are in (§13); user
    entries set `PXN`; kernel text has no writable alias, the physmap mapping it read-only *(Linux
    `mark_linear_text_alias_ro`)*. x86_64 has no `WXN`: `CR0.WP` and `SMEP` where present.
 
-`map RX` makes AArch64's instruction side coherent: `DC CVAU` through the physmap, `DSB ISH`, `IC IVAU` on a
-PIPT instruction cache (`IC IALLUIS` otherwise; Linux's `sync_icache_aliases`), `DSB ISH`, `ISB`; QEMU's
-cortex-a72 reports PIPT (`CTR_EL0 = 0x8444c004`); x86_64 is coherent in hardware. **QEMU models no cache, so
-errors here pass every test.** These and §12's `TLBI`s and `TTBR` writes are single-instruction `asm!`
-intrinsics in `kernel/src/arch/**` with no Rust equivalent, as `wfe` is today — a reading of "minimal
-assembly" the maintainer is asked to confirm (§17.7). The physmap still aliases *user* code writable at EL1;
-writing through it only to zero, fill tables and reach IPC buffers is a convention (§16).
+`map RX` makes AArch64's instruction side coherent: `DC CVAU` via the physmap, `DSB ISH`, `IC IVAU` if PIPT
+(`IC IALLUIS` otherwise; Linux's `sync_icache_aliases`), `DSB ISH`, `ISB`; cortex-a72 reports PIPT (`CTR_EL0 =
+0x8444c004`); x86_64 is coherent in hardware. **QEMU models no cache, so errors here pass every test.** These
+and §12's `TLBI`s and `TTBR` writes are single-instruction `asm!` intrinsics in `kernel/src/arch/**`, as `wfe`
+is today — a reading of "minimal assembly" for the maintainer to confirm (§17.7). The physmap still aliases
+*user* code writable at EL1; writing through it only to zero, fill and reach IPC buffers is a convention (§16).
 
 ## 10. Sharing and destruction (RFC-0004 §9.1)
 
@@ -280,9 +265,9 @@ writing through it only to zero, fill tables and reach IPC buffers is a conventi
 
 **Concurrency.** Under RFC-0006 (proposed) V1 — non-preemptible, one big lock once SMP lands — no kernel
 access to a Region's frames (zeroing, table fill, IPC copy) interleaves with its destruction: each runs whole
-in one kernel entry and re-resolves the Region, and the dying mark covers the gaps between destruction's
-steps. Finer locking, if ever, takes **Region before AddressSpace**. A former sharer takes an ordinary fault:
-RFC-0006 (proposed) binds delivery, RFC-0007 (proposed) defines the message; under its interim the thread stops.
+in one entry and re-resolves the Region; the dying mark covers destruction's gaps. Finer locking takes
+**Region before AddressSpace**. A former sharer faults: RFC-0006 (proposed) binds delivery, RFC-0007 (proposed)
+defines the message; under its interim the thread stops.
 
 ## 11. How the kernel touches user memory (O-5)
 
@@ -299,9 +284,8 @@ writes for a process is named by capability and reached through the physmap:
   frame, and the in-kernel fault concurrency that sank L4's long IPC cannot arise.
 - **Peer-writable memory is never referenced**: one `kernel/src/mm/` module copies with volatile accesses;
   anything interpreted is copied once and validated as that snapshot *(virtio's double fetch, research/0002
-  Part 5)*. *Rejected:* `copy_from_user` with fixups (Linux), making kernel faults a normal path.
-
-`SMAP` and `PSTATE.PAN` back the rule where present; **cortex-a72 has no PAN**, so there it stands on structure.
+  Part 5)*. *Rejected:* `copy_from_user` with fixups (Linux). `SMAP` and `PAN` back the rule where present;
+  **cortex-a72 has no PAN**, so there it stands on structure.
 
 ## 12. TLBs, ASIDs and PCIDs
 
@@ -310,15 +294,15 @@ writes for a process is named by capability and reached through the physmap:
   `TLBI ASIDE1IS` (x86_64: `INVPCID` single-context), so churn does not force rollover. *Rejected:* seL4's
   ASID pools — a tag is not authority.
 - **Kernel entries are global, user entries never.** `map` needs no invalidation: neither architecture caches
-  a faulting entry (the Arm ARM's rule, section uncited as the manual was unreachable; SDM Vol. 3A §4.10),
-  and a fault whose entry is valid on re-walk is retried, as x86_64's paging-structure caches can cause.
-  `unmap`, `protect` and teardown store, then `DSB ISHST`, `TLBI VALE1IS`, `DSB ISH`, `ISB`; x86_64 uses
-  `INVLPG`. Freeing an intermediate table uses `TLBI VAE1IS` or `ASIDE1IS`, since `VALE1IS` spares walk
-  caches; `INVLPG` and `INVPCID` already flush paging-structure caches (SDM Vol. 3A §4.10.4.1).
-- **O-8's ordering: invalidate, then free.** No frame returns to a Pool while any core can translate to it.
+  a faulting entry (the Arm ARM, section uncited as it was unreachable; SDM Vol. 3A §4.10), and a fault whose
+  entry is valid on re-walk is retried. `unmap`, `protect` and teardown store, `DSB ISHST`, `TLBI VALE1IS`,
+  `DSB ISH`, `ISB`; x86_64 `INVLPG`. Freeing an intermediate table needs `TLBI VAE1IS` or `ASIDE1IS`, as
+  `VALE1IS` spares walk caches; `INVLPG`/`INVPCID` flush them (SDM Vol. 3A §4.10.4.1). **O-8's ordering:
+  invalidate, then free** — no frame returns to a Pool while any core can translate to it.
 
-**Multi-core: this RFC owns the protocol; RFC-0006 (proposed) provides the IPI.** Each AddressSpace keeps
-the set of cores that have run it since its last full flush *(Linux `mm_cpumask`)*.
+**Multi-core: this RFC owns the protocol; RFC-0006 (proposed) provides the IPI**, built with its SMP
+increment; the `-smp 1` demo already uses only broadcast `TLBI`s. Each AddressSpace keeps the set of cores
+that have run it since its last full flush *(Linux `mm_cpumask`)*.
 
 - **Shootdown.** AArch64 needs no IPI: the `…IS` forms reach the inner-shareable domain and `DSB ISH` waits
   for completion everywhere. x86_64 has no broadcast: the initiator IPIs the cores in the set, each
@@ -331,14 +315,11 @@ the set of cores that have run it since its last full flush *(Linux `mm_cpumask`
 - **x86_64 PCIDs are per core**: each core caches a few AddressSpace→PCID pairs *(Linux keeps six)*; an
   invalidation where the space is not current is a per-core stale mark consumed at the next switch to it.
 
-The demo is `-smp 1`, but every `TLBI` is the broadcast form; the rest lands with RFC-0006's SMP increment.
-
 ## 13. Early boot: turning the MMU on
 
-The image is linked at `0xFFFF_FFFF_8020_0000` and loaded at 0x4020_0000 (`AT()` in `aarch64.ld`). QEMU loads
-segments at `p_paddr` and translates the entry to its physical alias **only if** it lies in an executable
-segment with `p_vaddr != p_paddr` (`include/hw/elf_ops.h`, `load_elf`, v8.2.2) — which `AT()` guarantees
-while `.text.boot` leads the first executable segment. With the MMU off, the stub:
+The image is linked at `0xFFFF_FFFF_8020_0000`, loaded at 0x4020_0000 (`AT()`). QEMU translates the entry to its
+physical alias **only if** it lies in an executable segment with `p_vaddr != p_paddr` (`include/hw/elf_ops.h`,
+`load_elf`, v8.2.2), which `AT()` gives while `.text.boot` leads that segment. With the MMU off, the stub:
 
 1. Parks secondaries, installs the stack and zeroes `.bss` at physical addresses, as today.
 2. `MAIR_EL1`: index 0 = `0xFF` (Normal write-back, read/write-allocate), index 1 = `0x04` (Device-nGnRE).
@@ -362,16 +343,14 @@ while `.text.boot` leads the first executable segment. With the MMU off, the stu
 | `WXN` (19) | 0, then 1 | set by Rust step (5), giving `0x30DC581D` |
 | 11, 20, 22, 23, 28, 29 | 1 | RES1 on Armv8.0: Linux v4.19's `SCTLR_EL1_RES1`, plus bit 23 (`SPAN`, RES1 before Armv8.1), which Linux always sets; not re-checked against the Arm ARM |
 
-Every other bit is 0: RES0 on Armv8.0, or a later extension left off. Rust then, never leaving the reporter
-without a console: (1) builds the `MemoryMap`, bitmap and slot arrays through the **boot window** — the
-frame-access trait takes an offset, here `pa − 0x4000_0000 + 0xFFFF_FFFF_8000_0000`, so everything touched
-this early lies in the first boot GiB; (2) builds §6's final tables, stack window included; (3) swaps
-`TTBR1_EL1` by an assembly routine run from the identity map — empty table, `TLBI VMALLE1`, final table —
-as break-before-make requires *(Linux `idmap_cpu_replace_ttbr1`)*, then re-references the bitmap and
-switches the trait to the physmap offset; (4) **repoints every kernel MMIO user** — the UART, and the GIC if
-RFC-0006 has brought it up; (5) sets `TCR_EL1.EPD0 = 1` (cleared by the first AddressSpace install) and
-`WXN`, then `TLBI VMALLE1`, `DSB ISH`, `ISB`. **The boot tables are never freed**: 16 KiB of `.bss`, and
-freeing them would give image frames a second owner.
+Every other bit is 0 (RES0 on Armv8.0, or a later extension left off). Rust then, never leaving the reporter
+without a console: (1) builds the `MemoryMap`, bitmap and arrays through the **boot window** — the
+frame-access trait's offset is `pa − 0x4000_0000 + 0xFFFF_FFFF_8000_0000`, so all it touches lies in the boot
+GiB; (2) builds §6's final tables; (3) swaps `TTBR1_EL1` from the identity map in assembly — empty table,
+`TLBI VMALLE1`, final table, as break-before-make requires *(Linux `idmap_cpu_replace_ttbr1`)* — and moves
+the trait and bitmap to the physmap offset; (4) **repoints every kernel MMIO user** (UART; GIC if up);
+(5) sets `TCR_EL1.EPD0 = 1` (the first AddressSpace install clears it) and `WXN`, then `TLBI VMALLE1`, `DSB
+ISH`, `ISB`. **The boot tables are never freed**: freeing `.bss` would give image frames a second owner.
 
 The reporter gains a DFSC and fault-level decode (it prints `FAR` already); x86_64's `#PF` prints `CR2` and
 its error code. **x86_64**, once the UEFI stub exists, is already paging: Rust builds §6's PML4 with a
@@ -399,72 +378,58 @@ jumps high and drops the identity entry — the same "Rust runs only high" rule.
 - **Policy in the kernel.** No address choice, demand paging, copy-on-write, overcommit or OOM response.
 - **Baroque capability hierarchies.** No Untyped tree; Pools are flat, with one funder index for closure.
 - **Multi-copy IPC.** The slow path copies once, frame to frame; bulk data is shared, never copied (§10).
-- **Bolted-on multicore.** Broadcast invalidation from the first line; shootdown, rollover and per-core tags
-  designed now (§12); only the IPI is RFC-0006's.
+- **Bolted-on multicore.** Broadcast `TLBI` from the first line; shootdown, rollover, per-core tags designed now (§12).
 - **The catch-all right.** `EXECUTE` is narrow and refused off-type; no "map any physical address" right.
 - **Compiled-in unused device paths (VENOM).** The kernel maps only the devices it drives itself.
 
 ## 16. Costs — what this makes harder
 
-- **Capacities are ceilings**: a slot count is a rebuild; `pool_move` is one call per resource.
-- **Regions are eager and bounded**: no lazy or sparse Regions; a large one can fail `Fragmented`.
+- **Capacities are ceilings** (a rebuild); **Regions are eager and bounded** (no lazy or sparse ones).
 - **`map` needs the AddressSpace's own Pool**: a loader mapping into a child holds the child's Pool.
 - **47-bit halves on AArch64** give up half of what `T0SZ = 16` allows; **the 64 KiB floor is fixed**.
-- **User addresses are numbers only** (§11): every RFC-0007 syscall works in registers, the IPC buffer and
-  Region handles, for a bug class gone.
-- **The physmap is a large target**: one kernel write bug reaches all RAM, user code included (§9) — a
-  software invariant, as are W^X on x86_64 and O-5 without PAN on cortex-a72.
+- **User addresses are numbers only** (§11): every RFC-0007 syscall pays in ergonomics, for a bug class gone.
+- **The physmap is a large target** (§9) — a software invariant, as are W^X on x86_64 and O-5 without PAN.
 - **Every boot runs RWX** from MMU-on to Rust step (5), before any process exists; a stray early write goes
   uncaught. **Cache maintenance is untestable under QEMU**; **the load address is a QEMU `virt` fact**.
-- **Reclaim across a transfer needs cooperation**: a transferred object keeps its payer charged until
-  destroyed, so `pool_merge` waits on other processes — RFC-0003a's problem made concrete.
+- **Reclaim across a transfer needs cooperation**: the payer stays charged until destruction (RFC-0003a).
 
 ## 17. Open questions
 
 1. **Page-table frames on unmap.** Freed only with the AddressSpace; eager freeing needs §12's walk-cache rule.
 2. **Donation and reclaim across a transfer** — `reissue` with a charge move, offered to RFC-0003a (§10).
 3. **Which right authorises explicit destruction** — `REVOKE` would widen as `reissue` would; RFC-0003a.
-4. **Hardware backing for two software rules:** software PAN on Armv8.0 (a `TTBR0_EL1` change per kernel
-   entry), and unmapping executable user frames from the physmap.
+4. **Hardware backing for software rules:** software PAN on Armv8.0; unmapping executable user frames from the physmap.
 5. **Preemptible teardown**: the O(mappings) walk made restartable at RFC-0006 (proposed)'s preemption points.
 6. **The firmware assumption** (§4) and O-7's new text (§5), via `docs/CHANGELOG.md`.
-7. **"Minimal assembly"** (Constitution §11.1): are runtime single-instruction `TLBI`/`DC`/`IC`/`TTBR`
-   intrinsics in `arch/**` within it (§9), or does the clause need amending?
+7. **"Minimal assembly"** (Constitution §11.1): are runtime one-instruction `TLBI`/`DC`/`IC`/`TTBR` intrinsics within it (§9)?
 8. **One programme order** across RFC-0005/0006/0007 — §18 proposes one for the maintainer to fix.
 
 ## 18. Implementation increments
 
-One reviewable PR each; **[demo]** marks what the demo needs. Pure logic lands in a new `memory/` crate —
-`no_std` in the kernel, `std` under `cargo test`, built for both targets in CI, no `unsafe`, as `capability/`.
-Each new `arch` function (memory map, window, TLB, address-space switch) gets a documented x86_64 stub: an
-empty `MemoryMap`, on which memory initialisation prints `mm: no memory map (UEFI stub pending)` and halts,
-so the second Tier-1 build compiles the whole path from increment 2.
+One reviewable PR each; **[demo]** marks what the demo needs. Pure logic lands in a new `memory/` crate as
+`capability/` does (`no_std` in the kernel, `std` under test, both targets in CI, no `unsafe`). Each new `arch`
+function gets a documented x86_64 stub — an empty `MemoryMap`, on which memory initialisation prints `mm: no
+memory map (UEFI stub pending)` and halts — so the second Tier-1 build compiles the whole path.
 
 1. **[demo] Relink at 0x4020_0000; prove the DTB.** MMU off. `--expect "DTB 0xd00dfeed at 0x40000000"`.
 2. **[demo] Addresses, `MemoryMap`, FDT reader.** Host tests on a `dumpdtb` fixture, hostile blobs and later an
    OVMF dump; workspace `members`, `.github/workflows`, `CLAUDE.md` § Layout. `--expect "mm: 512 MiB RAM at 0x40000000"`.
 3. **[demo] Frame bitmap.** Churn tests against a shadow model: no frame twice, none reserved, no image frame free.
-4. **[demo] `EXECUTE` in `capability/`** with RFC-0003's dated amendment: bit 5, `ALL` and its comment, `Debug`,
-   the test widened to `0..64`. Demo-needed because the root maps the client's text.
-5. **[demo] `MapPerms` and both encoders.** Exhaustive: nothing writable and executable; every user entry
-   `PXN`, `AF`, not-global; every row of §8's table.
-6. **[demo] The table engine** on both formats: overlap, the 512-leaf and six-table bound, nothing mapped when
-   unpaid, tables zeroed before linking, a kernel-half map never writing the root.
-7. **[demo] Slot store and one Pool.** Charge, refund, conservation; reuse at generation + 1; stale references
-   count nothing; `EXECUTE` refused at mint off-type; `object.rs`'s comment. Host-only.
+4. **[demo] `EXECUTE` in `capability/`** with RFC-0003's amendment: bit 5, `ALL`, `Debug`, tests to `0..64`.
+5. **[demo] `MapPerms` and both encoders.** Exhaustive: never W+X; every user entry `PXN`, `AF`, not-global.
+6. **[demo] Table engine**, both formats: overlap, bounds, unpaid maps nothing, tables zeroed, root untouched by kernel maps.
+7. **[demo] Slot store and one Pool.** Conservation; reuse at generation + 1; stale references count nothing; mint refuses off-type `EXECUTE`.
 8. **`pool_split`/`move`/`merge` and closure forwarding**, under random churn. Host-only; not demo.
-9. **[demo] MMU on (§13, stub).** Boot tables, the `SCTLR_EL1` value, `VBAR_EL1` high, DFSC decode; prints
-   the address of `kernel_main`: `--expect "mm: running at 0xffffffff80"`.
+9. **[demo] MMU on (§13, stub)**, `SCTLR_EL1`, `VBAR_EL1` high, DFSC decode: `--expect "mm: running at 0xffffffff80"`.
 10. **[demo] Final kernel map (§13, Rust)**, the store behind its static: physmap with the image read-only,
     MMIO window with every kernel MMIO user repointed, core 0's stack behind a guard; `EPD0`, `WXN`. One
     `--expect` per self-test: `provoke-ro-text` and `provoke-ro-alias` write `.text` through the image and
     the physmap (`data abort, same EL`); `provoke-wxn` branches into `.data` (`instruction abort, same EL`).
 11. **[demo] Region and Mapping records** with the W^X counts. Host-only.
 12. **[demo] The tag allocator**: rollover, per-core reservation, return on destruction. Host-only.
-13. **[demo] AddressSpace and boot-minted Regions**; `TTBR0_EL1` with ASID, `EPD0` cleared on first install.
-    `AT S1E0R` under two ASIDs resolves a shared Region to one frame, private ones apart: `mm: shared region agrees`.
-14. **[demo] Pool, Region and AddressSpace methods through RFC-0007's `call`**, with its increment 6: an EL0
-    self-test maps a fresh Region and prints `[el0] map ok`.
+13. **[demo] AddressSpace and boot-minted Regions**; `TTBR0_EL1` with ASID; `EPD0` cleared. `AT S1E0R` under
+    two ASIDs finds a shared Region at one frame, private ones apart: `mm: shared region agrees`.
+14. **[demo] Pool, Region, AddressSpace methods via RFC-0007's `call`** (its increment 6): `[el0] map ok`.
 15. **`unmap` and `protect`** with invalidation and count decrements (§9, §12). Not demo.
 16. **User-memory module (§11)**: a message beyond the register budget. Not demo.
 17. **Destruction (§10)**, after RFC-0007 increment 11's fault message: a destroyed sharer's fault reaches its handler.
@@ -481,8 +446,7 @@ which needs the stack window; 11–13 before RFC-0006 5 and RFC-0007 6–7; 14 w
 - **One root Pool** (increment 8 is not a syscall yet): server and client charges are indistinguishable.
 - **No destruction or `unmap`**: a killed process's frames and slots stay charged; O-3's memory case is
   designed, not built. **No IPC-buffer module**: messages beyond the register budget cannot be sent.
-- **Hard-coded UART and GIC physical addresses**, against QEMU's warning that they may vary.
-- **Until increment 10 the kernel runs RWX throughout**; cache maintenance stays unverified.
+- **Hard-coded UART and GIC addresses**, against QEMU's warning. **Until increment 10 the kernel runs RWX.**
 - **1 GiB boot blocks** cover 512 MiB with no RAM behind them, which speculation may touch on real hardware:
   there, 2 MiB blocks sized from the DTB. **Zeroing in one step** until RFC-0006's preemption points.
 - **A guarded-stack overflow is a recursive abort** until increment 18.
@@ -491,8 +455,7 @@ which needs the stack window; 11–13 before RFC-0006 5 and RFC-0007 6–7; 14 w
 
 ## 19. What this unblocks
 
-Increments 1–14 give RFC-0006 (proposed) address spaces, a guarded per-core stack and a Pool to charge
-threads to, and RFC-0007 (proposed) the objects its Process, root task and boot info are made of, plus a
-constraint it inherits rather than discovers: §11's sentence on user addresses. The root receives all memory
-as one boot-minted Pool — RFC-0003 §14.4's bootstrap without an ambient grantor. Increments 3–8 are
-host-only and 1–2 change only where the kernel loads and what it prints: all can land now.
+Increments 1–14 give RFC-0006 (proposed) address spaces, a guarded per-core stack and a Pool to charge threads
+to; RFC-0007 (proposed) the objects its Process, root task and boot info are made of, and §11's sentence on
+user addresses as a constraint inherited, not discovered. The root receives all memory as one boot-minted
+Pool — RFC-0003 §14.4's bootstrap without an ambient grantor. Increments 1–8 leave the MMU off: all can land now.
