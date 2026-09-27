@@ -80,7 +80,9 @@ RFC-0006 (proposed)'s `write_regs` refuses such a `RIP`, and the exit path check
 Every register outside the result set is restored from the frame; the eight result registers carry a
 result or zero, so no kernel value leaves in a register (O-9 hygiene). `x8`/`rax` follow Linux; the
 x86_64 column avoids `rbx` and `rbp`, which Rust inline assembly cannot name, and what `syscall` destroys.
-seL4 has the same shape in other seats — `x7`; `rdx` *(libsel4 `sel4_arch/syscalls.h`)*.
+seL4 has the same shape in other seats — `x7`; `rdx` *(libsel4 `sel4_arch/syscalls.h`)*. **No argument
+is a pointer:** only the IPC buffer is touched, by frame (§5) — on the demo CPU the whole defence, since
+the Cortex-A72 (Armv8.0) lacks PAN (Armv8.1).
 
 **Entry state of every thread,** root included: PC = entry; SP as given; `a0`, `a1` — `x0`/`x1`,
 `rdi`/`rsi`, so `_start` is an ordinary two-argument `extern "C"` function — the two start values; every
@@ -88,9 +90,6 @@ other general register zero; EL0t with DAIF clear (`SPSR_EL1` = 0), or ring 3 wi
 FP/SIMD trapped (`CPACR_EL1.FPEN` = 0; `CR0.TS` set) until RFC-0006 (proposed) enables it; `TPIDR_EL0`
 and `FS_BASE` zero; the IPC-buffer register set (§5). A Thread is created so; the spawner writes PC, SP,
 `a0` and `a1` through RFC-0006 (proposed)'s `write_regs`, and the kernel writes the root's (§9).
-
-**No syscall argument is a pointer.** The syscall path touches user memory only in the IPC buffer, by
-frame (§5) — on the demo CPU the whole defence, since the Cortex-A72 (Armv8.0) lacks PAN (Armv8.1).
 
 ## 4. The syscall set
 
@@ -100,10 +99,9 @@ frame (§5) — on the demo CPU the whole defence, since the Cortex-A72 (Armv8.0
   `call` on its capability, the method in the tag's label, answered as a server would answer.
 - **C — B plus an `invoke` number.** The small table without the point: callers can tell the two apart.
 
-**Verdict sought: B.** The payoff is interposition: a Console and an endpoint to a logging server are
-invoked alike, so Phase 2's UART driver takes over the console protocol without a client changing, and
-the broker can hand out a forwarder for any kernel object — RFC-0003a option (a)'s precondition. A `call`
-on a kernel object runs on the caller's own time: nothing is donated, nothing blocks.
+**Verdict sought: B,** for interposition: a Console and a logging server's endpoint are invoked alike, so
+Phase 2's UART driver replaces the Console with no client changing, and the broker can hand out a
+forwarder for any kernel object (RFC-0003a option (a)'s precondition). Such a `call` donates nothing.
 
 | # | Syscall | Handles | Beyond the tag and message registers |
 |---|---------|---------|--------------------------------------|
@@ -385,9 +383,8 @@ memory the ABI defines", adds `user/` to § Layout and makes `xtask` "no externa
 
 ## 15. Graves checked (§3)
 
-- **Policy in the kernel.** The kernel runs one image and lists what it granted; what runs, holding what,
-  is the root's. The rejected manifest and `spawn_from_module` are this grave's two doors; the root's boot
-  scheduling constant is the one named residue.
+- **Policy in the kernel.** The kernel runs one image and lists what it granted; the rest is the root's.
+  The manifest and `spawn_from_module` were this grave's doors; the root's boot constant is its residue.
 - **The catch-all right.** No root identity survives `eret`; no right is added; `WRITE` on a Process is
   authority over one object, and the root's many capabilities are droppable and enumerable.
 - **Baroque hierarchies; multi-copy IPC.** Flat handles, no receive window, a flat BootInfo; one copy.
@@ -403,9 +400,8 @@ memory the ABI defines", adds `user/` to § Layout and makes `xtask` "no externa
   message seL4 would copy needs a Region here; raising either later breaks binaries.
 - **Handles are 20/44 for good,** the accepted `capability` crate changes twice, and `TPIDRRO_EL0` and
   the user GS base belong to the ABI rather than a runtime.
-- **The root task is the most sensitive process;** until it drops authority a bug there compromises the
-  system, as in seL4. It must stay small.
-- **No ambient printing; late grants need a willing child;** the grant window detects no prior use.
+- **The root task is the most sensitive process,** as in seL4; it must stay small. **No ambient
+  printing; late grants need a willing child;** the grant window detects no prior use.
 - **Embedding couples builds:** a user change relinks the kernel, whose reproducibility now includes the
   programs'; `xtask` gains its first, in-workspace dependency. **No PAN on the demo CPU.**
 
@@ -421,44 +417,41 @@ memory the ABI defines", adds `user/` to § Layout and makes `xtask` "no externa
 ## 18. Implementation increments
 
 Each is one reviewable PR; **[demo]** marks what the Phase-1 demo needs. Userspace boot-tests expect
-prefixed strings, since bare `Kaya!` already matches the kernel's greeting. The demo's interims, costed
-above: faults print and stop (§7); the Console is a device path in the kernel (§11); modules come from the
-kernel image (§10); RFC-0005's static object pools; the root's boot scheduling constant (§9). The root
-doubling as the server is not an interim — it is userspace composition, and yields the two processes.
+prefixed strings, since bare `Kaya!` matches the kernel's greeting. The demo's interims, costed above:
+faults print and stop (§7); the in-kernel Console (§11); modules in the kernel image (§10); RFC-0005's
+static object pools; the root's boot scheduling constant (§9). The root doubling as server is composition.
 
 1. **[demo] `capability`: the handle word** — `to_word`/`from_word`, the slot bound, `ObjectDestroyed`.
-   Host tests: round trips; word 0 and index ≥ 2^20 rejected; a slot retiring at the bound while an
-   object generation passes it; use-after-close and destruction told apart.
-2. **[demo] `user/abi`, data half** — numbers, `Tag`, `Status`, `IpcBuffer`, `BootInfo`, bundle and
-   descriptor types, layout assertions, no `unsafe`. Host tests reject every reserved-bit and over-length
-   encoding; CI builds it for both targets.
-3. **[demo] AArch64 trap path, MMU off** — lower-EL save, dispatcher, restore, `eret`; `yield`,
+   Host tests: round trips; word 0 and index ≥ 2^20 refused; a slot retires at the bound while an object
+   generation passes it; use-after-close and destruction told apart.
+2. **[demo] `user/abi`, data half** — numbers, `Tag`, `Status`, the layouts and their assertions, no
+   `unsafe`. Host tests refuse every reserved-bit and over-length encoding; CI builds both targets.
+3. **[demo] AArch64 trap path, MMU off** — lower-EL save, dispatch, restore, `eret`; `yield`,
    `thread_exit`, `InvalidSyscall`; faults stop the thread, not the core. A feature like
    `provoke-exception`, `syscall-selftest`, drops to EL0 with the MMU off (the softfloat target is
-   `+strict-align`, so EL0's Device-memory accesses are safe) and runs `svc #0`. Boot-test
-   `--features syscall-selftest --expect "syscall round trip"`, before RFC-0005's first mapping exists.
+   `+strict-align`, so Device-memory accesses are safe) and runs `svc #0`: `--expect "syscall round trip"`.
 4. **[demo] `user/abi/src/arch/**`** — trap stubs, `_start`, the buffer-register read — **with the
    `CLAUDE.md` edit in the same PR**. Built for both targets under clippy; first run by increment 7.
-5. **[demo] The bundle** — `xtask`'s ELF reader and descriptor writer, host-tested on writable-and-
-   executable, overlapping, truncated and wrong-machine fixtures; `build.rs`, `.payload`. Boot-tests: a
-   bare build `--expect "boot modules: 0"`; `cargo xtask` `--expect "boot modules: 2"`.
-6. **[demo] Objects, `cap_*` and the Console** on RFC-0005's static interim tables. Boot-test
-   `--features syscall-selftest --expect "[el0] Kaya!"`, printed from EL0 through a Console handle.
-7. **[demo] The root reaches EL0** on RFC-0005's address spaces and RFC-0006's threads: construction,
-   BootInfo, entry state (§9). Boot-test `--expect "[server] up"`.
+5. **[demo] The bundle** — `xtask`'s ELF reader, host-tested on writable-and-executable, overlapping,
+   truncated and wrong-machine fixtures; `build.rs`. Boot-tests: bare build `--expect "boot modules: 0"`,
+   `cargo xtask` `--expect "boot modules: 2"`.
+6. **[demo] Objects, `cap_*` and the Console** on RFC-0005's static tables; the self-test prints from EL0
+   through a Console handle: `--features syscall-selftest --expect "[el0] Kaya!"`.
+7. **[demo] The root reaches EL0** on RFC-0005's address spaces and RFC-0006's threads (§9):
+   `--expect "[server] up"`.
 8. **[demo] The Process object** — grant window and teardown as pure logic in a host-tested `process/`
    crate, then wired in. Host tests: born empty; `GRANT` all-or-nothing; `WindowClosed` after first
    resume; `KILL` empties the table.
-9. **[demo] The root spawns the client,** granting a `WRITE`-only Console and the endpoint. The client
-   prints `[client] up`, invokes a handle word it was never granted, receives `InvalidHandle` and prints
+9. **[demo] The root spawns the client** with a `WRITE`-only Console and the endpoint. The client prints
+   `[client] up`, invokes a handle word it was never granted, gets `InvalidHandle` and prints
    `[client] denied, as expected` — O-27 proved observably, not asserted.
-10. **[demo] IPC syscalls** over RFC-0004 endpoints with RFC-0006's blocking states. Boot-test lines in
+10. **[demo] IPC syscalls** over RFC-0004 endpoints and RFC-0006's blocking states. Boot-test lines in
     order: `[client] -> Kaya!`, `[server] <- Kaya!`, `[client] <- Kaya!`. RFC-0006's increments add the
     preemption evidence and the `BudgetRefused` and `BudgetExpired` tests.
-11. **Fault messages and death notification** (§17.1–2). Boot-test: a deliberately faulting child is
-    reported to the root, which prints `[server] child faulted`.
+11. **Fault messages and death notification** (§17.1–2): a faulting child is reported to the root,
+    which prints `[server] child faulted`.
 12. **x86_64 trap path and `user/abi` stubs** — `EFER.SCE`, `LSTAR`/`STAR`/`FMASK`, `swapgs`, the
-    canonical check with `iretq` fallback. Proves §3's second column links; boots with the UEFI stub.
+    canonical check. Proves §3's second column links; boots with the UEFI stub.
 13. **Delete the Console object** when the Phase-2 UART driver lands — scheduled now so it stays interim.
 
 ## 19. What this unblocks
