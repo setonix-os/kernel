@@ -104,10 +104,9 @@ as in seL4; a counted quota, as in Fiasco.OC's factory limits and Genode's quota
 **The object store is typed slot arrays.** Each object type has one fixed-capacity array in `.bss`; a slot
 holds the object, a generation and a reference count, and **the slot index is the object's identity**.
 `ObjectRef` (`capability/src/object.rs`) is `(type, index)` and `current_generation()` is a slot read — no
-raw object pointer, slab or size class. A process's capability table lives in its slot
-(`CapabilityTable<O, N>` is fixed-capacity). A destroyed object frees its frames at once; its slot is reused
-only when the count, stale capabilities' references included, reaches zero, and is retired, as RFC-0003
-requires, if its generation cannot advance.
+raw pointer, slab or size class; a process's fixed-capacity `CapabilityTable<O, N>` lives in its slot. A
+destroyed object frees its frames at once; its slot is reused only when the count, stale capabilities'
+references included, reaches zero, and is retired, as RFC-0003 requires, if its generation cannot advance.
 
 **A Pool is the accounting layer**: an RFC-0003 object holding balances — frames, and slots of each type. At
 boot every free frame and slot becomes the balance of one root Pool handed to the root task (RFC-0007
@@ -130,9 +129,8 @@ every unit of r in use       ==  kept by the kernel at boot, or charged to exact
   when `from` has no outstanding charges. Balance is conserved, never minted — O-2's shape for quantity.
 - **Rights:** `READ` queries; `WRITE` spends and moves; `EXECUTE` lets minted Regions carry `EXECUTE` (§9).
 
-This is not option B's heap: nothing grows after boot, and the only variable memory — frames — comes from
-the bitmap in page units, charged. The kernel keeps its image, the map, the bitmap, the slot arrays, its
-final tables and the boot stack.
+This is not option B's heap: nothing grows after boot, and frames come from the bitmap in page units,
+charged. The kernel keeps only its image, the map, the bitmap, the slot arrays, its tables and boot stack.
 
 ## 6. The kernel's virtual layout
 
@@ -155,10 +153,8 @@ top 2 GiB because `x86_64-unknown-none` uses `code-model: kernel`, which require
   (CVE-2012-0217) for RFC-0007's x86_64 exit path by layout, as Linux does. The physmap covers RAM, never
   MMIO, so no frame is aliased with conflicting attributes.
 - **The kernel half never changes after boot.** AArch64 shares `TTBR1_EL1` for free; x86_64 copies PML4
-  entries 256–511 into each address space, safe only because they are fixed *(seL4 x86)*.
-
-*Rejected:* an **identity-mapped kernel** (impossible under the kernel code model); **no physmap** (an
-invalidation per IPC-buffer touch, for a side-channel gain threat model §7 puts out of scope).
+  entries 256–511 into each address space, safe only because they are fixed *(seL4 x86)*. *Rejected:* an
+  identity-mapped kernel (impossible under the code model); no physmap (an invalidation per IPC-buffer touch).
 
 ## 7. The objects: Region, AddressSpace and Mapping
 
@@ -254,7 +250,7 @@ IPC buffers is a convention (§17).
 
 ## 10. Sharing and donation (RFC-0004 §9.1)
 
-pKVM's *share* (the owner keeps access) and *donate* (the donor loses it) — research/0002 Part 7 — need one op:
+pKVM's *share* (the owner keeps access) and *donate* (the donor loses it), research/0002 Part 7's model, need one operation:
 
 - **Share** is `derive` then transfer over IPC: the borrower receives, say, `READ | WRITE` without
   `EXECUTE`, `DUPLICATE` or `REVOKE`, and maps it where it chooses; bulk data then travels as RFC-0004 §5's
@@ -293,10 +289,9 @@ extends it to data. *Rejected:* `copy_from_user` with fixups (Linux), making ker
 
 ## 12. TLBs, ASIDs and PCIDs
 
-- **Tags are kernel-private.** An ASID (16 bits when `ID_AA64MMFR0_EL1.ASIDBits = 0b0010`, else 8;
-  `TCR_EL1.A1 = 0`, so it rides in `TTBR0_EL1`) or a PCID (12 bits, where CPUID reports it). Tag 0 is
-  reserved. Exhaustion bumps a generation, invalidates all and reassigns lazily *(Linux
-  `arch/arm64/mm/context.c`)*. *Rejected:* seL4's ASID pools as capabilities — a cache tag is not authority.
+- **Tags are kernel-private**: an ASID (16 bits when `ID_AA64MMFR0_EL1.ASIDBits = 0b0010`, else 8) or a PCID
+  (12 bits, where CPUID reports it); tag 0 reserved. Exhaustion bumps a generation, invalidates all and
+  reassigns lazily *(Linux `arch/arm64/mm/context.c`)*. *Rejected:* seL4's ASID pools — a tag is not authority.
 - **Kernel entries are global, user entries never**; without PCID (QEMU's default x86_64 CPU) a `CR3` load
   flushes the non-global ones. **`map` needs no invalidation**: neither architecture caches a faulting
   entry (the Arm ARM; SDM Vol. 3A §4.10), though x86_64's paging-structure caches can cause one spurious
@@ -318,7 +313,7 @@ checked on 8.2.2), and the stub is already position-independent. With the MMU of
 1. Parks secondaries, installs the stack and zeroes `.bss` at physical addresses, as today.
 2. `MAIR_EL1`: index 0 = `0xFF` (Normal write-back, read/write-allocate), index 1 = `0x04` (Device-nGnRE).
 3. `TCR_EL1`: `T0SZ = T1SZ = 17`; `TG0 = 0b00` and `TG1 = 0b10`, both 4 KiB (the trap); `SH = 0b11`;
-   `IRGN/ORGN = 0b01`; `IPS` from `PARange` (44 bits here); `AS = 1`; `A1 = 0`; `TBI = 0`; `HA = HD = 0`.
+   `IRGN/ORGN = 0b01`; `IPS` from `PARange` (44 bits here); `AS = 1`; `A1 = 0`; `TBI0 = TBI1 = 0`; `HA = HD = 0`.
 4. Four page-aligned boot tables in `.bss`: `TTBR0_EL1` identity-maps 0x4000_0000 as a 1 GiB Normal block and
    0x0000_0000 as a 1 GiB Device block, so the UART survives; `TTBR1_EL1` maps `0xFFFF_FFFF_8000_0000` to
    0x4000_0000 as a 1 GiB Normal block. Five descriptors, all `AF = 1`.
@@ -451,4 +446,4 @@ Increments 1–10 give RFC-0006 (proposed) address spaces, guarded kernel stacks
 to, and RFC-0007 (proposed) the objects its Process, root task and boot info are made of, plus a constraint
 it inherits rather than discovers: **no syscall takes a pointer argument**. The root task receives all memory
 as one boot-minted Pool — RFC-0003 §14.4's bootstrap without an ambient grantor; increment 12 closes RFC-0004
-§9.1 in code. Increments 1–3 change nothing about how the kernel runs and can land immediately.
+§9.1 in code. Increments 3–7 are host-only and 1–2 change only where the kernel loads and what it prints: all can land now.
