@@ -98,7 +98,7 @@ it waits on (RFC-0004 §8) and returns any donated context as budget expiry does
 |-----------|-----------|--------|
 | `set_priority(t, auth, p)` / `set_mcp(t, auth, m)` | `t`: `WRITE`; `auth`: `READ`; value `≤ mcp(auth)` | §6 |
 | `bind_sc(t, sc)` / `unbind_sc(t)` | `t`, `sc`: `WRITE` | active or passive; class checked (§12) |
-| `resume(t)` / `suspend(t)` | `t`: `WRITE` | `Inactive` ↔ runnable |
+| `resume(t)` / `suspend(t)` | `t`: `WRITE` | `Inactive` ↔ runnable; a first `resume` closes the Process's grant window (RFC-0007, proposed) |
 | `read_regs(t)` / `write_regs(t, …)` | `READ` / `WRITE` | frame and TLS bases, sanitised (§9) |
 | `set_fp(t, on)` / `set_class(t, c)` | `t`: `WRITE` | §10 / §12 |
 | `sc_configure(core, sc, B, T, refills, class)` / `sc_stats(sc)` | `core`, `sc`: `WRITE` / `sc`: `READ` | §5 |
@@ -157,8 +157,7 @@ endured (research/0002 Part 1, "Mechanism/policy split").
   count-leading-zeros over four `u64` words — O(1). A preempted thread re-enters at the head of its level;
   one whose timeslice ended, at the tail. The running thread is never queued, and a thread switched to
   directly is never enqueued at all. *(Elphinstone & Heiser, "From L3 to seL4", SOSP 2013.)*
-- **Release queue.** Per core, `Throttled` threads sorted by next refill: O(n) insertion in the contexts
-  bound to that core, a number only the `Core` holder can raise.
+- **Release queue.** Per core, sorted by next refill: O(n) in contexts only the `Core` holder can add.
 - **Idle is a kernel loop, not a thread**, billing nobody, and the lost wake-up is designed out. AArch64
   runs `wfi` with `PSTATE.I` set — a pending interrupt still wakes it — then unmasks briefly; Linux warns
   masking at `ICC_PMR_EL1` would *not* wake the core (`arch/arm64/kernel/idle.c`), so this kernel masks
@@ -182,18 +181,18 @@ priority-ceiling bound seL4 MCS relies on. Lending priority is safe because time
 to an **active** receiver donates nothing. Chains compose one hop at a time. *(Ford & Lepreau, migrating
 threads, 1994; QNX priority inheritance; seL4 MCS passive servers.)*
 
-**Rejected: a passive server at its own priority only** (seL4 MCS), which leaves inversion to a global
-convention. **Rejected: boosting a busy server to a waiting sender's priority** (QNX): the kernel would
-guess which thread serves an endpoint — policy — and walk unbounded chains with interrupts masked.
+**Rejected:** a passive server at its own priority only (seL4 MCS), leaving inversion to a global
+convention; and boosting a busy server to a waiting sender's priority (QNX), where the kernel would guess
+which thread serves an endpoint — policy — and walk unbounded chains with interrupts masked.
 
 **The 2026-08-01 amendment, discharged**, following seL4 RFC-14 (Mitchell Johnston, "Budget limit
 thresholds on endpoints for SC Donation", proposed 2023-08-15; seL4/rfcs pull request 24, opened
 2024-06-17, still open; read in full for this RFC):
 
 - **Prevention — the threshold.** An endpoint carries a `threshold`, fixed at creation (0 means none;
-  RFC-0007 (proposed) carries the parameter). A `call` needs released budget of at least `threshold`
+  RFC-0007 (proposed) encodes it, as `min_budget`). A `call` needs released budget of at least `threshold`
   plus twice the kernel's worst-case path, paying for the `call` and `reply` themselves — RFC-14's rule.
-  A context whose `B` can never meet that fails with `BudgetBelowThreshold`; a non-donating `send` to a
+  A context whose `B` can never meet that fails with `BudgetRefused`; a non-donating `send` to a
   thresholded endpoint is invalid. With `threshold` at the server's WCET, expiry inside it is a true error.
 - **A flagged deviation.** The amendment says donation below the threshold is "refused up front". RFC-14,
   which it cites, refuses only a context that can *never* pass; one that cannot pass *now* has its refills
@@ -278,20 +277,19 @@ where a time-protection flush would go (Ge et al., EuroSys 2019; research/0002 P
 - **Loaded on first use, saved lazily.** Each core records an FP *owner*; every other thread runs with
   access trapped — `CPACR_EL1.FPEN = 0b00` (EC `0x07`, which the reporter already names) or `CR0.TS = 1`
   (`#NM`, vector 7). On that trap, for an FP-enabled thread, the kernel saves the owner's registers,
-  loads the new owner's (zeroed on first use), grants access (`FPEN = 0b11`; `clts`) and retries. A
-  `call` → FP-off server → `reply` round trip saves nothing. State is saved eagerly before a context moves.
+  loads the new owner's (zeroed on first use), grants access (`FPEN = 0b11`; `clts`) and retries. A `call`
+  to an FP-off server saves nothing. State is saved eagerly before a context moves core.
 - **AArch64's asymmetry, stated.** No `FPEN` value traps EL1 while allowing EL0 (`0b01` is the reverse),
   so while an owner runs a stray kernel FP instruction would not trap; the soft-float target is the guarantee.
 - **Extent.** x86_64 sets `CR4.OSFXSR`, `CR4.OSXSAVE` and `XCR0 = 0b111` — the 832-byte standard-format
   area (512 legacy + 64 header + 256 AVX). AVX-512, AMX and SVE (`CPACR_EL1.ZEN`) stay disabled and fault.
 - **The known cost — LazyFP** (CVE-2018-3665; Stecklina & Prescher, 2018): on affected Intel cores a
-  non-owner can speculatively read the owner's registers before `#NM` resolves. Hardware side channels are
-  out of scope (threat model §7) and CLAUDE.md asks for lazy saving; the cure is Open question 2, costed in §16.
+  non-owner can read the owner's registers speculatively before `#NM` resolves. Hardware side channels are
+  out of scope (threat model §7); the cure is Open question 2, costed in §16.
 
 ## 11. Interrupts — the controller, and device IRQs as notifications (V8)
 
-The kernel owns the interrupt controller and nothing behind it. *(seL4 `IRQControl`/`IRQHandler`; Redox
-and QNX userspace drivers.)*
+The kernel owns the controller and nothing behind it. *(seL4 `IRQControl`/`IRQHandler`; Redox; QNX.)*
 
 - **Objects.** One `IrqControl` (the root task's) mints at most one `IrqHandler` per device line.
   Kernel-reserved lines — the timer PPI, the IPI SGIs or vector, spurious INTID 1023 — are never minted.
@@ -367,7 +365,7 @@ Phase 1 runs `-smp 1`; the shape is fixed now so multicore is not bolted on.
 
 ## 15. Graves checked (§3)
 
-- **Policy in the kernel.** No admission, balancing or budget choice. The one number the kernel chooses is 256.
+- **Policy in the kernel.** No admission, balancing or budget choice; the one number chosen is 256.
 - **The catch-all right.** Priority authority is a relation (MCP); time is per core; interrupts per line.
 - **Bolted-on multicore.** Per-core state, IPIs, the lock and placement are stated before any SMP code.
 - **Drivers in the kernel; compiled-in unused device paths.** The kernel masks and signals, never services
@@ -380,13 +378,13 @@ Phase 1 runs `-smp 1`; the shape is fixed now so multicore is not bolted on.
   one needs a configured context. "Spawn a thread and it runs" is gone — O-4's price, in time.
 - **The one-hop unwind leaves a stranded server to userspace.** The kernel makes the failure visible and
   restarts nothing: a supervisor is required before any passive server on partial contexts is trusted.
-- **MCS is the least-verified part of seL4's lineage**, and sporadic refills are subtle — hence property tests.
+- **MCS is seL4's least-verified part**, and sporadic refills are subtle — hence property tests.
 - **About 1 KiB per TCB on AArch64 and 1.25 KiB on x86_64**, FP space included for threads that never use it.
 - **FIFO endpoint queues** let a high-priority client wait behind earlier low-priority ones.
 - **Lazy FP's cure, costed.** Eager restore on a switch into an FP-enabled thread of another process moves
-  520 bytes (16 `ldp q` pairs) or an 832-byte `XRSTOR` — 9 or 13 cache lines — and nothing on IPC to FP-off
-  servers. The cycles are a measurement owed; beside a `call` round trip of roughly 380–630 cycles (twice
-  research/0001's one-way 188–316) it matters only for FP-heavy clients.
+  520 bytes (16 `ldp q` pairs) or an 832-byte `XRSTOR` — 9 or 13 cache lines — and nothing on IPC to
+  FP-off servers. Its cycles are a measurement owed, beside a `call` round trip of roughly 380–630 cycles
+  (twice research/0001's one-way 188–316).
 
 ## 17. Open questions
 
@@ -427,14 +425,14 @@ build compiles the scheduler. **[demo]** marks what the Phase-1 demo needs.
    priority; a demo stretch goal.
 9. **`scheduler` III — partial contexts.** Sporadic refills, merge, release queue. Property test: no
    window of length `T` sees more than `B` consumed.
-10. **Threshold, deferral, expiry return, timeout faults.** Host tests; boot-test `BudgetBelowThreshold`,
+10. **Threshold, deferral, expiry return, timeout faults.** Host tests; boot-test `BudgetRefused`,
     then `BudgetExpired` and a timeout fault for an overrunning server. Required before partial-context
     passive servers are trusted.
 11. **Lazy FP/SIMD.** Two FP-enabled EL0 threads load different markers into `v0`, are preempted in turn
     and each finds its own: `fp: isolated`.
 12. **`IrqControl`/`IrqHandler`.** PL011 receive (SPI 1, INTID 33) reaches an EL0 driver as a notification
     when xtask writes a byte to the serial port: `irq: notified`.
-13. **x86_64 scheduling HAL** (IDT, TSS, IST, LAPIC, `#NM`, `XSAVE`) after its boot RFC: 3–5 and 11's strings.
+13. **x86_64 scheduling HAL** (IDT, TSS, IST, LAPIC, `#NM`, `XSAVE`), after its boot RFC: 3–5, 11 again.
 14. **SMP** — secondary cores from the park loop, the big lock, IPIs, placement classes.
 
 **What the demo takes as interim, honestly.** The demo needs increments 1–7 and runs full contexts only.
