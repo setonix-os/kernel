@@ -115,7 +115,7 @@ once with its generation advanced**, stale capabilities fail closed on it — ex
 generation exists to allow — and no past holder can pin another process's charge. A slot whose generation
 cannot advance is retired, its unit debited once from its payer and thereafter kept by the kernel (objects
 keep 64-bit generations, RFC-0007 (proposed) §6, so this is a boundary, not a budget). `object.rs`'s
-"takes a reference count" comment gains that qualification in increment 7a.
+"takes a reference count" comment gains that qualification in increment 7.
 
 **Where it lives.** The generic slot array and Pool are safe code in `memory/`, generic over the object type.
 The concrete store — one `Kernel` value holding every type's array, RFC-0004/0006/0007 objects included — is
@@ -171,7 +171,7 @@ top 2 GiB, which `x86_64-unknown-none`'s default kernel code model expects; over
 | `0xFFFF_FFFF_8000_0000` – top | image at `+0x20_0000` | `.text` RX, `.rodata` R, `.data`/`.bss` RW execute-never |
 
 - **Stacks.** RFC-0006 (proposed) V1 chose one kernel stack per core; they are allocated at boot, and core
-  0's boot stack moves from `aarch64.ld`'s unguarded slot into this window in increment 9. A guard page
+  0's boot stack moves from `aarch64.ld`'s unguarded slot into this window in increment 10. A guard page
   makes an overflow a fault, but the fault's entry then pushes onto the same stack: **RFC-0006 (proposed)
   provides the overflow stack** (x86_64 IST; on AArch64 the EL1-origin vector switching to the emergency
   stack, since a kernel fault is fatal). Until then an overflow is a recursive abort — detected, not diagnosed.
@@ -251,7 +251,7 @@ needs one". Folding execution into `READ` makes every readable Region potential 
 the loader, which writes code before running it. seL4 leaves execution an ungoverned attribute; Fuchsia's
 `ZX_RIGHT_EXECUTE` is the lineage. It means *may map executable* on a Region and *may mint executable
 Regions* on a Pool, and is **refused at mint on every other type**: the store's mint path rejects it
-(host-tested, increment 7a), and `derive` cannot add it (O-2). `rights.rs`'s `ALL` is an explicit union
+(host-tested, increment 7), and `derive` cannot add it (O-2). `rights.rs`'s `ALL` is an explicit union
 despite its comment; increment 4 edits both. **On acceptance, RFC-0003 gains a dated amendment adding
 `EXECUTE` to §5's table, logged in `docs/CHANGELOG.md`.** RFC-0003 §14.3's handshake is one rule: **the
 installed permission is the requested `perms`, refused unless a subset of the Region capability's rights.**
@@ -507,22 +507,22 @@ map (UEFI stub pending)` and halts, so the second Tier-1 build compiles the whol
 6. **[demo] The table engine** over the frame-access trait. Host tests on both formats: overlap, the 512-leaf
    and six-table bound, nothing mapped when unpaid, tables zeroed before linking, a kernel-half map never
    writing the root.
-7. **[demo] 7a — slot store and one Pool.** Charge, refund, conservation; reuse at generation + 1; stale
-   references count nothing; `EXECUTE` refused at mint off-type; `object.rs`'s comment. The one static.
-8. **7b — `pool_split`/`move`/`merge` and closure forwarding.** Host tests under random churn. Not demo.
+7. **[demo] Slot store and one Pool.** Charge, refund, conservation; reuse at generation + 1; stale
+   references count nothing; `EXECUTE` refused at mint off-type; `object.rs`'s comment. Host-only.
+8. **`pool_split`/`move`/`merge` and closure forwarding.** Host tests under random churn. Not demo.
 9. **[demo] MMU on (§13, stub).** Boot tables, the `SCTLR_EL1` value, `VBAR_EL1` high, DFSC decode.
    Prints the address of `kernel_main`: `--expect "mm: running at 0xffffffff80"`.
 10. **[demo] Final kernel map (§13, Rust)**: physmap with the image read-only, MMIO window with every kernel
     MMIO user repointed, stack window with core 0's stack moved behind a guard; `EPD0`, `WXN`. Three
-    self-tests, one `--expect` each: `provoke-ro-text` and `provoke-ro-alias` write `.text` through the
+    self-tests, one `--expect` each, and the store behind its one static: `provoke-ro-text` and `provoke-ro-alias` write `.text` through the
     image and the physmap, expecting `data abort, same EL`; `provoke-wxn` branches into `.data`, expecting
     `instruction abort, same EL`.
-11. **[demo] 11a — Region and Mapping records** with the W^X counts; host-only in `memory/`.
-12. **[demo] 11b — the tag allocator**: rollover, per-core reservation, return on destruction; host-only.
-13. **[demo] 11c — AddressSpace and boot-minted Regions**; `TTBR0_EL1` with ASID, `EPD0` cleared on first
+11. **[demo] Region and Mapping records** with the W^X counts; host-only in `memory/`.
+12. **[demo] The tag allocator**: rollover, per-core reservation, return on destruction; host-only.
+13. **[demo] AddressSpace and boot-minted Regions**; `TTBR0_EL1` with ASID, `EPD0` cleared on first
     install. Boot-test: `AT S1E0R` under two ASIDs resolves one shared Region to one frame and private ones
     apart: `mm: shared region agrees`.
-14. **[demo] 11d — Pool, Region and AddressSpace methods through RFC-0007's `call`**, handle words in message
+14. **[demo] Pool, Region and AddressSpace methods through RFC-0007's `call`**, handle words in message
     registers, with RFC-0007 increment 6: an EL0 self-test maps a fresh Region and prints `[el0] map ok`.
 15. **`unmap` and `protect`** with invalidation and count decrements (§9, §12). Not demo.
 16. **User-memory module (§11).** A message beyond the register budget. Not demo.
@@ -538,7 +538,7 @@ too — and before RFC-0006 4, which needs the stack window; 11–13 before RFC-
 
 **Interims the demo carries, with their cost:**
 
-- **One root Pool.** 7b is not a syscall yet: server and client charges are indistinguishable.
+- **One root Pool.** Increment 8 is not a syscall yet: server and client charges are indistinguishable.
 - **No destruction or `unmap`**: a killed process's frames and slots stay charged; O-3's memory case is
   designed, not built. **No IPC-buffer module**: messages beyond the register budget cannot be sent.
 - **Hard-coded UART and GIC physical addresses**, against QEMU's warning that they may vary.
