@@ -50,19 +50,16 @@ The load-bearing choice, because it decides what a context switch *is*.
 - **Option B — event kernel** (one stack per core: seL4, OKL4, NOVA; Fluke's "interrupt model").
   **Verdict sought.** The kernel is entered by exception, interrupt or syscall, runs to completion with
   interrupts masked, and leaves by restoring *some* thread's user frame. A syscall that must wait records
-  a state and the object waited on, and the kernel exits to someone else. On wake, the result is written
-  into the waiter's frame, or the call restarts by rewinding the saved PC one instruction (4 bytes for
-  `svc #0`, 2 for `syscall`). *(Heiser & Elphinstone, "L4 Microkernels: The Lessons from 20 Years of
-  Research and Deployment", TOCS 2016; Ford et al., "Interface and Execution Models in the Fluke Kernel",
-  OSDI 1999.)*
+  a state and the object waited on; on wake, the result is written into the waiter's frame, or the call
+  restarts by rewinding the saved PC one instruction (4 bytes for `svc #0`, 2 for `syscall`). *(Heiser &
+  Elphinstone, "L4 Microkernels: The Lessons from 20 Years of Research and Deployment", TOCS 2016; Ford
+  et al., "Interface and Execution Models in the Fluke Kernel", OSDI 1999.)*
 
-**The cost:** every kernel path must be bounded. The long ones — object destruction and RFC-0005
-(proposed)'s `reissue` and address-space teardown — take **preemption points**: poll for a pending
-interrupt (`ISR_EL1.I`; the LAPIC IRR) and, if one is pending, leave the operation restartable and exit.
-The worst path is measured and published, because it is the interrupt latency. This **reverses
-`aarch64.ld`'s plan** that the boot stack "will be replaced by per-thread stacks": it becomes core 0's
-kernel stack, moved into RFC-0005 (proposed)'s guarded stack window and resized from a measured
-high-water mark.
+**The cost:** every kernel path must be bounded. The long ones — object destruction, RFC-0005
+(proposed)'s `reissue` and address-space teardown — take **preemption points**: on a pending interrupt
+(`ISR_EL1.I`; the LAPIC IRR) they leave the operation restartable and exit. The worst path is measured and
+published: it is the interrupt latency. This **reverses `aarch64.ld`'s plan** that the boot stack "will be
+replaced by per-thread stacks": it becomes core 0's kernel stack, in RFC-0005 (proposed)'s guarded window.
 
 ## 4. The Thread object (V2)
 
@@ -249,17 +246,15 @@ and the next refill due. With no competitor (§12's exclusive core) the timer is
 
 ## 9. The context switch — what is saved, where
 
-In an event kernel a context switch is *which frame the exit path restores*: no kernel stack changes
-hands. Assembly is confined to the entry and exit stubs in `kernel/src/arch/**`. **The user frame lives
-in the TCB.** On AArch64, while a thread runs at EL0, `SP_EL1` points at the end of its TCB frame, so
-the entry stub's stores land there; only then does it load the per-core kernel stack from the block
-`TPIDR_EL1` addresses. On x86_64 an interrupt or exception from ring 3 loads `RSP` from `TSS.RSP0`,
-which points at the TCB frame, so the CPU's pushes land there — but **`syscall` does not switch `RSP`**:
-its stub must `swapgs`, park the user `RSP` and load the frame pointer itself to reach the same layout.
-RFC-0007 (proposed) owns both entry sequences and `sysretq`'s canonical-`RIP` check; this RFC owns the
-layout. The address-space switch (`TTBR0_EL1` with ASID; `CR3` with PCID) is RFC-0005 (proposed)'s call,
-made on exit when the process differs — the single point where a time-protection flush would go (Ge et
-al., EuroSys 2019; research/0002 Part 6).
+In an event kernel a context switch is *which frame the exit path restores*; assembly is confined to the
+entry and exit stubs in `kernel/src/arch/**`. **The user frame lives in the TCB.** On AArch64, while a
+thread runs at EL0, `SP_EL1` points at the end of its TCB frame, so the entry stub's stores land there
+before it loads the per-core kernel stack from the block `TPIDR_EL1` addresses. On x86_64 an interrupt or
+exception from ring 3 loads `RSP` from `TSS.RSP0`, pointing at the TCB frame — but **`syscall` does not
+switch `RSP`**: its stub must `swapgs`, park the user `RSP` and load the frame pointer itself. RFC-0007
+(proposed) owns both entry sequences; this RFC owns the layout. The address-space switch (`TTBR0_EL1` with
+ASID; `CR3` with PCID) is RFC-0005 (proposed)'s, made on exit when the process differs — the single point
+where a time-protection flush would go (Ge et al., EuroSys 2019; research/0002 Part 6).
 
 | What | AArch64 | x86_64 |
 |------|---------|--------|
@@ -395,10 +390,9 @@ Phase 1 runs `-smp 1`; the shape is fixed now so multicore is not bolted on.
 
 ## 17. Open questions
 
-1. **EL0 counter access.** Proposed default: a per-thread flag, off unless set with `WRITE` on the Thread,
-   switched with the thread (`CNTKCTL_EL1.EL0VCTEN`; `CR4.TSD`, written only when it differs). Denial costs
-   a web server a kernel entry per timestamp, and threat model §7 puts fine-grained timing out of scope.
-   EL0 timers, the physical counter and the PMU stay off regardless.
+1. **EL0 counter access.** Proposed default: a per-thread flag set with `WRITE` on the Thread and switched
+   with it (`CNTKCTL_EL1.EL0VCTEN`; `CR4.TSD`, written only when it differs). Denial costs a web server a
+   kernel entry per timestamp; threat model §7 puts fine-grained timing out of scope. EL0 timers stay off.
 2. **LazyFP on x86_64.** Eager restore for cross-process switches into FP threads (costed in §16)?
 3. **RFC-14 budget limits.** Worth 21–22% on the fastpath to stop a passive server overspending?
 4. **Passive drivers** need a context bound to a notification (MCS); **userspace timers** (RFC-0004 §9.3)
@@ -423,21 +417,19 @@ build compiles the scheduler. **[demo]** marks what the Phase-1 demo needs.
 4. **Event-kernel dispatch. [demo]** Trap frame in the TCB; two kernel self-test threads (EL1t, on
    `SP_EL0`, behind a `sched-selftest` feature as `provoke-exception` is) alternate under the timer:
    `sched: A B A B`. The boot stack becomes core 0's kernel stack; `aarch64.ld`'s comment changes with it.
-5. **EL0 entry and exit** (with RFC-0005 (proposed)'s user mappings and RFC-0007 (proposed)'s trap stub).
-   **[demo]** A spinning EL0 thread is preempted at arbitrary instructions and resumes with a register
-   pattern intact: `user: still here`.
+5. **EL0 entry and exit** (on RFC-0005's user mappings, RFC-0007's trap stub, both proposed). **[demo]** A
+   spinning EL0 thread is preempted anywhere and resumes with its registers intact: `user: still here`.
 6. **Thread, SchedContext and `Core` objects; `sc_configure`, `bind_sc`, `resume`, `set_priority`, `exit`.
    [demo]** The root task configures the demo processes; two EL0 threads at equal priority interleave.
-7. **IPC blocking states, FIFO endpoint queues, the direct switch** (with RFC-0004's endpoint PR). **[demo]**
-   Host tests for the switch decision; boot-test: the client `call`s an **active** server and RFC-0007
-   (proposed)'s `Kaya!` strings appear.
+7. **IPC blocking states, FIFO endpoint queues, direct switch** (with RFC-0004's endpoint PR). **[demo]**
+   Host tests for the switch; the client `call`s an **active** server and RFC-0007's `Kaya!` strings appear.
 8. **Passive servers, donation, inheritance.** A passive server runs only when called, at its client's
-   priority. A demo stretch goal if 1–7 land early.
+   priority; a demo stretch goal.
 9. **`scheduler` III — partial contexts.** Sporadic refills, merge, release queue. Property test: no
    window of length `T` sees more than `B` consumed.
-10. **Threshold, deferral, expiry return, timeout faults.** Host tests; boot-test: `BudgetBelowThreshold`
-    for an under-budgeted client, `BudgetExpired` and a timeout fault for an overrunning server. Must
-    land before any passive server on a partial context is trusted.
+10. **Threshold, deferral, expiry return, timeout faults.** Host tests; boot-test `BudgetBelowThreshold`,
+    then `BudgetExpired` and a timeout fault for an overrunning server. Required before partial-context
+    passive servers are trusted.
 11. **Lazy FP/SIMD.** Two FP-enabled EL0 threads load different markers into `v0`, are preempted in turn
     and each finds its own: `fp: isolated`.
 12. **`IrqControl`/`IrqHandler`.** PL011 receive (SPI 1, INTID 33) reaches an EL0 driver as a notification
