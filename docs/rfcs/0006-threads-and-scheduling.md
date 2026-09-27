@@ -196,12 +196,12 @@ active server chose to pay for itself. RFC-0004 §4 and §8 lend unconditionally
 cost:** an active server inherits nothing, and a low-priority one blocks urgent clients; Constitution §3's
 inheritance holds for passive servers only.
 
-**Inversion, bounded.** Priority-ordered queues serve the most
-urgent waiter next, but the request in service runs on its client's context and a middle-priority thread can
-preempt it. `prio(S)` is therefore a **ceiling floor**, bounding inversion to one request when set to the
-highest client priority *(the priority-ceiling bound seL4 MCS relies on)* — **required, not optional, for a
-server shared across trust domains**, passive or active. **Rejected:** boosting a busy server to a waiting
-sender's priority (QNX): the kernel would guess which thread serves an endpoint and walk unbounded chains.
+**Inversion, bounded.** Priority-ordered queues serve the most urgent waiter next, but the request in service
+runs on its client's context and a middle-priority thread can preempt it. `prio(S)` is therefore a **ceiling
+floor**, bounding inversion to one request when set to the highest client priority *(the priority-ceiling bound
+seL4 MCS relies on)* — **required, not optional, for a server shared across trust domains**, passive or active.
+**Rejected:** boosting a busy server to a waiting sender's priority (QNX): the kernel would guess which thread
+serves an endpoint and walk unbounded chains.
 
 **Caller death never unfunds a server.** If *C* exits or is killed mid-request, *R* is destroyed but the context
 stays with *S* until *S* next blocks in `recv` or `reply_recv` (its `reply` fails `PeerGone`); it then detaches,
