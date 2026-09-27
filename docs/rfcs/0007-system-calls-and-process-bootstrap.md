@@ -7,23 +7,25 @@
 | Status | **Proposed** — 2026-09-27, awaiting the maintainer's verdict |
 | Author | Drafted by Claude Code as sparring partner; verdict the maintainer's |
 | Date | 2026-09-27 |
-| Affects | Constitution §3 (capabilities are the only authority), pillar 2; `CLAUDE.md` § `unsafe` policy and § Layout; the workspace (`user/`); `xtask` and `kernel/build.rs`; the kernel's trap path; the accepted `capability` crate (the handle word, a slot-generation bound, one error variant split) |
-| Depends on | RFC-0003 (accepted; §9 binds every syscall); RFC-0004 (accepted; §5, §6, §8, §9.4, §10 and the 2026-08-01 amendment); RFC-0005 and RFC-0006 (proposed, drafted alongside) |
-| Discharges | O-5 (argument validation) for the syscall surface; O-27 (explicit authority at spawn); binds O-1, O-2 and O-4 at B1; contributes to O-7, O-9 and O-13 |
+| Affects | Constitution §3 (capabilities are the only authority; the Language clause), §4 (a Borrow Ledger reading, §12); `CLAUDE.md` § `unsafe` policy and § Layout; threat model O-6's text; RFC-0003 (a dated amendment: the handle word, a slot-generation bound, `free_slots`, one error variant split); RFC-0004 §8 (a dated amendment: reply objects are unbound, not destroyed); `docs/CHANGELOG.md`; the workspace (`user/`), the comments in `Cargo.toml` and `xtask/Cargo.toml`, `kernel/src/main.rs`'s grep scope; `xtask`, `kernel/build.rs` and `aarch64.ld`; the kernel's trap path |
+| Depends on | RFC-0003 (accepted; §9 binds every syscall); RFC-0004 (accepted; §5, §6, §8, §9.4, §10 and the 2026-08-01 amendment); RFC-0005 and RFC-0006 (proposed, drafted alongside); a future x86_64 boot RFC for the UEFI stub |
+| Discharges | O-5 (argument validation) for the syscall surface; O-27 (explicit authority at spawn); binds O-1, O-2 and O-4 at B1; keeps O-6 Built with a third designated tree; contributes to O-7, O-9 and O-13; designs O-17's fault path |
 
 > **Proposed verdicts.**
 >
 > 1. **Uniform invocation:** every kernel-object operation is a `call` on its capability; twelve syscalls in all (§4).
-> 2. **Registers:** AArch64 `svc #0`, number in `x8`; x86_64 `syscall`, number in `rax`; every thread starts with zeroed registers but four (§3).
-> 3. **Messages:** four physical and sixty-four virtual message registers, three capabilities; a 1 KiB IPC buffer, every word fetched once (§5).
-> 4. **IPC-buffer discovery:** a kernel-set, user-read-only register — `TPIDRRO_EL0`; the user GS base with a self-pointer at `gs:[0]` (§5).
-> 5. **Handle word:** 20-bit index, 44-bit *slot* generation, `0` is null; the crate retires slots at 2^44 − 1, objects keep 64 bits (§6).
-> 6. **Errors in two layers:** transport status in a register, method result in the reply label; `BudgetRefused` beside `BudgetExpired`; faults are not errors (§7).
-> 7. **Process object:** table + address space + threads, born empty, grant window shut by the first `resume` of any of its threads (§8).
-> 8. **One root task,** built once from a load descriptor, every boot capability listed in BootInfo, no "is root" branch anywhere (§9).
-> 9. **Boot images:** `xtask` parses ELF on the host and embeds a bundle of fixed-shape descriptors in the kernel ELF; the kernel never parses ELF (§10).
-> 10. **Console as a capability:** a kernel object with one `WRITE` method, scheduled for deletion when the Phase-2 UART driver lands (§11).
-> 11. **`user/abi`** is the microkernel-core row, not libc/runtime; its `src/arch/**` is the third designated `unsafe` tree (§12).
+> 2. **Method arguments in registers:** a kernel method's handle words ride in MR0–MR3, *presented* — resolved and checked, never moved — unless its row says *moved* (§4).
+> 3. **Reply objects are reusable:** `reply`, budget expiry and caller death unbind them, never destroy them — a dated RFC-0004 amendment (§4).
+> 4. **Registers:** AArch64 `svc #0`, number in `x8`; x86_64 `syscall`, number in `rax`; every thread starts with zeroed registers but four (§3).
+> 5. **Messages:** four physical and sixty-four virtual message registers, three capabilities, an optional 1 KiB IPC buffer; transfers resolved at rendezvous, every word fetched once (§5).
+> 6. **IPC-buffer discovery:** a kernel-set, user-read-only register — `TPIDRRO_EL0`; the user GS base with a self-pointer at `gs:[0]` (§5).
+> 7. **Handle word:** 20-bit index, 44-bit slot generation; word `0` is null; recorded as a dated RFC-0003 amendment (§6).
+> 8. **Errors in two layers:** numbered transport status in a register, method result in the reply label; faults are not errors (§7).
+> 9. **Process object:** table + one AddressSpace for life + threads, born empty; `GRANT` only until the first `resume`; once started, `WRITE` on it means `KILL` (§8).
+> 10. **One root task,** built once from a load descriptor, every boot capability listed in BootInfo, no "is root" branch anywhere (§9).
+> 11. **Boot images:** `arch::boot_modules()` yields fixed-shape descriptors a host-side ELF reader made; the kernel never parses ELF; AArch64 embeds them as an interim (§10).
+> 12. **Console as a capability:** one `WRITE` method of at most 24 bytes that never waits; deleted when the Phase-2 UART driver lands (§11).
+> 13. **`user/abi`** is the microkernel-core row; its `src/arch/**` — trap instructions and entry stubs only — is the third designated `unsafe` tree (§12).
 
 ## 1. The question
 
@@ -44,26 +46,28 @@ traversal), and O-27 exists because of it. Boot images reach userspace read-only
 
 ## 3. Entering the kernel
 
-**AArch64 — `svc #0`.** From EL0, `svc` traps to `VBAR_EL1 + 0x400` (lower EL, AArch64 — entry 8 of the
-table `vectors.s` installs) with `ESR_EL1.EC = 0x15`, the immediate in `ISS[15:0]` and `ELR_EL1` past the
-`svc`; entry masks DAIF and selects `SP_EL1` *(Arm ARM DDI 0487)*. The stub saves `x0`–`x30`, `SP_EL0`,
-`ELR_EL1` and `SPSR_EL1` into the thread's frame (RFC-0006 (proposed) provides its layout, in the TCB) and
-dispatches on EC: `0x15` to the syscall dispatcher, anything else is a *fault* (§7). A non-zero immediate
-answers `InvalidArgument`, so a later ABI revision is detectable. Return is `eret` with an `SPSR_EL1` the
-kernel builds: `M` = EL0t, DAIF clear, NZCV from the frame; `DIT` (Armv8.4) and `SSBS` (Armv8.5), which
-EL0 sets itself with `msr`, carried where implemented; every other bit (`SS`, `IL`, `PAN`, `UAO`, `TCO`,
-`BTYPE`) zero. The Cortex-A72 implements neither, so on the demo CPU only NZCV crosses.
+**AArch64 — `svc #0`.** From EL0, `svc` traps to `VBAR_EL1 + 0x400` (lower EL, AArch64) with
+`ESR_EL1.EC = 0x15`, the immediate in `ISS[15:0]` and `ELR_EL1` past the `svc`; entry masks DAIF and selects
+`SP_EL1` *(Arm ARM DDI 0487)*. The stub saves `x0`–`x30`, `SP_EL0`, `ELR_EL1` and `SPSR_EL1` into the
+thread's frame (RFC-0006 (proposed) §9 owns its layout, in the TCB) and dispatches on EC: `0x15` to the
+syscall dispatcher, anything else is a *fault* (§7). A non-zero immediate answers `InvalidArgument`, so a
+later ABI revision is detectable. Return is `eret` with an `SPSR_EL1` the kernel builds: `M` = EL0t, DAIF
+clear, NZCV from the frame; `DIT` (Armv8.4) and `SSBS` (Armv8.5) carried where implemented; every other bit
+zero. The Cortex-A72 implements neither, so on the demo CPU only NZCV crosses.
 
 **x86_64 — `syscall` / `sysretq`.** `syscall` needs `IA32_EFER.SCE`; it loads `RIP` from `IA32_LSTAR`,
 leaves the return `RIP` in `rcx` and `RFLAGS` in `r11`, clears the `IA32_FMASK` bits, takes `CS`/`SS` from
-`IA32_STAR`, and does **not** switch stacks *(Intel SDM Vol. 3A, "Fast System Calls in 64-Bit Mode")*. The
-stub begins with `swapgs`, parks the user `rsp` in per-CPU scratch and loads the kernel stack, never
-dereferencing the user's. `FMASK` clears IF, DF, TF and AC — user access closed where SMAP exists. A
-**non-canonical `rcx`** makes Intel's `sysretq` raise #GP *in ring 0* on the user's stack (CVE-2012-0217,
-which took Xen, FreeBSD, NetBSD and Windows): RFC-0005 (proposed) leaves the top user page unmapped and
-RFC-0006 (proposed)'s `write_regs` refuses such a `RIP`, and the exit path checks anyway, falling back to
-`iretq`. The window before the stack switch gets IST stacks from RFC-0006 (proposed). **Rejected:**
-`sysenter`, which AMD does not implement in long mode; an `int` gate, a full IDT delivery per call.
+`IA32_STAR`, and does **not** switch stacks *(Intel SDM Vol. 3A, "Fast System Calls in 64-Bit Mode")*. As
+RFC-0006 (proposed) §9 requires, the stub runs `swapgs`, parks the user `rsp` in per-core scratch, loads the
+TCB frame pointer, saves into the frame, and only then loads the per-core kernel stack; it never
+dereferences the user stack. `FMASK` clears IF, DF, TF and AC. **The exit uses `sysretq` only when `rcx`
+is canonical and the frame's `RFLAGS` has TF and RF clear and IOPL 0; otherwise `iretq`.** A non-canonical
+`rcx` makes Intel's `sysretq` raise #GP *in ring 0* on the user's stack (CVE-2012-0217, which took Xen,
+FreeBSD, NetBSD and Windows); `sysretq` loads `RFLAGS` from `r11 AND 3C7FD7H OR 2` (SDM Vol. 2B, SYSRET),
+which passes TF, so a user-set TF would trap straight after it — Linux takes `iretq` for TF or RF likewise
+(`arch/x86/entry/entry_64.S`). RFC-0005 leaves the top user page unmapped and RFC-0006's `write_regs`
+sanitises `RIP` and `RFLAGS`; the exit checks anyway. **Rejected:** `sysenter`, which AMD does not
+implement in long mode; an `int` gate, a full IDT delivery per call.
 
 | Role | AArch64 | x86_64 |
 |------|---------|--------|
@@ -71,23 +75,26 @@ RFC-0006 (proposed)'s `write_regs` refuses such a `RIP`, and the exit path check
 | invoked handle (in) / status (out) | `x0` | `rdi` in, `rax` out |
 | message tag (in/out) | `x1` | `rsi` |
 | MR0–MR3 (in/out) | `x2`–`x5` | `rdx`, `r10`, `r8`, `r9` |
-| second handle: reply object (in) / badge (out) | `x6` | `r12` |
+| reply-object handle (in) | `x6` | `r12` |
 | error detail (out) | `x7` | `r13` |
 | clobbered by hardware | — | `rcx`, `r11` |
 
-Every register outside the result set is restored from the frame; the eight result registers carry a
-result or zero, so no kernel value leaves in a register (O-9 hygiene). `x8`/`rax` follow Linux; the
-x86_64 column avoids `rbx` and `rbp`, which Rust inline assembly cannot name, and what `syscall` destroys.
-seL4 has the same shape in other seats — `x7`; `rdx` *(libsel4 `sel4_arch/syscalls.h`)*. **No argument
-is a pointer:** only the IPC buffer is touched, by frame (§5) — on the demo CPU the whole defence, since
-the Cortex-A72 (Armv8.0) lacks PAN (Armv8.1).
+Every register outside the result set is restored from the frame; the result registers carry a result or
+zero, so no kernel value leaves in a register (O-9 hygiene). `x8`/`rax` follow Linux; the x86_64 column
+avoids `rbx` and `rbp`, which Rust inline assembly cannot name, and what `syscall` destroys. **No argument
+is a pointer** (RFC-0005 (proposed) §11 owns the rule): only the IPC buffer is touched, by frame (§5) — on
+the demo CPU the whole defence, since the Cortex-A72 (Armv8.0) lacks PAN (Armv8.1).
 
-**Entry state of every thread,** root included: PC = entry; SP as given; `a0`, `a1` — `x0`/`x1`,
-`rdi`/`rsi`, so `_start` is an ordinary two-argument `extern "C"` function — the two start values; every
-other general register zero; EL0t with DAIF clear (`SPSR_EL1` = 0), or ring 3 with `RFLAGS` = `0x202`;
-FP/SIMD trapped (`CPACR_EL1.FPEN` = 0; `CR0.TS` set) until RFC-0006 (proposed) enables it; `TPIDR_EL0`
-and `FS_BASE` zero; the IPC-buffer register set (§5). A Thread is created so; the spawner writes PC, SP,
-`a0` and `a1` through RFC-0006 (proposed)'s `write_regs`, and the kernel writes the root's (§9).
+**Entry state of every thread,** root included: PC = entry; SP as given, 16-byte aligned; `a0`, `a1`
+(`x0`/`x1`, `rdi`/`rsi`) the two start values; every other general register zero; EL0t with DAIF clear, or
+ring 3 with `RFLAGS` = `0x202`; FP/SIMD trapped until RFC-0006 enables it; `TPIDR_EL0` and `FS_BASE` zero;
+the discovery register set if a buffer is bound (§5). The entry symbol is an assembly stub in `abi` that
+calls (`bl`; `call`) a Rust `extern "C" fn`, so AAPCS64 and SysV each see their entry alignment.
+
+**The Language clause.** The constitution allows "the minimal assembly required for boot and context
+switching". A trap is the user half of a switch into the kernel, and `svc` or `syscall` has no Rust
+equivalent, so the wrappers are single-instruction `asm!` intrinsics — the reading RFC-0005 (proposed)
+§17.7 asks the maintainer to confirm for `TLBI`; the same confirmation covers these (Open question 4).
 
 ## 4. The syscall set
 
@@ -95,46 +102,84 @@ and `FS_BASE` zero; the IPC-buffer register set (§5). A Thread is created so; t
   each entry is a new path to audit, and no server can ever stand in for a kernel object.
 - **B — uniform invocation** *(seL4; KeyKOS)*. A handful of IPC syscalls; a kernel-object operation is a
   `call` on its capability, the method in the tag's label, answered as a server would answer.
-- **C — B plus an `invoke` number.** The small table without the point: callers can tell the two apart.
+- **C — B plus a separate `invoke` syscall for kernel objects.** Keeps B's small table, but callers can
+  tell a kernel object from a server, which removes B's only advantage.
 
-**Verdict sought: B,** for interposition: a Console and a logging server's endpoint are invoked alike, so
-Phase 2's UART driver replaces the Console with no client changing, and the broker can hand out a
-forwarder for any kernel object (RFC-0003a option (a)'s precondition). Such a `call` donates nothing.
+**Verdict sought: B,** for interposition. A Console and a logging server's endpoint are invoked alike, so
+Phase 2's UART driver replaces the Console with no client changing. The claim is scoped: **a server can
+stand in for a kernel object whose methods take no handle-word arguments** — the Console, and every
+protocol a server defines. It cannot stand in for `map` or `bind_sc`, whose second handle word means
+something only in the caller's table (below; §16). `cap_rights` therefore reports rights, never the object
+kind. A `call` on a kernel object donates no scheduling context.
 
 | # | Syscall | Handles | Beyond the tag and message registers |
 |---|---------|---------|--------------------------------------|
 | 0 | `yield` | — | authority-free (RFC-0003 §9) |
-| 1 | `send` | object | endpoint: blocking send; notification: signal (RFC-0004's `notify`) |
+| 1 | `send` | object | endpoint: blocking send; notification: signal |
 | 2 | `nb_send` | object | as `send`, failing `WouldBlock` rather than blocking |
-| 3 | `call` | object | endpoint: send, await reply, donating (RFC-0004 §8); kernel object: invoke a method |
+| 3 | `call` | object | endpoint: send and await the reply; kernel object: invoke a method |
 | 4 | `recv` | endpoint or notification; reply object | blocking receive; a bound notification may wake it |
 | 5 | `nb_recv` | as `recv` | poll |
-| 6 | `reply` | reply object | reply once to a caller |
+| 6 | `reply` | reply object | reply once to the bound caller |
 | 7 | `reply_recv` | endpoint; reply object | `reply` then `recv` in one entry — the server loop *(seL4 `ReplyRecv`)* |
 | 8 | `cap_derive` | object, with `DUPLICATE` | in: MR0 the rights wanted, MR1 a badge (reserved, zero); out: MR0 the new handle word |
 | 9 | `cap_close` | object | nothing; the handle is dead on return |
-| 10 | `cap_identify` | object | out: MR0 the object kind (an `abi` enumeration), MR1 the rights bits |
-| 11 | `thread_exit` | — | halt the calling thread; authority-free |
+| 10 | `cap_rights` | object | out: MR0 the rights bits |
+| 11 | `thread_exit` | — | the calling thread becomes `Exited`; authority-free |
 
-`reply_recv` makes a server loop one entry, as direct switch needs. The `cap_*` calls take and return a
-zero tag and touch only the caller's own table; the dispatcher builds `Rights` from the crate's named
-constants, refusing undefined bits. Transfer is a move; a sender keeping a copy derives first (RFC-0003 §6).
-**Creation** is a method on a Pool, which RFC-0005 (proposed) provides; per-type parameters are encoded
-here, and an endpoint's carries **`min_budget`** in MR1 (RFC-0006 (proposed)'s time unit, 0 for none,
-fixed for the endpoint's life). **Rejected:** a `debug_putc` (§11); anything taking a PID, path or
-address; seL4's depth-addressed capability pointers, made for CNode trees this kernel does not have.
+The `cap_*` calls take and return a zero tag and touch only the caller's own table; the dispatcher builds
+`Rights` from the crate's named constants, refusing undefined bits. **A signal sets bit 0** of the
+notification's word until badges exist (RFC-0003a), then the capability's badge, fixed at derivation, as
+in seL4. No sender chooses the bits, so the signal stays RFC-0004 §8's doorbell with no payload; an
+`IrqHandler` ORs the bits bound to it (RFC-0006 (proposed) §11). **Rejected:** a `debug_putc` (§11);
+anything taking a PID, path or address; seL4's depth-addressed capability pointers, made for CNode trees
+this kernel does not have.
+
+**Reply objects.** A Reply is created once from a Pool and reused: `recv` binds it to one caller, and
+`reply`, budget expiry (RFC-0006 (proposed) §7, `BudgetExpired`) or the caller's death **unbind** it. It
+lives until its holder closes it; `reply` on an unbound object fails `PeerGone` *(seL4 MCS reply
+objects)*. RFC-0004 §8 says the object "is destroyed if the caller dies"; destruction would let a client
+that calls and exits in a loop cost the server one Pool allocation per request — an O-7 drain of the
+server's Pool — so this needs a dated RFC-0004 amendment, and RFC-0006's §4 and §7 read "unbinds".
+
+**Kernel-object methods.** A method is a `call` whose label names it and whose MR0–MR3 carry every
+argument; a method that needs more is split. A handle word among them is **presented**: resolved in the
+caller's table, checked for the right its row names, never moved, never needing `TRANSFER` *(seL4's
+`extraCaps` on an invocation)*. A row marked **moved** instead takes the capability out of the caller's
+table, which always needs `TRANSFER`, the one right that lets authority leave a table (RFC-0003 §6).
+`tag.caps` must be zero on every method (`InvalidArgument`): `caps[]` belongs to endpoint messages, whose
+receiver needs its fresh handle words delivered to memory. A reply carries new handle words from MR0.
+Labels count from 1 per object kind; the `abi` data half (increment 2) is the one table of record.
+
+| Invoked (right) | Label: method | MR0 | MR1 | MR2 | MR3 | Reply |
+|-----------------|---------------|-----|-----|-----|-----|-------|
+| Pool (`WRITE`) | 1 `region_create` | pages | alignment, pages | max extents | rights | Region |
+| Pool (`WRITE`) | 2 `as_create` · 3 `process_create` | rights · AddressSpace, presented `WRITE`, bound for life | — | — | — | AddressSpace · Process |
+| Pool (`WRITE`) | 4 `thread_create` | Process, presented `WRITE` | its AddressSpace, presented `WRITE` | IPC-buffer address, or 0 for none | — | Thread |
+| Pool (`WRITE`) | 5 `sc_create` · 6 `endpoint_create` · 7 `notification_create` · 8 `reply_create` | — · `min_budget` in ns (RFC-0006) · — · — | — | — | — | the new object |
+| AddressSpace (`WRITE`) | 1 `map` · 2 `unmap` · 3 `protect` (RFC-0005 §8) | Region, presented · vaddr · vaddr | the space's Pool, presented `WRITE` · — · perms | vaddr | first page (bits 0–31), pages (32–41), perms (48–49) | — |
+| Region (`WRITE`) | 1 `region_copy` (RFC-0005, proposed here) | source Region, presented `READ` | source page | destination page | pages, at most 16 | — |
+| Process (`WRITE` / `READ`) | 1 `GRANT` · 2 `KILL` · 3 `INFO` (§8) | handle words, **moved**, count in `tag.length` | | | | `GRANT`: words in the child; `INFO`: counts |
+| Thread (RFC-0006 §4) | 1 `write_regs` · 2 `read_regs`, a four-word frame group in label bits 8–15 · 3 `resume` · 4 `suspend` · 5 `bind_sc` · 6 `unbind_sc` · 7 `set_priority` · 8 `set_mcp` · 9 `bind_notification` · 10 `unbind_notification` · 11 `set_fault_ep` · 12 `set_timeout_ep` · 13 `set_fp` | the group's words · SchedContext presented `WRITE` · `auth` presented, no right · Notification presented `READ` · endpoint **moved** | priority or flag | | | `read_regs`: the group |
+| SchedControl (RFC-0006 §5) | 1 `sc_configure` (`WRITE`) · 2 `ctl_info` (`READ`) | SchedContext, presented `WRITE` | budget, ns | period, ns | refills (bits 0–7), class (8–15, zero) | `ctl_info`: counts |
+| SchedContext (`READ`) · Console (`WRITE`) | 1 `sc_stats` · 1 `WRITE` (§11) | — · byte count, at most 24 | · bytes | · bytes | · bytes | counters · bytes accepted |
+
+`IrqControl` and `IrqHandler` (RFC-0006 (proposed) §11) follow the same rule, with labels assigned when
+they are built. Endpoints and notifications have no methods: they are what `send`, `call` and `recv` act on.
 
 ## 5. Messages, the register budget and the IPC buffer (RFC-0004 §9.4)
 
 The **tag** is one word: bits 0–6 length in words (0–64); bits 7–8 capabilities (0–3); bit 9 set by the
-kernel when a bound notification woke a `recv` (MR0 then holds the bits); bits 10–15 reserved, zero; bits
+kernel, on a returned tag only, when a bound notification woke a `recv` (MR0 then holds the bits); bits
 16–63 a 48-bit label — user-defined for endpoints, the method for kernel objects, the method result on a
-kernel reply. *(seL4's `seL4_MessageInfo`.)* **Four physical message registers on both architectures:**
-seL4 uses four on both, research/0001 found the in-register payoff small and shrinking (10% on ARM11,
-negative on modern x86), and a per-architecture count would make a message fast on one Tier-1 target only.
-Up to **64 words** spill MR4–MR63 to the buffer — below seL4's 120 on purpose: 512 bytes bounds the
-non-preemptible copy, and RFC-0004 §5 sends bulk through shared regions. **Three capabilities**, a 2-bit
-field with no invalid encodings. **Rejected:** six physical registers on AArch64; seL4's 120 words.
+kernel reply. **Bits 9–15 must be zero in every tag userspace supplies**, or `InvalidArgument`, so no
+sender can forge the notification flag. *(seL4's `seL4_MessageInfo`.)* **Four physical message registers
+on both architectures:** seL4 uses four on both, research/0001 found the in-register payoff small and
+shrinking (10% on ARM11, negative on modern x86), and a per-architecture count would make a message fast on
+one Tier-1 target only. Up to **64 words** spill MR4–MR63 to the buffer — below seL4's 120 on purpose:
+512 bytes bounds the non-preemptible copy, and RFC-0004 §5 sends bulk through shared regions. **Three
+capabilities**, a 2-bit field with no invalid encodings. **Rejected:** six physical registers on AArch64;
+seL4's 120 words.
 
 ```rust
 /// 1 KiB and 1 KiB-aligned, so it never straddles a page.
@@ -148,74 +193,93 @@ pub struct IpcBuffer {
 }
 ```
 
-**The buffer is named by capability and reached by frame.** It is a 1 KiB-aligned slice of one page of a
-Region, bound at thread creation by the Region capability (`READ | WRITE`), the offset and the user address
-the spawner mapped it at; RFC-0006 (proposed) records the binding, RFC-0005 (proposed) provides the Region
-and the physmap through which alone the kernel reads and writes it. The user address serves word 0 and
-the discovery register and is never dereferenced. Received capabilities take fresh slots (RFC-0004 §6).
+**The buffer is optional and reached by frame.** `thread_create` takes the buffer's user address, or 0
+for none. The kernel checks it against the AddressSpace's mapping list (RFC-0005 (proposed) §7): 1 KiB
+aligned and inside a read-write mapping, or `InvalidArgument`. It then binds that page of the backing
+Region — a counted reference and a writable use for W^X — and reaches it only through the physmap. The
+address serves word 0 and the discovery register and is never dereferenced. A syscall needing the buffer
+(a length over four, or any capability) from a thread with none, or whose binding was severed, fails
+`NoBuffer`.
 
 **Discovery: a kernel-set, user-read-only register.** The kernel loads the buffer's address into
 `TPIDRRO_EL0` (readable at EL0, writable only at EL1) and, on x86_64, into the user GS base, with
-`CR4.FSGSBASE` off (RFC-0006 (proposed)) and `abi` reading the self-pointer at `gs:[0]` — the ELF TLS
-convention of a block whose first word is its own address *(Drepper, "ELF Handling For Thread-Local
-Storage")*. RFC-0006 (proposed) restores both on every switch, so `_start` has its buffer at its first
-instruction with no TLS runtime; the kernel trusts neither, and a thread reloading GS misleads only
-itself. **Rejected:** `TPIDR_EL0` and `FS_BASE`, the ELF TLS thread pointers a relibc port needs; and
-seL4's current answer, a thread-local (`__sel4_ipc_buffer`, libsel4 `functions.h`), which needs TLS first.
+`CR4.FSGSBASE` off and `abi` reading the self-pointer at `gs:[0]` — the ELF TLS convention of a block whose
+first word is its own address *(Drepper, "ELF Handling For Thread-Local Storage")*. RFC-0006 (proposed)
+restores both on every switch, so a thread has its buffer at its first instruction with no TLS runtime.
+**Rejected:** `TPIDR_EL0` and `FS_BASE`, the ELF TLS thread pointers a relibc port needs; seL4's
+thread-local `__sel4_ipc_buffer` (libsel4 `functions.h`), which needs TLS first.
 
-**Single fetch (O-5).** Once SMP exists another thread can rewrite the buffer mid-syscall, so every buffer
-word the kernel acts on is read **exactly once** into kernel memory before any check depends on it.
-Lengths and counts come from the tag register, bounded by 64 and 3; `caps[]` is copied into a kernel array
-and every word resolved and checked for `TRANSFER` before any moves (RFC-0004 §6); payload goes frame to
-frame through RFC-0005 (proposed)'s volatile-copy module, never interpreted, and no Rust reference is
-formed into the buffer. *(research/0002 Part 5, virtio's double-fetch lesson.)*
+**Transfer and single fetch (O-5).** Another thread can rewrite a buffer mid-syscall, so every buffer word
+the kernel acts on is read **exactly once**, into kernel memory, before any check depends on it; no Rust
+reference is formed into it, and payload moves through RFC-0005 (proposed)'s volatile-copy module, never
+interpreted *(research/0002 Part 5, virtio's double fetch)*. A blocked sender keeps its tag and MR0–MR3 in
+its frame, which is kernel memory. **Everything else is fetched at rendezvous, in one kernel entry**
+*(seL4)*: the kernel reads the sender's `caps[]` once, resolves every word and checks `TRANSFER`, counts
+the receiver's free slots exactly, and only then moves; any failure moves nothing, completes the sender
+with its status and leaves the receiver waiting. A sibling that rewrote the sender's buffer while it was
+blocked changed only what the sender itself sends. `TableFull` is therefore decided at rendezvous, by the
+crate's new `free_slots()`, since a retired slot is neither free nor live. **Rejected:** removing the
+capabilities at entry into the sender's TCB — three capabilities of in-flight state per thread, and a
+refused delivery could not return them to their original slots.
 
 ## 6. Handles in one register
 
 RFC-0003's `Handle` — a `u32` index and a 64-bit generation — fits no register. The ABI word is
 **`slot_generation << 20 | index`**: 2^20 slots, Linux's default `fs.nr_open` (1,048,576); 2^44 slot
-generations, about two hundred days of one close-and-reopen per microsecond on one slot. As
-`Generation::FIRST` is 1, word `0` is never live: it is null — the width RFC-0003's amendment asked for.
-**Only the slot generation crosses the ABI;** object generations stay in kernel memory and keep 64 bits.
-The crate gains `Handle::to_word`/`from_word` and `MAX_SLOT_GENERATION` (2^44 − 1); `remove` retires a
-slot whose next generation would exceed it, through its existing `Retired` state; a const assertion bounds
-`N` by 2^20; `Generation`'s doc comment gains the slot bound. Phase 1 tables have `N` = 64, failing closed.
-**Rejected:** two registers per handle (halves the budget); 32/32 (seventy minutes at the same rate, and
-the LIFO free list concentrates reuse on one slot); a 16-bit index (too few for server workloads).
+generations, about two hundred days of one close-and-reopen per microsecond on one slot. **Word `0` is
+never live**, because `Generation::FIRST` is 1: it is the null handle. **The width is the invariant
+RFC-0003's amendment asked to be stated**: only the slot generation crosses the ABI, bounded at 2^44 − 1,
+and a slot whose next generation would pass the bound retires through the crate's existing `Retired` state
+— fail-closed, never wrapped. Object generations stay in kernel memory at 64 bits. Phase 1 tables have `N`
+= 64. The rights word is RFC-0003's bit order — `DUPLICATE` 0, `TRANSFER` 1, `READ` 2, `WRITE` 3, `REVOKE`
+4, and RFC-0005 (proposed)'s `EXECUTE` 5 — pinned in `abi` by a `const` assertion against the crate.
+**Rejected:** two registers per handle (halves the budget); 32/32 (seventy minutes at the same rate, and the
+LIFO free list concentrates reuse on one slot); a 16-bit index (too few for server workloads).
+
+**Crate changes, as one dated RFC-0003 amendment** logged in `docs/CHANGELOG.md`, so the width lives in
+RFC-0003 and this section cites it: `Handle::to_word`/`from_word` and `MAX_SLOT_GENERATION`, with a
+`const` assertion bounding `N` by 2^20; `free_slots()` (§5); and, with destruction (increment 14), a split
+of `StaleGeneration` so a destroyed object reports `ObjectDestroyed` rather than the holder's own
+use-after-close.
 
 ## 7. The error model
 
 **Transport status** (`x0`/`rax`) is what the syscall layer found, identical for a kernel object or a
-server. Every failure is atomic, and the detail register names the culprit: 0 the invoked handle, 1–3 an
-attached capability, 4 the tag, 5 the reply handle.
+server. Every failure is atomic. The detail register names the culprit: 0 the invoked handle, 1–4 a handle
+word in MR0–MR3, 5–7 `caps[0..2]`, 8 the tag, 9 the reply handle, 10 the IPC buffer.
 
-| Status | Meaning |
-|--------|---------|
-| `Ok` | done |
-| `InvalidSyscall` | no such number — a closed error, not a fault: the surface stays total and needs no fault-handler policy |
-| `InvalidArgument` | a reserved bit, a length over 64, a non-zero `svc` immediate, an undefined rights bit |
-| `InvalidHandle` | word 0, index out of range, empty slot, stale slot generation — the handle names nothing *of yours* (the crate's `OutOfBounds`, `Empty`, `StaleGeneration`) |
-| `Revoked` | the slot is live but its object was destroyed — the crate's new `ObjectDestroyed`; close the handle |
-| `WrongType` / `InsufficientRights` | live handle, wrong kind of object; or lacking the right the operation needs |
-| `TableFull` | a moved capability found no slot in the receiving table; nothing moved |
-| `WouldBlock` | `nb_send` or `nb_recv` found no partner |
-| `PeerGone` | the object or party waited on was destroyed mid-wait |
-| `BudgetRefused` | a `call` whose donated context can never meet the endpoint's `min_budget`, refused up front (RFC-0004's amendment; seL4 RFC-14) |
-| `BudgetExpired` | the donated budget expired inside the server; the kernel completed the wait on the reply object (RFC-0004's amendment) |
+| # | Status | Meaning |
+|---|--------|---------|
+| 0 | `Ok` | done |
+| 1 | `InvalidSyscall` | no such number — a closed error, not a fault: the surface stays total and needs no fault-handler policy |
+| 2 | `InvalidArgument` | a reserved bit, a length over 64, a non-zero `svc` immediate, an undefined rights bit, `tag.caps` on a method, a bad buffer address |
+| 3 | `InvalidHandle` | word 0, index out of range, empty slot, stale slot generation: the handle names nothing *of yours* |
+| 4 | `Revoked` | the slot is live but its object was destroyed (from increment 14; before it, nothing is destroyed) |
+| 5 | `WrongType` | live handle, wrong kind of object |
+| 6 | `InsufficientRights` | lacking the right the operation needs |
+| 7 | `TableFull` | a moved capability found no free slot in the receiving table; nothing moved |
+| 8 | `WouldBlock` | `nb_send` or `nb_recv` found no partner |
+| 9 | `PeerGone` | the object or party waited on went away, or a `reply` found its object unbound |
+| 10 | `BudgetRefused` | a `call` whose context can never meet the endpoint's `min_budget`, or a `send` — which donates nothing — to an endpoint that has one |
+| 11 | `BudgetExpired` | the donated budget expired inside the server; the kernel completed the wait on the reply object |
+| 12 | `NoBuffer` | the syscall needs an IPC buffer the thread does not have |
 
-`Revoked` needs the second crate change: `StaleGeneration` today covers both the holder's own
-use-after-close and a destroyed object; `resolve` checks them in that order, so the split is one variant
-and one changed return, and a holder observes destruction without its own bug being reported as one. When
-the budget statuses arise is RFC-0006 (proposed)'s to define; its draft calls the first
-`BudgetBelowThreshold`, and the name here is proposed because the encoding is this RFC's.
+`BudgetRefused` follows RFC-0006 (proposed) §7, which refuses only a context that can *never* pass and
+lets one short *now* wait — its amendment A2 to RFC-0004's, which says "refused up front". The status
+stands under either reading; its meaning narrows if A2 is accepted.
 
 **Method result** (the reply label) is what the object said, in one vocabulary for kernel and server, so a
-stand-in reports errors alike *(seL4's reply label)*: the status numbers where meanings coincide, plus
-`InvalidMethod`, RFC-0005 (proposed)'s `PoolExhausted` and `Fragmented`, and §8's `WindowClosed`.
+stand-in reports errors alike *(seL4's reply label)*: the numbers above where meanings coincide, then 13
+`InvalidMethod`, 14 `PoolExhausted` and 15 `Fragmented` (RFC-0005, proposed), 16 `WindowClosed` (§8).
 
 **Faults** — EL0 exceptions that are not syscalls — are not return values: the thread is suspended and a
-fault message goes to a handler RFC-0006 (proposed) binds, so a supervisor can restart a driver (O-17).
-**Interim:** the reporter prints it, prefixed by the thread; the thread stops and the core continues.
+fault message goes to its `fault_ep` (RFC-0006 (proposed) §4), so a supervisor can restart a driver
+(O-17). **Interim, until increment 11:** the kernel prints one line — the thread, `ESR`, `ELR`, `FAR` — and
+leaves the thread `Inactive`; the core continues. **Its cost:** it is an **ambient output channel**. A
+thread holding no Console can put two words of its own choosing (`ELR`, `FAR`) on the operator's line by
+faulting on purpose, once per thread it can create, each line holding the kernel for about 100 bytes of
+UART time. It is compiled only under a `report-user-faults` feature that `xtask` enables for Phase-1
+boot-tests and `run-qemu`, and it qualifies the O-4 and O-9 rows (§14).
 
 ## 8. The Process object and spawning (O-27)
 
@@ -223,102 +287,135 @@ A **Process** holds one RFC-0003 table, one AddressSpace (RFC-0005 (proposed)) a
 (proposed)) — a real object *(Zircon)*, not seL4's thread naming a CSpace and VSpace. First authority:
 
 - **A — inherit** *(Unix `fork`/`exec`)*. **Rejected** by O-27 by name: ambient authority across creation.
-- **B — one bootstrap handle** *(Zircon: `zx_process_start` moves one handle; a loader sends the rest)*.
+- **B — one bootstrap handle** *(Zircon: `zx_process_start` passes one handle; a loader sends the rest)*.
   Over an unbuffered rendezvous the parent must serve its own child a protocol before the child can act.
 - **C — explicit grants before start** *(seL4's root task writing a child's CSpace)*. **Verdict sought.**
 
-A Process is created through RFC-0005 (proposed)'s Pool, naming an AddressSpace, with an **empty table**:
+`process_create` names an AddressSpace, which it **binds for life**: one bound already is refused
+(`InvalidArgument`), so two tables never share one memory (O-8). The Process is born with an **empty
+table** and no thread.
 
 | Method | Right | Effect |
 |--------|-------|--------|
-| `GRANT` | `WRITE` on the process; `TRANSFER` on each attached capability | move up to three attached capabilities into the child's table; the reply's MR0–MR2 carry their handle words *in the child* |
+| `GRANT` | `WRITE`; `TRANSFER` on each moved capability | before the first `resume`: move up to three capabilities into the child, all or nothing; the reply carries their handle words *in the child* |
 | `KILL` | `WRITE` | stop every thread, drop the table, release the address space; the generation bump makes every capability to the process inert |
+| `INFO` | `READ` | live capabilities in the table; threads not `Exited`; whether the window is open |
 
-`GRANT` is a `call` whose capabilities come from `caps[]` as an endpoint send's do (§5): fetched once,
-all resolved before any moves. **The grant window.** `GRANT` succeeds only until the first `resume` of any
-thread bound to the process — a one-way event RFC-0006 (proposed) reports by setting a flag on the
-Process; afterwards it answers `WindowClosed`, and authority arrives only by IPC, which the process
-consents to by receiving. No parent reaches into a running child's table; a stolen Process capability
-injects nothing into a live one. The window is **single-use** in research/0002's sense (Part 3, from
-Vault's response-wrapping) but lacks its **prior-use detection**: the child is not told who granted what.
-Here the channel is a Process capability minted to its creator alone; detection across imperfectly
-trusted spawn channels is the broker RFC's.
+**The grant window.** `GRANT` succeeds only until the first `resume` of any thread of the process — a
+one-way event RFC-0006 (proposed) reports by setting a flag on the Process; afterwards it answers
+`WindowClosed`, and authority arrives only by IPC, which the process consents to by receiving. The window
+is **single-use** in research/0002's sense (Part 3, from Vault's response-wrapping) but lacks its
+**prior-use detection**: the child is not told who granted what. Detection across imperfectly trusted spawn
+channels is the broker RFC's.
 
-The spawner passes the child's handle words in `a0` and `a1` (the demo's console and endpoint), or points
-`a0` at a start block — a runtime convention, not kernel ABI. No right joins RFC-0003's set: `GRANT`,
-`KILL` and thread creation use `WRITE` on that one Process. A process dies with its last thread.
+**What the window closes, stated exactly.** It closes **capability injection**: after the first `resume`
+no holder of the Process capability can add to its table, and `WRITE` on a started Process means `KILL`
+alone — so a supervisor can hold kill-and-inspect authority without holding the child's power (O-17). It
+does **not** close **control**. `WRITE` on the child's AddressSpace maps into it and, with `WRITE` on the
+Process, creates threads in it; `WRITE` on a Thread rewrites that thread's registers (RFC-0006 §4). That is
+authority over the child's code and data, which its loader always had. So thread creation presents the
+AddressSpace as well as the Process: a Process capability alone cannot start code in a child.
+
+**The spawn protocol**, which increment 9's loader plan encodes and host-tests: the spawner never maps the
+child's writable memory into its own space — data pages arrive by `region_copy` (§10); before `resume` it
+grants the child whichever of its own AddressSpace, Thread and Region capabilities the child needs, closes
+the rest, and keeps the Process capability alone. A spawner that derived copies first keeps control; the
+kernel cannot tell, and the child cannot yet check (Open question 3; §16).
+
+**Lifetime.** A Process ends by `KILL`, or when no capability names it and none of its threads can run
+again. One whose threads have all `Exited` is dead but intact: `INFO` reports it, and its table and space
+remain for a supervisor to inspect until `KILL` or its last capability closes *(seL4: objects live until
+destroyed)*. **Rejected:** ending with its last thread *(Zircon)* — undefined for a newborn with no thread,
+and it destroys what a supervisor would inspect.
+
+The spawner passes the child's handle words in `a0` and `a1` (the demo's Console and endpoint), or `a0`
+names a start Region — a runtime convention, not kernel ABI; the root alone receives BootInfo (§9).
 
 ## 9. The root task and boot info
 
 The one act the kernel performs unasked: at boot it builds **exactly one** process from the first boot
 module and gives it every boot capability *(seL4's root task; research/0002 Part 3, "the bootstrap seam is
-a one-time kernel act")* — an AddressSpace; the descriptor's segments copied into fresh frames and mapped
-as stated (§10); a stack; an IPC buffer; a read-only **BootInfo** page; a Process and a Thread in §3's
-entry state, `a0` = BootInfo's address, `a1` = 0; `eret`. Its scheduling context (RFC-0006 (proposed))
-takes a named boot constant, as seL4's root starts at maximum priority with one configured timeslice.
+a one-time kernel act")* — an AddressSpace; the descriptor's segments mapped as stated (§10); a stack; a
+read-only **BootInfo** page; a Process and a Thread in §3's entry state, `a0` = BootInfo's address, `a1` =
+0; `eret`. Its priority, ceiling and full context are RFC-0006 (proposed) §6's one bootstrap act.
 
-**BootInfo**, in `user/abi`, is a header (magic, version, length) and one `{ kind, flags, handle, base,
-size }` entry per initial capability, with a string table for module names, pinned within a page by a host
-test. Every initial capability is *listed*, none at a well-known slot, so the order can change without an
-ABI break and a reviewer can enumerate the whole grant. Kinds here: the root's Process, the Console (§11),
-a read-only Region per further module with its descriptor; RFC-0005 (proposed) adds the AddressSpace, the
-root Pool and the DTB, RFC-0006 (proposed) the Thread, `SchedControl` and interrupt capabilities.
+**BootInfo**, in `user/abi`, is a header (magic, version, length) and one entry per initial capability,
+with a string table for module names, pinned within a page by a host test:
+
+```rust
+#[repr(C)]
+pub struct BootCap { kind: u32, flags: u32, handle: u64, base: u64, size: u64 } // 32 bytes
+```
+
+Every initial capability is *listed*, none at a well-known slot, so the order can change without an ABI
+break and a reviewer can enumerate the whole grant. Kinds here: the root's Process, the Console (§11), a
+read-only Region per further module with its descriptor; RFC-0005 (proposed) adds the AddressSpace, the one
+root Pool and the DTB; RFC-0006 (proposed) the Thread, one `SchedControl` per core and the `IrqControl`.
+A kind that is not built yet is simply absent.
 
 **The root is not a superuser.** Its capabilities are ordinary, droppable and generation-checked, and the
-rule is checkable: **no kernel code branches on "is this the root task"**. The bootstrap graph is acyclic,
-and nothing the root needs waits on a userspace service. **Rejected:** a kernel boot manifest (policy in
-the kernel); a `spawn_from_module` syscall (a loader as a kernel service); a `system:masters` superuser.
+rule is checkable: **no kernel code branches on "is this the root task"**. They are **not revocable** until
+RFC-0003a: research/0002 Part 3 asks for revocable init capabilities, and today only destruction revokes.
+The bootstrap graph is acyclic; nothing the root needs waits on a userspace service. **Rejected:** a kernel
+boot manifest (policy in the kernel); a `spawn_from_module` syscall (a loader as a kernel service); a
+`system:masters` superuser.
 
 ## 10. Getting the first images into memory
 
-QEMU's `-kernel` loads one ELF. The candidates for the rest:
+**Verdict sought — the mechanism:** the kernel reaches modules through `arch::boot_modules()`, which yields
+fixed-shape **load descriptors** produced on the host; **the kernel never parses ELF**. A dependency-free,
+host-tested ELF64 reader in `xtask` emits per program: entry point; a text segment (`R+X`), an optional
+read-only segment (`R`), a data segment (`R+W`, zero-padded to a page, with a `bss` size), page-aligned in
+the user half; stack and BootInfo addresses. It **refuses** a writable-and-executable, overlapping or
+unaligned `PT_LOAD`, `PT_DYNAMIC`, `PT_INTERP`, `PT_TLS`, `PT_GNU_RELRO` and an executable `PT_GNU_STACK`;
+it ignores `PT_NOTE` and a non-executable `PT_GNU_STACK`. `user/link/<arch>.ld` declares `PHDRS`, so lld
+emits nothing else — W^X checked before the image exists (O-13). The kernel checks one fixed structure
+against fixed bounds: Nexen's finding that kernel code validating structures built elsewhere is the bug farm
+(research/0002 Part 7), applied to our own boot path. **Rejected:** an in-kernel `elf/` crate — small and
+testable, but a parser in the TCB for no gain.
 
-- **Embed them in the kernel ELF** *(verdict sought)*. One artefact boots; its hash pins every program.
-- **QEMU's `-initrd` or `-device loader`.** Two artefacts, QEMU-only, and neither reaches a bare ELF. In
-  `hw/arm/boot.c` (read at QEMU 8.2.2), `arm_setup_direct_kernel_boot` loads `-initrd` only for images it
-  treats as Linux, never an ELF; for a non-Linux image `do_cpu_reset` sets the PC and nothing else, so no
-  register names the DTB either, which goes at the base of RAM only if the image leaves room — ours does
-  not, hence RFC-0005 (proposed)'s relink to `0x4020_0000`. A loader blob's address is the command line's.
-- **Link the children into the root's ELF** *(seL4 practice, a CPIO archive)*. The root becomes specific
-  to each image, and the children stop being separate immutable objects it can hand on.
+**The source — AArch64 interim: embedded in the kernel image.** QEMU's `-kernel` loads one ELF. Its
+`-initrd` and `-device loader` give a second, QEMU-only artefact: in `hw/arm/boot.c`, read at QEMU 8.2.2
+and to be re-read at the pinned 11.0.3 before acceptance, `-initrd` is loaded only for images treated as
+Linux, and no register names it. Linking children into the root's ELF *(seL4 practice, a CPIO archive)*
+would make the root specific to each image. So `xtask` builds the user crates, writes `payload.bin` — a
+versioned `abi` header, then per module a name, descriptor and segment bytes — and passes its path in
+`SETONIX_PAYLOAD`. `kernel/build.rs` re-runs on that variable and exports the path, writing an empty bundle
+to `OUT_DIR` when it is unset, so a bare `cargo build` still links, boots and prints `boot modules: 0`. A
+`global_asm!` `.incbin` under `kernel/src/arch/aarch64/` embeds it; `aarch64.ld` places it in a
+page-aligned, read-only, `KEEP`ed `.payload` section. *(Hubris's `xtask dist`; seL4's elfloader, parsing
+before the kernel runs.)* **The interim's cost:** a user change relinks the kernel, whose reproducibility
+now includes the programs'. **On x86_64**, a future x86_64 boot RFC provides the UEFI stub that loads the
+same bundle as a file; increment 12 depends on it.
 
-**`xtask` parses ELF; the kernel does not.** A dependency-free, host-tested ELF64 reader in `xtask` emits
-a fixed-shape **load descriptor** per program: entry point; a text segment (`R+X`), an optional read-only
-segment (`R`), a data segment (`R+W`, with a `bss` size), page-aligned in the user half; stack, IPC-buffer
-and BootInfo addresses. It **refuses** at build time any writable-and-executable, overlapping or unaligned
-segment, dynamic linking, TLS or other program header — W^X checked before the image exists (O-13). The
-kernel checks one fixed structure against fixed bounds and never sees an ELF: Nexen's finding that kernel
-code validating structures built elsewhere is the bug farm (research/0002 Part 7), applied to our own boot
-path. **Rejected:** an in-kernel `elf/` crate — small and testable, but a parser in the TCB for no gain.
+**Loading.** The kernel loads **module 0 only**; the rest reach the root as **read-only Regions** (RFC-0005
+(proposed) §7 mints them `READ | EXECUTE | DUPLICATE | TRANSFER`) with descriptors in BootInfo, so the root
+parses nothing and the images stay immutable *(Genode's core hands boot modules to init read-only)*. Any
+loader, kernel or root, maps text `RX` and read-only data `R` **in place** from the module Region; copies
+data pages into a fresh Region with `region_copy`, which RFC-0005 (proposed) provides as a page-granular,
+frame-to-frame copy through its volatile-copy module; and takes `bss` as fresh zeroed pages. No loader
+ever maps a child's writable memory into itself.
 
-**The bundle.** `xtask` builds the user crates, writes `payload.bin` — a versioned `abi` header, then per
-module a name, descriptor and segment bytes — and builds the kernel with `SETONIX_PAYLOAD` naming it;
-`kernel/build.rs` places it page-aligned in a read-only `.payload` section (`KEEP`). **Unset, it emits an
-empty bundle**, so a bare `cargo build` or `cargo clippy --package setonix-kernel` still links, boots and
-greets, printing `boot modules: 0`. *(Hubris's `xtask dist`; seL4's elfloader, parsing before the
-kernel runs.)* The kernel reaches modules through `arch::boot_modules()` — the bundle on AArch64, files
-the UEFI stub loaded on x86_64 — so embedding is Phase 1's *source*, not the design. It loads **entry 0
-only**; the rest reach the root as **read-only Regions** (RFC-0005 (proposed) provides the frames) with
-descriptors in BootInfo, so the root parses nothing and the images stay immutable. *(Genode's core hands
-boot modules to init read-only.)*
-
-**The programs** — `user/demo/server`, `user/demo/client` — are soft-float `no_std` crates on `abi` alone,
-with no `unsafe`, linked static by `user/link/<arch>.ld` in the user half; `x86_64-unknown-none` defaults
-to PIE and the *kernel* code model, so `xtask` passes `-C relocation-model=static -C code-model=small`.
+**The programs** — `user/demo/server` (the root, for now), `user/demo/client` — are soft-float `no_std`
+crates on `abi` alone, with no `unsafe`; `x86_64-unknown-none` defaults to PIE and the *kernel* code model,
+so `xtask` passes `-C relocation-model=static -C code-model=small`.
 
 ## 11. The console as a capability
 
 Userspace reaches the kernel's UART only through a **Console** kernel object with one method, `WRITE`, by
-`call`: the byte count in MR0, the bytes from MR1 on — up to 504, so a short line never leaves the
-registers. The root receives it with `DUPLICATE | TRANSFER | WRITE` (no `READ`: there is no input path)
-and derives `WRITE`-only copies for the children it chooses. A program not handed one cannot print.
-**Rejected:** seL4's `DebugPutChar`, which any thread may issue in a `CONFIG_PRINTING` build — ambient
-authority, however small — and a console at a well-known handle. **Adopted in spirit:** Zircon's debuglog,
-write-only by default. Because invocation is uniform, once a userspace UART driver exists the root hands
-out an endpoint speaking `WRITE`, no client changes, and the Console object is **deleted** (increment 13).
-**Interim, named:** until then a device path in the kernel is reachable from EL0 — tiny, write-only,
-exercised by every boot-test — and at 115,200 baud a 504-byte write holds the non-preemptible kernel about
-44 ms on real hardware, a bound RFC-0006's latency budget carries.
+`call`: the byte count in MR0, at most 24 bytes in MR1–MR3, sent verbatim (the `abi` writer supplies
+`\r\n`). **It never waits.** The kernel stores bytes while the PL011's transmit-full flag is clear and
+returns the count accepted in MR0; `abi` yields and retries the rest, so any waiting happens at EL0, where it
+is preemptible. The kernel's hold is at most 24 flag reads and 24 stores, counted in RFC-0006 (proposed)'s
+worst path, so the console sets no floor under `MIN_BUDGET` and needs no preemption point. The root
+receives it with `DUPLICATE | TRANSFER | WRITE` (no `READ`: there is no input path) and derives
+`WRITE`-only copies for the children it chooses. A program not handed one cannot print, except through
+§7's fault-report interim. **Rejected:** seL4's `DebugPutChar`, which any thread may issue in a
+`CONFIG_PRINTING` build — ambient authority, however small — and a console at a well-known handle.
+**Adopted in spirit:** Zircon's debuglog, write-only by default. Once a userspace UART driver exists the
+root hands out an endpoint speaking `WRITE`, no client changes, and the Console object is **deleted**
+(increment 13). **Interim, named:** until then a device path in the kernel is reachable from EL0 — tiny,
+write-only, bounded, exercised by every boot-test.
 
 ## 12. `user/abi` — the kernel's own binding
 
@@ -327,30 +424,38 @@ allocation, formatting, start-up, POSIX-shaped calls — and issues no syscalls.
 `redox_syscall`, versioned with the Redox kernel; seL4 keeps libsel4 in the kernel's repository, generated
 from the kernel's own interface specifications. The binding is the user half of §3's table, with nothing to
 port it from. **Verdict sought: the microkernel-core row, write ourselves.** A relibc port adds a layer
-*above* it; anything here that would read the same on another kernel moves out. The maintainer may append
-"syscall ABI binding (`user/abi`)" to that row — constitution text, and his; if he reads it as the runtime
-row instead, it is write-ourselves-by-necessity there, and that row's verdict needs a recorded exception.
+*above* it; anything here that would read the same on another kernel moves out. Appending "syscall ABI
+binding (`user/abi`)" to that row is constitution text and the maintainer's (Constitution §4, logged in
+`docs/CHANGELOG.md`); increments 2 and 7 wait on that verdict.
 
-It holds the numbers, `Handle`, `Tag`, `Status`, the ABI layouts with `const` assertions, and safe
-wrappers — no allocator, no formatting. **One source of truth:** the kernel (with the `syscalls` feature
-gating `src/arch/**` off) and `xtask` compile the same data half as userspace.
+It holds the numbers, `Handle`, `Tag`, `Status`, method labels, `BootCap`, the ABI layouts with `const`
+assertions, and safe wrappers — no allocator, no formatting. **One source of truth:** the kernel and
+`xtask` build `abi` without its `syscalls` feature, the feature that compiles `src/arch/**`, and share the
+data half with userspace.
 
-**The third designated `unsafe` tree**, approved in principle on 2026-09-27, is proposed as
-`user/abi/src/arch/**`: the `svc`/`syscall` assembly; `_start`, which turns `a0` into the root's
-`&'static BootInfo` and calls `main`; and accessors resting on a kernel promise about this process's
-memory — the IPC-buffer view, and the slice over a Region just mapped into the caller (the root's loader
-writes child segments through it). User programs contain no `unsafe`. **The `CLAUDE.md` edit** adds to
-§ `unsafe` policy "`user/abi/src/arch/**` — trap instructions, the process entry stub and the kernel-shared
-memory the ABI defines", adds `user/` to § Layout and makes `xtask` "no external deps"; the
-`grep -rn "allow(unsafe_code)"` audit widens from `kernel/src/` to the repository.
+**The third designated `unsafe` tree**, approved in principle on 2026-09-27, is `user/abi/src/arch/**`,
+holding only: the `svc`/`syscall` wrappers; the entry stubs — `root_start` copies the BootInfo page with
+volatile reads onto its stack and passes `main` a reference to the copy, sound because the kernel mapped the
+page read-only before this process's first instruction and nothing else has yet run; `child_start` passes
+`a0` and `a1` — and the discovery-register read. User programs contain no `unsafe`, and no Rust reference
+is ever formed into memory another thread may write. **Separately sought, not demo:** volatile word
+accessors for the IPC buffer, under `user/abi/src/buffer/**`, whose invariant — the buffer stays mapped at
+its bound address while the thread runs — is upheld by the process itself; if it is broken, the thread
+faults, and no other process is touched.
+
+**The edits it implies, all in increment 7:** `CLAUDE.md` § `unsafe` policy gains
+"`user/abi/src/arch/**` — trap instructions and process entry stubs", and § Layout gains `user/`; threat
+model O-6 names the three trees; the workspace `Cargo.toml` comment ("the two trees") and
+`kernel/src/main.rs`'s grep widen from `kernel/src/` to the repository; `xtask/Cargo.toml`'s "no
+dependencies" becomes "no external dependencies".
 
 ## 13. Lineage
 
 | Source | What is taken | What is left |
 |--------|---------------|--------------|
-| **seL4** | the root task and boot info; kernel objects invoked as IPC, errors in the reply label; four physical message registers; `ReplyRecv`; libsel4 shipped with its kernel | CNodes and depth-addressed pointers; `DebugPutChar`; 120-word messages; the IPC-buffer thread-local |
-| **Zircon / Fuchsia** | the process as an object holding a table and an address space; debuglog as a write-only handle | a syscall per operation; one start handle as the only channel; negative status integers |
-| **Linux** | `svc #0` + `x8`; `syscall` + `r10`; the canonical-`rcx` check; `nr_open` as a sizing reference | everything the registers carry |
+| **seL4** | the root task and boot info; kernel objects invoked as IPC, errors in the reply label; presented capabilities (`extraCaps`); four physical message registers; `ReplyRecv`; reusable reply objects; transfer at rendezvous; libsel4 shipped with its kernel | CNodes and depth-addressed pointers; `DebugPutChar`; 120-word messages; the IPC-buffer thread-local |
+| **Zircon / Fuchsia** | the process as an object holding a table and an address space; debuglog as a write-only handle | a syscall per operation; one start handle as the only channel; a process ending with its last thread |
+| **Linux** | `svc #0` + `x8`; `syscall` + `r10`; the `sysretq` guards; `nr_open` as a sizing reference | everything the registers carry |
 | **x86_64 ELF TLS** | a block whose first word holds its own address | `FS` itself, left to TLS |
 | **Hubris** | the build tool assembles one bootable image | a static task set with no spawn |
 | **Redox** | `redox_syscall` versioned with the kernel, relibc above it | ambient path syscalls (research/0001) |
@@ -361,89 +466,132 @@ memory the ABI defines", adds `user/` to § Layout and makes `xtask` "no externa
 | Obligation | This RFC | Status after implementation |
 |-----------|----------|-----------------------------|
 | O-1 unforgeability | handles reach the kernel only as words resolved through the caller's table; word 0 and out-of-range indices fail closed (§6) | **binds at B1** — RFC-0003's mechanism made live |
-| O-2 non-widenability | `cap_derive` is the only duplication and is subset-only; `GRANT` and transfer move, never widen (§4, §8) | **binds at B1** |
-| O-4 no ambient authority | twelve syscalls, each handle-indexed or authority-free; console by capability (§4, §11) | **discharged at the ABI**; each new kernel method checked at review |
-| O-5 argument validation | no pointer arguments; reserved bits zero; single fetch; caps all-or-nothing; kernel-built `SPSR_EL1`; canonical `rcx` (§3, §5, §7) | **discharged for the syscall surface**, with RFC-0005 for user memory |
-| O-6 kernel memory safety | one new designated `unsafe` tree, named and bounded (§12) | **stays Built**, with a wider grep |
-| O-7 no unprivileged exhaustion | 512-byte copy bound; creation paid by a named Pool; fixed tables fail closed; the console's hold bounded (§5, §6, §11) | **contributes** — RFC-0005 owns the accounting |
-| O-9 no ambient side channel | result registers carry results or zero; no grant after start; no ambient console (§3, §8, §11) | **contributes** |
-| O-13 W^X | the build refuses writable-and-executable segments; the kernel maps per descriptor (§10) | **contributes** — RFC-0005 owns enforcement |
-| O-17 contained drivers | fault messages to a supervisor (§7) | **designed, deferred** — the interim stops the thread |
-| O-27 explicit authority at spawn | empty table at birth; grants only by explicit move; window shut at first resume; root's grant enumerated; the demo proves a denial (§8, §9, §18) | **discharged** |
+| O-2 non-widenability | `cap_derive` is the only duplication and is subset-only; presented handles move nothing; moves never widen (§4, §8) | **binds at B1** |
+| O-4 no ambient authority | twelve syscalls, each handle-indexed or authority-free; methods take handles; console by capability (§4, §11) | **discharged at the ABI, except the fault-report interim** (§7) until increment 11; each new method checked at review |
+| O-5 argument validation | no pointer arguments; reserved tag bits zero; single fetch at rendezvous; transfers all-or-nothing; kernel-built `SPSR_EL1`; `sysretq` guards (§3, §5, §7) | **discharged for the syscall surface**, with RFC-0005 §11 for user memory |
+| O-6 kernel memory safety | a third designated tree, trap instructions and entry stubs only; threat-model O-6 names it (§12) | **stays Built**, with a repository-wide grep |
+| O-7 no unprivileged exhaustion | 512-byte copy bound; creation paid by a named Pool; reusable reply objects; fixed tables fail closed; a console that never waits (§4, §5, §11) | **contributes** — RFC-0005 owns the accounting |
+| O-9 no ambient side channel | result registers carry results or zero; no grant after start; no ambient console (§3, §8, §11) | **contributes**, except the fault-report interim (§7) |
+| O-13 W^X | the build refuses writable-and-executable segments; loaders map per descriptor (§10) | **contributes** — RFC-0005 owns enforcement |
+| O-17 contained drivers | fault messages to `fault_ep`; `KILL`-only authority over a started Process; dead processes inspectable (§7, §8) | **designed, deferred** — the interim stops the thread |
+| O-27 explicit authority at spawn | empty table at birth; grants only by explicit move before start; root's grant enumerated; a host test and a boot-test count the child's table (§8, §9, §18) | **discharged** in its letter; the spawner's retained control is named (§8), not claimed away |
 
 ## 15. Graves checked (§3)
 
 - **Policy in the kernel.** The kernel runs one image and lists what it granted; the rest is the root's.
-  The manifest and `spawn_from_module` were this grave's doors; the root's boot constant is its residue.
-- **The catch-all right.** No root identity survives `eret`; no right is added; `WRITE` on a Process is
-  authority over one object, and the root's many capabilities are droppable and enumerable.
+  The boot manifest and `spawn_from_module` were this grave's doors, and stay shut.
+- **The catch-all right.** No root identity survives `eret`; no right is added. A Process capability is a
+  proxy for its table only through `GRANT`, and only before start; afterwards `WRITE` on it is `KILL`.
+  Control of a running child lives in separate AddressSpace and Thread capabilities, each droppable.
 - **Baroque hierarchies; multi-copy IPC.** Flat handles, no receive window, a flat BootInfo; one copy.
-- **Bolted-on multicore.** Entry is per-CPU from the first stub (`SP_EL1`, `TPIDR_EL1`; `swapgs`); single
-  fetch is written for a second core; no global lock. Two cores on one table stays RFC-0003 §14.2's.
+- **Bolted-on multicore.** Entry is per-core from the first stub (`SP_EL1`, `TPIDR_EL1`; `swapgs`).
+  RFC-0006 (proposed) §12 provides the big kernel lock taken on entry, answering RFC-0003 §14.2; single
+  fetch stays necessary under it, because other threads write the buffer from EL0 without the lock.
 - **Drivers pulled in; unused device paths.** The Console is the only device method reachable from EL0:
-  write-only, used by every boot-test, its deletion scheduled.
+  write-only, bounded, used by every boot-test, its deletion scheduled.
 
 ## 16. Costs — what this makes harder
 
 - **`call` is overloaded** — per-type method decoding and two error layers, the price of interposition.
+- **Interposition is partial:** a forwarder for a method with handle-word arguments must first be handed
+  those capabilities, which costs the client a `TRANSFER` it may not hold — input to RFC-0003a.
 - **Four physical registers and 64 words:** past 32 bytes a message touches memory, and a 65–120-word
   message seL4 would copy needs a Region here; raising either later breaks binaries.
-- **Handles are 20/44 for good,** the accepted `capability` crate changes twice, and `TPIDRRO_EL0` and
-  the user GS base belong to the ABI rather than a runtime.
-- **The root task is the most sensitive process,** as in seL4; it must stay small. **No ambient
-  printing; late grants need a willing child;** the grant window detects no prior use.
-- **Embedding couples builds:** a user change relinks the kernel, whose reproducibility now includes the
-  programs'; `xtask` gains its first, in-workspace dependency. **No PAN on the demo CPU.**
+- **Handles are 20/44 for good,** the accepted `capability` crate changes by amendment, and `TPIDRRO_EL0`
+  and the user GS base belong to the ABI rather than a runtime.
+- **The spawner keeps control if it wants to:** the grant window stops injection, not a loader that kept
+  derived copies of the child's AddressSpace or Threads; the child cannot yet check (Open question 3).
+- **The root task is the most sensitive process,** as in seL4, and its capabilities are not revocable
+  until RFC-0003a; it must stay small. **No ambient printing; late grants need a willing child.**
+- **The Console moves at most 24 bytes per entry** and returns short counts, so every writer loops.
+- **No PAN on the demo CPU;** `user/abi` is a third `unsafe` tree to audit.
 
 ## 17. Open questions
 
-1. **Fault messages and death** — their layout (this RFC's), the fault binding (RFC-0006's), and how a
-   supervisor learns a process died (O-17); likely a notification bound at creation.
-2. **Badges** — `cap_derive`'s badge word and the badge register are reserved zero until RFC-0003a.
-3. **The console after Phase 2** — whether any Console stays mintable once a driver owns the UART.
-4. **The `unsafe` tree's name** — two of its items are memory, not architecture: `src/kernel_mem/`?
+1. **Fault messages and death** — their layout (this RFC's), how a supervisor learns a process died, and
+   how it supervises threads a child creates itself (RFC-0006 §4); likely a notification bound at creation.
+2. **Badges** — `cap_derive`'s badge word is reserved zero until RFC-0003a; notification signals then carry it.
+3. **A sovereignty check** — should RFC-0005's AddressSpace query report its live-capability count, as
+   RFC-0006's `ctl_info` does for `SchedControl`, so a child can confirm it holds the only one?
+4. **The Language clause** — do single-instruction `svc`/`syscall` wrappers in userspace fall within
+   "minimal assembly … for boot and context switching", as RFC-0005 §17.7 asks for `TLBI`?
 5. **The 64-word budget** — a verdict now, to be revisited with the first measurements.
 
 ## 18. Implementation increments
 
 Each is one reviewable PR; **[demo]** marks what the Phase-1 demo needs. Userspace boot-tests expect
-prefixed strings, since bare `Kaya!` matches the kernel's greeting. The demo's interims, costed above:
-faults print and stop (§7); the in-kernel Console (§11); modules in the kernel image (§10); RFC-0005's
-static object pools; the root's boot scheduling constant (§9). The root doubling as server is composition.
+prefixed strings, since bare `Kaya!` matches the kernel's greeting; every demo string fits one 24-byte
+`WRITE`.
 
-1. **[demo] `capability`: the handle word** — `to_word`/`from_word`, the slot bound, `ObjectDestroyed`.
-   Host tests: round trips; word 0 and index ≥ 2^20 refused; a slot retires at the bound while an object
-   generation passes it; use-after-close and destruction told apart.
-2. **[demo] `user/abi`, data half** — numbers, `Tag`, `Status`, the layouts and their assertions, no
-   `unsafe`. Host tests refuse every reserved-bit and over-length encoding; CI builds both targets.
-3. **[demo] AArch64 trap path, MMU off** — lower-EL save, dispatch, restore, `eret`; `yield`,
-   `thread_exit`, `InvalidSyscall`; a lower-EL fault stops the thread, not the kernel. A feature like
-   `provoke-exception`, `syscall-selftest`, drops to EL0 with the MMU off (the softfloat target is
-   `+strict-align`, so Device-memory accesses are safe) and runs `svc #0`: `--expect "syscall round trip"`.
-4. **[demo] `user/abi/src/arch/**`** — trap stubs, `_start`, the buffer-register read — **with the
-   `CLAUDE.md` edit in the same PR**. Built for both targets under clippy; first run by increment 7.
-5. **[demo] The bundle** — `xtask`'s ELF reader, host-tested on W+X, overlapping, truncated and foreign
-   fixtures; `build.rs`. Boot-tests: bare `--expect "boot modules: 0"`, full `--expect "boot modules: 2"`.
-6. **[demo] Objects, `cap_*` and the Console** on RFC-0005's static tables; the self-test prints from EL0
-   through a Console handle: `--features syscall-selftest --expect "[el0] Kaya!"`.
-7. **[demo] The root reaches EL0** on RFC-0005's spaces and RFC-0006's threads: `--expect "[server] up"`.
-8. **[demo] The Process object** — grant window and teardown as pure logic in a host-tested `process/`
-   crate, then wired in. Host tests: born empty; `GRANT` all-or-nothing; `WindowClosed` after first
-   resume; `KILL` empties the table.
-9. **[demo] The root spawns the client** with a `WRITE`-only Console and the endpoint. The client prints
-   `[client] up`, invokes a handle word it was never granted, gets `InvalidHandle` and prints
-   `[client] denied, as expected` — O-27 proved observably, not asserted.
-10. **[demo] IPC syscalls** over RFC-0004 endpoints and RFC-0006's blocking states. Boot-test lines in
-    order: `[client] -> Kaya!`, `[server] <- Kaya!`, `[client] <- Kaya!`. RFC-0006's increments add the
-    preemption evidence and the `BudgetRefused` and `BudgetExpired` tests.
-11. **Fault messages and death notification** (§17.1): a faulting child is reported to the root,
-    which prints `[server] child faulted`.
+1. **[demo] `capability`: the handle word** — `to_word`/`from_word`, `MAX_SLOT_GENERATION`, `free_slots`,
+   with RFC-0003's dated amendment. Host tests: round trips; word 0 and index ≥ 2^20 refused; a slot
+   retires at the bound while an object generation passes it; `free_slots` exact beside retired slots.
+2. **[demo] `user/abi`, data half**, after the ledger verdict — numbers, `Tag`, `Status`, labels, `BootCap`,
+   the rights-bit assertion, no `unsafe`. Host tests refuse every reserved-bit (9–15 included) and
+   over-length encoding; CI builds both targets.
+3. **[demo] AArch64 trap path, MMU off** — lower-EL save into one kernel-held static frame (RFC-0006's
+   increment 4 moves frames into TCBs), dispatch, restore, `eret`; `yield`, `thread_exit`,
+   `InvalidSyscall`; a lower-EL fault stops the self-test, not the kernel. `--features syscall-selftest
+   --expect "syscall round trip"`. **Deleted** when RFC-0005's increment 9 turns the MMU on; 6 replaces it.
+4. **[demo] `xtask`: repeated `--expect`, matched in order.** Host tests on the matcher.
+5. **[demo] The bundle** — `xtask`'s ELF reader, host-tested on W+X, overlapping, truncated, `PT_TLS`,
+   `PT_DYNAMIC` and executable-stack fixtures; `build.rs`, the `.incbin` and `aarch64.ld`'s `.payload`.
+   Boot-test: bare `--expect "boot modules: 0"`.
+6. **[demo] Objects, `cap_*`, the method dispatcher, the Console and the Process's kernel half** (create,
+   `INFO`) on RFC-0005's store and one root Pool, with its increment 14. An EL0 self-test in a
+   kernel-built process prints through a Console handle: `--features syscall-selftest --expect "[el0] Kaya!"`.
+7. **[demo] The root reaches EL0** — `user/abi/src/arch/**` with every §12 edit in the same PR, after the
+   maintainer approves the tree; the kernel builds the root from module 0: `--expect "boot modules: 2"
+   --expect "[root] up"`.
+8. **[demo] `GRANT`, the window, `INFO` and `KILL`** as pure logic in a host-tested `process/` crate, then
+   wired. Host tests: born empty; `GRANT` all-or-nothing on an exact free-slot count; `WindowClosed` after
+   the first resume; an AddressSpace bound once; `KILL` empties the table; a GRANT-free child's table is
+   empty.
+9. **[demo] The root spawns the client,** in three PRs:
+    - **a.** The loader plan in a host-tested `no_std` `user/loader` crate: descriptor in, ordered method
+      calls out; W^X and overlaps refused; host test that the plan ends with the spawner holding the
+      child's Process capability and nothing naming its memory or threads.
+    - **b.** The root runs the plan, `WRITE`-only Console and send-only endpoint granted:
+      `--expect "[root] up" --expect "[client] up"`.
+    - **c.** O-27 evidence: the client probes indices 0–63 at generation 1 with `cap_rights` — exhaustive
+      for a table in which no slot was ever vacated — printing `[client] 2 handles`, and the root prints
+      `INFO`'s count, `[root] client: 2 caps`. Evidence, not proof: the proof is increment 8's host test.
+10. **[demo] IPC syscalls** over RFC-0004 endpoints, reusable Reply objects and RFC-0006's blocking states.
+    Boot-test in order: `[client] -> Kaya!`, `[server] <- Kaya!`, `[client] <- Kaya!`. Host test: calls
+    from clients that exit mid-call leave the server's Pool balance unchanged.
+11. **Fault messages and death notification** (§17.1): a faulting child is reported to the root, which
+    prints `[root] child faulted`; `report-user-faults` leaves the boot-tests.
 12. **x86_64 trap path and `user/abi` stubs** — `EFER.SCE`, `LSTAR`/`STAR`/`FMASK`, `swapgs`, the
-    canonical check. Proves §3's second column links; boots with the UEFI stub.
-13. **Delete the Console object** when the Phase-2 UART driver lands — scheduled now so it stays interim.
+    `sysretq` guards — after the x86_64 boot RFC's UEFI stub; the same boot-tests on `q35`.
+13. **Delete the Console object** when the Phase-2 UART driver lands.
+14. **`Revoked`**: the crate's `ObjectDestroyed` split, with RFC-0005's destruction (its 17).
+15. **The root spawns the server** and stops serving: removes the root-as-server interim.
+
+**Demo order across the three RFCs,** proposed for the maintainer to fix: RFC-0005 1–8, RFC-0006 1–2 and
+this RFC's 1, 2 and 4 in any order → 3 → RFC-0006 3–4 → RFC-0005 9–10 (retiring the MMU-off self-tests) →
+RFC-0005 11–14 → RFC-0006 5 → 5–6 → 7 → 8 → RFC-0006 6a–6b → 9 → RFC-0006 7a–7b → 10 with RFC-0006 7c.
+RFC-0006 places its 3–4 before RFC-0005's MMU and RFC-0005 places them after; this order takes RFC-0006's,
+with RFC-0005's 10 repointing the GIC, which RFC-0005 allows.
+
+**The demo's interims, each with its cost:**
+
+- **Faults print and stop** (§7): an ambient output channel and ~100 bytes of kernel UART time per fault.
+- **The in-kernel Console** (§11): a device path reachable from EL0, bounded to 24 stores per entry.
+- **Modules embedded in the AArch64 image** (§10): a user change relinks the kernel.
+- **One root Pool and no destruction** (RFC-0005): charges are unattributed, `KILL` releases nothing, and
+  `Revoked` never arises.
+- **Register-only messages** (RFC-0005's IPC-buffer module, its 16, is not demo): threads have no buffer,
+  longer messages fail `NoBuffer`, and no capability crosses an endpoint — the demo's grants use `GRANT`,
+  whose handle words travel in registers by design.
+- **An active server** (RFC-0006's A1): the `call` donates nothing, so RFC-0004's donation is not exercised.
+- **The root doubles as server:** attacker-facing code runs in the process holding every boot capability,
+  against §16's "it must stay small"; increment 15 removes it.
+- **The MMU-off self-test** (increment 3), deleted when the MMU comes on; **RFC-0006's provisional
+  constants** for the root's priority and timeslice.
 
 ## 19. What this unblocks
 
 The first userspace, and every Phase-2 paper: the **scheme registry** and **broker** (processes, grants,
 `call`), the **driver framework** (faults, interrupt notifications, the console moving out), a **relibc
-port** over `user/abi` with both TLS registers its own, and the **x86_64 bring-up**. RFC-0003a gains an ABI.
+port** over `user/abi` with both TLS registers its own, and the **x86_64 bring-up**. RFC-0003a gains an ABI
+and two inputs: partial interposition (§16) and the sovereignty check (§17.3).
