@@ -445,8 +445,8 @@ counted boot-test strings. New `unsafe` stays in `kernel/src/arch/**`. The x86_6
 |---|----|--------------------|-------------|---|
 | 1 | `scheduler` I: run queues, the ten states, MCP, the priority-ordered endpoint queue | exhaustive host transition table against §4's "Left by" column; "a new thread cannot serve as `auth` above 0"; built for both targets | — | D |
 | 2 | `scheduler` II: full contexts, nanosecond conversion and rounding, billing, stall counters, interim constants | host tests against a shadow model | 1 | D |
-| 3 | GICv3 and the virtual timer, kernel-only; `CNTKCTL_EL1`, `PMUSERENR_EL0` zeroed; idle and its abandon-idle stub | xtask gains `gic-version=3`; `timer: tick 3` | 0005#9 (GIC in the MMIO window) | D |
-| 4 | Event-kernel dispatch at EL0 with the MMU off: TCB frames and dispatch under RFC-0007#3's trap stub; §8's `SCTLR_EL1` bits | two EL0 self-test threads alternate under the timer: `sched: A B A B`; an EL0 `wfi` returns: `sched: wfi yields` | 3, 0007#3 | D |
+| 3 | GICv3 and the virtual timer, kernel-only; `CNTKCTL_EL1`, `PMUSERENR_EL0` zeroed; idle and its abandon-idle stub | xtask gains `gic-version=3`; `timer: tick 3` | — (physical addresses; 0005#9 must repoint the GIC with the console) | D |
+| 4 | Event-kernel dispatch at EL0, no address spaces yet: TCB frames and dispatch under RFC-0007#3's trap stub; §8's `SCTLR_EL1` bits | two EL0 self-test threads alternate under the timer: `sched: A B A B`; an EL0 `wfi` returns: `sched: wfi yields` | 3, 0007#3 | D |
 | 5 | Threads in address spaces; the boot stack moved into the guarded window, `aarch64.ld`'s comment with it | a spinning EL0 thread is preempted and resumes intact: `user: still here` | 4, 0005#10 | D |
 | 6a | Thread, SchedContext, `SchedControl` as RFC-0005 object-store slots; state machine wired; `(index, generation)` links | host: destroy a lent context, reuse the slot, `reply` — nothing moves | 2, 0005#7 | D |
 | 6b | Methods behind RFC-0007's dispatcher: `sc_configure`, `bind_sc`, `resume`, `set_priority`, `write_regs`, `thread_exit` | the root runs two EL0 threads at one level: `[a] 1 [b] 1 [a] 2` | 5, 6a, 0007#6 | D |
@@ -475,7 +475,6 @@ counted boot-test strings. New `unsafe` stays in `kernel/src/arch/**`. The x86_6
 
 ## 20. What this unblocks
 
-RFC-0004's implementation gets threads to rendezvous between. The driver framework receives interrupts as
-notifications (O-17). The broker gains levers to sell time without the kernel knowing why: `SchedControl`, MCP,
-`min_budget` and stall counters. Next on paper: the x86_64 boot RFC (increment 13), an SMP amendment (14), and
-§13's dated entries.
+RFC-0004's implementation gets threads to rendezvous between; drivers get interrupts as notifications (O-17);
+the broker gets levers to sell time without the kernel knowing why — `SchedControl`, MCP, `min_budget`, stall
+counters. Next on paper: the x86_64 boot RFC (increment 13), an SMP amendment (14), and §13's dated entries.
