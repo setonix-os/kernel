@@ -27,22 +27,22 @@ recorded is indistinguishable from law that was never agreed.
   deliberately not proposed but handed to RFC-0003a as input, because gating it on `REVOKE` would
   pre-empt that RFC's (a)/(b) choice. Twenty increments, fourteen marked for the Phase-1 demo, each with
   the interims it carries named and costed.
-- `docs/rfcs/0006-threads-and-scheduling.md` — **proposed**, revised the same day against a two-lens
-  review (constitution and implementability). Threads, scheduling contexts and interrupts for Phase 1.
-  The spine is unchanged. The kernel is event-driven, with one stack per core and preemption points, and
-  time is a capability: a `SchedContext` configured only through a per-core `SchedControl` (seL4 MCS).
-  Priorities are 256 fixed levels behind a priority ceiling that any capability to a thread confers. The
-  timer is tickless on both Tier-1 targets. FP/SIMD is enabled per thread and saved lazily. A device line
-  reaches its driver as a notification and stays masked until `ack`. The review turned several quiet
-  choices into verdicts. Endpoint queues are now priority-ordered, because the FIFO citation was wrong.
-  Budgets are declared caps, not minima, departing from research/0002 on purpose. Userspace timers are
-  named: deadline objects on the release queue. A caller's death can no longer take time away from a
-  server mid-request. The departures from accepted papers are now listed as amendments A1–A4: donation
-  only to passive receivers, a short caller waits instead of being refused, seL4's timeout faults
-  corrected, and the big lock rejecting RFC-0003 §14.2's premise. The review also fixed the state machine
-  (a tenth state, `Unfunded`), the FP ownership races, the SCTLR bits RFC-0005 had inverted, and the
-  parked-core start-up (checked against QEMU). The increments now interlock with RFC-0005 and RFC-0007.
-  The demo's interims are named with their numbers.
+- `docs/rfcs/0006-threads-and-scheduling.md` — **proposed**, revised the same day against a three-lens
+  review (constitution, technical correctness and implementability). Threads, scheduling contexts and
+  interrupts for Phase 1. The spine is unchanged. The kernel is event-driven, with one stack per core and
+  preemption points, and time is a capability: a `SchedContext` configured only through a per-core
+  `SchedControl` (seL4 MCS). Priorities are 256 fixed levels behind a priority ceiling that any
+  capability to a thread confers. The timer is tickless on both Tier-1 targets. FP/SIMD is enabled per
+  thread and saved lazily. A device line reaches its driver as a notification and stays masked until
+  `ack`. The review turned several quiet choices into verdicts. Endpoint queues are now priority-ordered,
+  because the FIFO citation was wrong. Budgets are declared caps, not minima, departing from
+  research/0002 on purpose. Userspace timers are named: deadline objects on the release queue. A caller's
+  death can no longer take time away from a server mid-request. The departures from accepted papers are
+  now listed as amendments A1–A4: donation only to passive receivers, a short caller waits instead of
+  being refused, seL4's timeout faults corrected, and the big lock rejecting RFC-0003 §14.2's premise.
+  The review also fixed the state machine (a tenth state, `Unfunded`), the FP ownership races, the SCTLR
+  bits RFC-0005 had inverted, and the parked-core start-up (checked against QEMU). The increments now
+  interlock with RFC-0005 and RFC-0007. The demo's interims are named with their numbers.
 - `docs/rfcs/0007-system-calls-and-process-bootstrap.md` — **proposed**, the third of the Phase-1 kernel
   RFCs drafted alongside RFC-0005 and RFC-0006, and the one that makes RFC-0003 §9 live. Every
   kernel-object operation is a `call` on its capability (seL4's uniform invocation), with twelve syscalls
