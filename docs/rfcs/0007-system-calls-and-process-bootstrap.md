@@ -121,8 +121,8 @@ payload-free doorbell; an `IrqHandler` ORs its bound bits (RFC-0006 §11). **Rej
 **Reply objects** are created once from a Pool and reused *(seL4 MCS)*: `recv` binds one to a caller, and
 `reply`, budget expiry or the caller's death **unbinds** it; `reply` on an unbound one fails `PeerGone`.
 RFC-0004 §8 says it "is destroyed if the caller dies", which would let a client that calls and exits in a
-loop cost the server a Pool allocation per request — an O-7 drain — so RFC-0004 needs a dated amendment and
-RFC-0006 §4 and §7 read "unbinds".
+loop cost the server a Pool allocation per request — an O-7 drain — so RFC-0004 needs a dated amendment, which
+RFC-0006 (proposed) §4 and §7 already follow.
 
 **Kernel-object methods.** A method is a `call` whose label names it and whose MR0–MR3 carry every
 argument; one needing more is split. A handle word there is **presented**: resolved in the caller's table,
@@ -139,7 +139,7 @@ from MR0; labels count from 1 per kind; the `abi` data half (increment 2) is the
 | Pool (`WRITE`) | 4 `thread_create` | Process, presented `WRITE` | its AddressSpace, presented `WRITE` | IPC-buffer address, or 0 for none | — | Thread |
 | Pool (`WRITE`) | 5 `sc_create` · 6 `endpoint_create` · 7 `notification_create` · 8 `reply_create` | — · `min_budget` in ns (RFC-0006) · — · — | — | — | — | the new object |
 | AddressSpace (`WRITE`) | 1 `map` · 2 `unmap` · 3 `protect` (RFC-0005 §8) | Region, presented · vaddr · vaddr | the space's Pool, presented `WRITE` · — · perms | vaddr | first page (bits 0–31), pages (32–41), perms (48–49) | — |
-| Region (`WRITE`) | 1 `region_copy` (RFC-0005, proposed here) | source Region, presented `READ` | source page | destination page | pages, at most 16 | — |
+| Region (`WRITE`) | 1 `region_copy` (RFC-0005 §8) | source Region, presented `READ` | source page | destination page | pages, at most 16 | — |
 | Process (`WRITE` / `READ`) | 1 `GRANT` · 2 `KILL` · 3 `INFO` (§8) | handle words, **moved**, count in `tag.length` | | | | `GRANT`: words in the child; `INFO`: counts |
 | Thread (`WRITE` / `READ`; RFC-0006 §4) | 1 `write_regs` · 2 `read_regs`, a four-word group of RFC-0006's frame in label bits 8–15, group 0 being PC, SP, `a0`, `a1` | `write_regs`: the group's four words in MR0–MR3 | | | | `read_regs`: the group |
 | Thread (`WRITE`; RFC-0006 §4) | 3 `resume` · 4 `suspend` · 5 `bind_sc` · 6 `unbind_sc` · 7 `set_priority` · 8 `set_mcp` · 9 `bind_notification` · 10 `unbind_notification` · 11 `set_fault_ep` · 12 `set_timeout_ep` · 13 `set_fp` | 5: SchedContext, presented `WRITE` · 7, 8: `auth`, presented, no right checked · 9: Notification, presented `READ` · 11, 12: endpoint, **moved** · 13: on or off | 7, 8: the value | — | — | — |
@@ -316,8 +316,8 @@ code validating structures built elsewhere is the bug farm (research/0002 Part 7
 in-kernel `elf/` crate, a parser in the TCB for no gain.
 
 **The source — an AArch64 interim: embedded in the kernel image.** QEMU's `-initrd` and `-device loader`
-add a second, QEMU-only artefact (`hw/arm/boot.c`, read at QEMU 8.2.2 and to be re-read at the pinned
-11.0.3, loads `-initrd` only for Linux images); children linked into the root's ELF *(seL4's CPIO
+add a second, QEMU-only artefact (`hw/arm/boot.c`, re-read at the pinned 11.0.3, loads `-initrd` only for
+Linux images and silently ignores it for a bare ELF); children linked into the root's ELF *(seL4's CPIO
 archive)* would tie the root to each image. So `xtask` writes `payload.bin` — a versioned header, then per
 module a name, descriptor and segment bytes — named by `SETONIX_PAYLOAD`; `kernel/build.rs` re-runs on that
 variable and substitutes an empty bundle when it is unset, so a bare `cargo build` prints `boot modules:
@@ -329,8 +329,8 @@ bundle as a file; increment 12 depends on it.
 **Loading.** The kernel loads **module 0 only**; the others reach the root as **read-only Regions**
 (RFC-0005 §7) with descriptors in BootInfo *(Genode's core hands init boot modules read-only)*. Every
 loader, kernel or root, maps text `RX` and read-only data `R` **in place**, copies data pages into a fresh
-Region with `region_copy` — which RFC-0005 (proposed) provides as a page-granular, frame-to-frame copy, the
-one it already makes for the root (§7 there), so the demo needs that half of its copy module — and takes
+Region with `region_copy` — RFC-0005 (proposed) §8's page-granular, frame-to-frame copy, the one the kernel
+already makes for the root — and takes
 `bss` as fresh zeroed pages, so no loader maps a child's writable memory into itself. The programs are soft-float `no_std` crates on `abi` alone with no `unsafe`;
 on `x86_64-unknown-none` `xtask` passes `-C relocation-model=static -C code-model=small`.
 
@@ -475,11 +475,15 @@ prefixed strings, since bare `Kaya!` matches the kernel's greeting; every demo l
 14. **`Revoked`**: the crate's `ObjectDestroyed` split, with RFC-0005's destruction (its 17).
 15. **The root spawns the server** and stops serving, removing that interim.
 
-**Demo order across the three RFCs,** for the maintainer to fix: RFC-0005 1–8, RFC-0006 1–2 and this
-RFC's 1, 2 and 4 in any order → 3 → RFC-0006 3–4 → RFC-0005 9–10, retiring the MMU-off self-tests →
-RFC-0005 11–14 → RFC-0006 5 → 5–6 → 7 → 8 → RFC-0006 6a–6b → 9 → RFC-0006 7a–7b → 10 with RFC-0006 7c.
-RFC-0006 puts its 3–4 before RFC-0005's MMU and RFC-0005 after; this takes RFC-0006's, with RFC-0005's 10
-repointing the GIC, as RFC-0005 allows.
+**Demo order across the three RFCs** — the one merged order, to which RFC-0005 §18 and RFC-0006 §19 defer,
+for the maintainer to fix:
+
+1. **Before any EL0 code, MMU off,** as dependencies allow: RFC-0005 1–8, 11 and 12; RFC-0006 1–3, 6a and
+   7a; this RFC's 1, 2 and 4, with 5 after 2.
+2. **EL0 with the MMU off:** this RFC's 3, then RFC-0006 4.
+3. **MMU on:** RFC-0005 9–10, retiring the MMU-off EL0 self-tests and repointing the UART and the GIC.
+4. **Address spaces and the first userspace:** RFC-0005 13 → RFC-0006 5 → 6 with RFC-0005 14 → 7 → 8 →
+   RFC-0006 6b → 9 → RFC-0006 7b → 10 with RFC-0006 7c.
 
 **The demo's interims, with their costs:**
 

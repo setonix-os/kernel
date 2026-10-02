@@ -451,9 +451,10 @@ memory map (UEFI stub pending)` and halts — so the second Tier-1 build compile
 20. **x86_64** tables, `CR3` and PCID, after the UEFI stub; **Device Regions** in Phase 2.
 
 **Programme order:** one merged order for all three RFCs lives in RFC-0007 (proposed) §18, for the maintainer to
-fix (§17.8). This RFC's constraints on it: 1–8 need nothing else and leave the MMU off; the MMU-off EL0
-self-tests (RFC-0007 3, RFC-0006 4) land before 9, which retires them; 10 repoints every kernel MMIO user, the
-GIC included when RFC-0006 3 came first; 11–13 precede RFC-0006 5 and RFC-0007 6; 14 lands with RFC-0007 6.
+fix (§17.8). This RFC's constraints on it: 1–8, 11 and 12 need nothing else and leave the MMU off; the
+MMU-off EL0 self-tests (RFC-0007 3, RFC-0006 4) land before 9, which retires them; 10 repoints every kernel
+MMIO user, the GIC included when RFC-0006 3 came first; 13 precedes RFC-0006 5 and RFC-0007 6; 14 lands with
+RFC-0007 6.
 
 **Interims the demo carries, with their cost:**
 
@@ -472,4 +473,5 @@ GIC included when RFC-0006 3 came first; 11–13 precede RFC-0006 5 and RFC-0007
 Increments 1–14 give RFC-0006 (proposed) address spaces, a guarded per-core stack and a Pool to charge threads
 to; RFC-0007 (proposed) the objects its Process, root task and boot info are made of, and §11's sentence on
 user addresses as a constraint inherited, not discovered. The root receives all memory as one boot-minted
-Pool — RFC-0003 §14.4's bootstrap without an ambient grantor. Increments 1–8 leave the MMU off: all can land now.
+Pool — RFC-0003 §14.4's bootstrap without an ambient grantor. Increments 1–8, 11 and 12 leave the MMU off
+and need no sibling's code, so they can land once this RFC is accepted.
