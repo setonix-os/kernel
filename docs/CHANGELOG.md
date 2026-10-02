@@ -169,6 +169,15 @@ recorded is indistinguishable from law that was never agreed.
 
 ### Changed
 
+- **A third designated `unsafe` tree approved in principle (2026-09-27), binding nothing yet.** Asked in
+  a Claude Code session how the demo's userspace should issue `svc #0`, the maintainer approved in
+  principle a small write-ourselves crate, `user/abi`, whose `src/arch/**` would become a third tree
+  where `unsafe` is permitted, beside `kernel/src/arch/**` and `kernel/src/mm/**` — to be proposed in the
+  syscall RFC and accepted or rejected there. RFC-0007 (proposed) §12 has since narrowed the tree to trap
+  instructions, the discovery-register read and process entry stubs. Nothing changes until RFC-0007 is
+  accepted: `CLAUDE.md`'s `unsafe` policy, threat-model O-6 and the workspace lint comments move only
+  with its increment 7, and the Borrow Ledger reading it seeks is a separate verdict. Recorded so the
+  decision has a trace in the repository, not only in a chat.
 - **RFC-0005, RFC-0006 and RFC-0007 reconciled and fact-checked (2026-10-02), still proposed.** The three
   were revised in parallel and had drifted at their seams; a cross-RFC pass aligned them, and an
   independent check of every claim they had flagged as unverified settled each against primary sources:
