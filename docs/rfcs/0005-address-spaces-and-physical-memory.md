@@ -19,7 +19,7 @@
 > 4. **[demo] One accounting domain:** the Pool, for every counted unit; time stays with RFC-0006's `SchedControl`, a stated split from research/0002 (§5).
 > 5. **[demo] Layout:** the same higher-half layout on both; the image read-only in the physmap; per-core stacks guarded, kept by the kernel (§6).
 > 6. **[demo] Objects:** `Region` (eager and zeroed, or boot-minted read-only) and `AddressSpace` join RFC-0003's objects beside `Pool` (§7).
-> 7. **[demo] Operations:** `map` / `unmap` / `protect` are capability-checked, bounded and atomic; the kernel never picks an address (§8).
+> 7. **[demo] Operations:** `map` / `unmap` / `protect` and `region_copy` are capability-checked, bounded and atomic; the kernel never picks an address (§8).
 > 8. **[demo] Rights:** `EXECUTE` joins RFC-0003's set as bit 5 — on Regions and Pools only, refused at mint elsewhere — by dated amendment (§8).
 > 9. **[demo] W^X (O-13):** unrepresentable, enforced per Region across all address spaces, backed by `SCTLR_EL1.WXN` (§9).
 > 10. **Sharing (RFC-0004 §9.1):** *share* is derive-and-transfer; destruction walks mappings; *donation* goes to RFC-0003a as input (§10).
@@ -66,9 +66,11 @@ number into `&mut [u64; 512]` through a kernel window (§6, §13) is `unsafe`, i
 
 **Discovery.** QEMU fixes RAM at 0x4000_0000 on `virt`; every other address "may vary" and comes from the
 DTB, "at the start of RAM" with no register naming it (`docs/system/arm/virt.rst`) — and `hw/arm/boot.c`
-puts it only *below* the image (`dtb_limit`). Checked on QEMU 8.2.2 on 2026-09-27: an ELF at 0x4000_0000
-finds **no DTB in RAM**; at 0x4020_0000 it finds one at 0x4000_0000. **So the image loads at 0x4020_0000**,
-capping the DTB at 2 MiB; increment 1 re-checks QEMU 11.0.3. A minimal FDT reader (Borrow Ledger boot-path
+puts it only *below* the image (`dtb_limit`). Checked on QEMU 8.2.2 and the pinned 11.0.3
+(`arm_setup_direct_kernel_boot`): an ELF at 0x4000_0000 gets the DTB written at physical 0x0 — the flash window,
+not RAM — and nothing in `x0`; at 0x4020_0000 it lands at 0x4000_0000 (`dtb_start = loader_start`, `dtb_limit =
+image_low_addr`), and `arm_load_dtb` silently drops a DTB that does not fit below the image. **So the image loads
+at 0x4020_0000**, capping the DTB at 2 MiB (`virt`'s is 1 MiB). A minimal FDT reader (Borrow Ledger boot-path
 row; Devicetree Specification v0.4) reads the cell sizes, `/memory`, `/memreserve/` and `/reserved-memory`,
 bounds-checks every offset and fails closed; threat model §10 gains a proposed assumption, *firmware tables
 describe memory truthfully*. x86_64's UEFI stub (no RFC yet) hands over `GetMemoryMap` after
@@ -201,6 +203,7 @@ transferred — RFC-0003 §6's move would take the Region from its mapper.
 | `map(as, region, pool, first_page, vaddr, pages, perms)` | as `WRITE`; region rights ⊇ `perms`; `pool` the AddressSpace's own, `WRITE` | `vaddr` unaligned, below the floor or outside the user half; overlap; beyond the Region; `pages > 512`; `perms ∉ {R, RW, RX}`; W^X (§9); `PoolExhausted` |
 | `unmap(as, vaddr)` | as `WRITE` | no mapping based at `vaddr` — the unit is the whole mapping |
 | `protect(as, vaddr, perms)` | as `WRITE` | `perms` not a subset of the mapping's current `perms` |
+| `region_copy(dst, src, src_page, dst_page, pages)` | dst `WRITE`; src presented, `READ` | `pages` 0 or above 16; either range beyond its Region; both ranges in one Region and overlapping; `dst` has an `RX` mapping (§9) |
 
 User numbers are validated *as numbers*; **the kernel never chooses a virtual address** *(seL4's VSpace
 discipline)*. **`map` names a Pool because spending is authority** (O-4); requiring the space's *own* Pool
@@ -209,6 +212,10 @@ keeps one payer per space, so refunds need no per-table record *(seL4's caller-s
 (spending never granted). **`map` is atomic**: it charges missing tables and the Mapping slot first, then
 zeroes and links tables, writes leaves and ends with `DSB ISHST` before `eret`; at most 512 leaves and six
 new tables. `protect` only narrows; widening is `map` again *(seL4)*. 4 KiB pages; blocks later.
+**`region_copy`** copies whole pages frame to frame through the physmap, at most 16 per call so one entry's
+copy stays bounded: it is how a loader fills a child's data pages without mapping them into itself (RFC-0007
+(proposed) §10), and the kernel's own fill for the root (§7) is the same copy. It writes, so W^X counts it
+(§9). Its RFC-0007 encoding presents `src`, as `map` presents its Region.
 
 **Verdict sought: `EXECUTE` joins RFC-0003's rights as bit 5**, as §5 there allows "when a subsystem needs
 one". Folded into `READ`, every readable Region is potential code; a Region *kind* fails the loader, which
@@ -233,8 +240,8 @@ execute-only exists on AArch64 but not on x86_64 without protection keys, so nei
 1. **Unrepresentable.** `MapPerms` is `Read`, `ReadWrite` or `ReadExecute`; both encoders are total functions
    from it, so no writable-executable entry can be built. Host-tested exhaustively.
 2. **Per Region, across every address space.** A Region counts writable uses (`RW` mappings, IPC-buffer
-   bindings) and `RX` mappings: `map RX` is refused while any writable use exists, `map RW` and binding while
-   any `RX` mapping does. `unmap`, `protect` and unbinding decrement **only once their invalidation has
+   bindings) and `RX` mappings: `map RX` is refused while any writable use exists, `map RW`, binding and
+   `region_copy` into it while any `RX` mapping does. `unmap`, `protect` and unbinding decrement **only once their invalidation has
    completed on every core** (§12) — until then a stale writable entry may be live somewhere.
 3. **Over time.** `EXECUTE` is minted only from a Pool carrying it — the loader holds one, a JIT gets one by
    explicit grant *(Fuchsia's `VmexResource`)*. O-13's Phase-3 load-path clause is policy on this.
@@ -295,8 +302,10 @@ writes for a process is named by capability and reached through the physmap:
   `TLBI ASIDE1IS` (x86_64: `INVPCID` single-context), so churn does not force rollover. *Rejected:* seL4's
   ASID pools — a tag is not authority.
 - **Kernel entries are global, user entries never.** `map` needs no invalidation: neither architecture caches
-  a faulting entry (the Arm ARM, section uncited as it was unreachable; SDM Vol. 3A §4.10), and a fault whose
-  entry is valid on re-walk is retried. `unmap`, `protect` and teardown store, `DSB ISHST`, `TLBI VALE1IS`,
+  an entry that faults for being invalid (Arm ARM DDI 0487 D8.12: entries generating "a Translation fault, an
+  Address size fault, or an Access flag fault are never cached in a TLB"; SDM Vol. 3A §4.10.2.3: a TLB entry
+  exists "only if the P flag is 1 and the reserved bits are 0"), and a fault whose entry is valid on re-walk is
+  retried. A *permission*-faulting entry may be cached on AArch64, which is why `protect` invalidates. `unmap`, `protect` and teardown store, `DSB ISHST`, `TLBI VALE1IS`,
   `DSB ISH`, `ISB`; x86_64 `INVLPG`. Freeing an intermediate table needs `TLBI VAE1IS` or `ASIDE1IS`, as
   `VALE1IS` spares walk caches; `INVLPG`/`INVPCID` flush them (SDM Vol. 3A §4.10.4.1). **O-8's ordering:
   invalidate, then free** — no frame returns to a Pool while any core can translate to it.
@@ -319,8 +328,8 @@ that have run it since its last full flush *(Linux `mm_cpumask`)*.
 ## 13. Early boot: turning the MMU on
 
 The image is linked at `0xFFFF_FFFF_8020_0000`, loaded at 0x4020_0000 (`AT()`). QEMU translates the entry to its
-physical alias **only if** it lies in an executable segment with `p_vaddr != p_paddr` (`include/hw/elf_ops.h`,
-`load_elf`, v8.2.2), which `AT()` gives while `.text.boot` leads that segment. With the MMU off, the stub:
+physical alias **only if** it lies in an executable segment with `p_vaddr != p_paddr`, within `p_filesz`
+(`include/hw/elf_ops.h.inc`, `load_elf`, re-read at 11.0.3), which `AT()` gives while `.text.boot` leads that segment. With the MMU off, the stub:
 
 1. Parks secondaries, installs the stack and zeroes `.bss` at physical addresses, as today.
 2. `MAIR_EL1`: index 0 = `0xFF` (Normal write-back, read/write-allocate), index 1 = `0x04` (Device-nGnRE).
@@ -337,14 +346,15 @@ physical alias **only if** it lies in an executable segment with `p_vaddr != p_p
 | `SCTLR_EL1` field (bit) | Value | Why |
 |-------------------------|-------|-----|
 | `M` (0), `C` (2), `SA` (3), `SA0` (4), `I` (12) | 1 | MMU and caches on; stack-alignment checks at EL1 and EL0 |
-| `A` (1), `CP15BEN` (5), `ITD` (7), `SED` (8), `E0E` (24), `EE` (25) | 0 | alignment is the compiler's (`+strict-align`); AArch32 controls, and no thread runs AArch32; little-endian |
+| `A` (1), `CP15BEN` (5), `ITD` (7), `SED` (8), `E0E` (24), `EE` (25) | 0 | alignment is the compiler's (`+strict-align`); AArch32 controls, and no thread runs AArch32 (`ITD` and `SED` are RES1 on a part without AArch32 at EL0, where the 0 is ignored); little-endian |
 | `UMA` (9), `UCT` (15), `UCI` (26) | 0 | EL0 may neither mask interrupts (defeating preemption) nor maintain caches — the kernel does that at `map RX` (§9) |
 | `DZE` (14) | 1 | EL0 `DC ZVA` is a store its mapping already permits |
 | `nTWI` (16), `nTWE` (18) | 0, 1 | `wfi` traps and `wfe` does not — RFC-0006 (proposed) §8 |
 | `WXN` (19) | 0, then 1 | set by Rust step (5), giving `0x30DC581D` |
-| 11, 20, 22, 23, 28, 29 | 1 | RES1 on Armv8.0: Linux v4.19's `SCTLR_EL1_RES1`, plus bit 23 (`SPAN`, RES1 before Armv8.1), which Linux always sets; not re-checked against the Arm ARM |
+| 11, 20, 22, 23, 28, 29 | 1 | RES1 on Armv8.0 — `EOS`, `TSCXT`, `EIS`, `SPAN`, `nTLSMD`, `LSMAOE` in later extensions, each "Reserved, RES1" when its feature is absent (Arm SysReg descriptions; TF-A `SCTLR_EL1_RES1`; Linux `INIT_SCTLR_EL1_MMU_OFF`) |
 
-Every other bit is 0 (RES0 on Armv8.0, or a later extension left off). Rust then, never leaving the reporter
+Every other bit is 0 (RES0 on Armv8.0, or a later extension left off). The whole register is written, never
+read-modified: QEMU's `cortex-a72` resets it to `0x00C50838`, with RES1 bits 20, 28 and 29 clear. Rust then, never leaving the reporter
 without a console: (1) builds the `MemoryMap`, bitmap and arrays through the **boot window** — the
 frame-access trait's offset is `pa − 0x4000_0000 + 0xFFFF_FFFF_8000_0000`, so all it touches lies in the boot
 GiB; (2) builds §6's final tables; (3) swaps `TTBR1_EL1` from the identity map in assembly — empty table,
@@ -403,7 +413,7 @@ jumps high and drops the identity entry — the same "Rust runs only high" rule.
 5. **Preemptible teardown**: the O(mappings) walk made restartable at RFC-0006 (proposed)'s preemption points.
 6. **The firmware assumption** (§4) and O-7's new text (§5), via `docs/CHANGELOG.md`.
 7. **"Minimal assembly"** (Constitution §11.1): are runtime one-instruction `TLBI`/`DC`/`IC`/`TTBR` intrinsics within it (§9)?
-8. **One programme order** across RFC-0005/0006/0007 — §18 proposes one for the maintainer to fix.
+8. **One programme order** across RFC-0005/0006/0007 — RFC-0007 (proposed) §18 holds it, for the maintainer to fix.
 
 ## 18. Implementation increments
 
@@ -423,14 +433,16 @@ memory map (UEFI stub pending)` and halts — so the second Tier-1 build compile
 8. **`pool_split`/`move`/`merge` and closure forwarding**, under random churn. Host-only; not demo.
 9. **[demo] MMU on (§13, stub)**, `SCTLR_EL1`, `VBAR_EL1` high, DFSC decode: `--expect "mm: running at 0xffffffff80"`.
 10. **[demo] Final kernel map (§13, Rust)**, the store behind its static: physmap with the image read-only,
-    MMIO window with every kernel MMIO user repointed, core 0's stack behind a guard; `EPD0`, `WXN`. One
+    MMIO window with every kernel MMIO user repointed, core 0's stack moved behind a guard (`aarch64.ld`'s
+    comment with it); `EPD0`, `WXN`. One
     `--expect` per self-test: `provoke-ro-text` and `provoke-ro-alias` write `.text` through the image and
     the physmap (`data abort, same EL`); `provoke-wxn` branches into `.data` (`instruction abort, same EL`).
 11. **[demo] Region and Mapping records** with the W^X counts. Host-only.
 12. **[demo] The tag allocator**: rollover, per-core reservation, return on destruction. Host-only.
 13. **[demo] AddressSpace and boot-minted Regions**; `TTBR0_EL1` with ASID; `EPD0` cleared. `AT S1E0R` under
     two ASIDs finds a shared Region at one frame, private ones apart: `mm: shared region agrees`.
-14. **[demo] Pool, Region, AddressSpace methods via RFC-0007's `call`** (its increment 6): `[el0] map ok`.
+14. **[demo] Pool, Region, AddressSpace methods via RFC-0007's `call`** (its increment 6), `region_copy`
+    included: `[el0] map ok`.
 15. **`unmap` and `protect`** with invalidation and count decrements (§9, §12). Not demo.
 16. **User-memory module (§11)**: a message beyond the register budget. Not demo.
 17. **Destruction (§10)**, after RFC-0007 increment 11's fault message: a destroyed sharer's fault reaches its handler.
@@ -438,9 +450,10 @@ memory map (UEFI stub pending)` and halts — so the second Tier-1 build compile
 19. **PAN, SMAP, SMEP** where reported, with a `provoke-user-deref` self-test under `-cpu max`.
 20. **x86_64** tables, `CR3` and PCID, after the UEFI stub; **Device Regions** in Phase 2.
 
-**Programme order proposed** (§17.8): 1–8 beside RFC-0006 1–2 and RFC-0007 1–5; RFC-0007's MMU-off EL0
-self-test (its 3) before 9, which retires it; 9–10 before RFC-0006 3 (or 10 repoints the GIC too) and 4,
-which needs the stack window; 11–13 before RFC-0006 5 and RFC-0007 6–7; 14 with RFC-0007 6.
+**Programme order:** one merged order for all three RFCs lives in RFC-0007 (proposed) §18, for the maintainer to
+fix (§17.8). This RFC's constraints on it: 1–8 need nothing else and leave the MMU off; the MMU-off EL0
+self-tests (RFC-0007 3, RFC-0006 4) land before 9, which retires them; 10 repoints every kernel MMIO user, the
+GIC included when RFC-0006 3 came first; 11–13 precede RFC-0006 5 and RFC-0007 6; 14 lands with RFC-0007 6.
 
 **Interims the demo carries, with their cost:**
 
