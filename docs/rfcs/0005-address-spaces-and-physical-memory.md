@@ -16,7 +16,7 @@
 > 1. **[demo] Discovery:** firmware tables into one bounded `MemoryMap`; the image moves to 0x4020_0000, where QEMU leaves room for the DTB (§4).
 > 2. **[demo] Frames:** a colour-capable bitmap; fresh frames and table frames zeroed, boot data handed over read-only (§4, §7).
 > 3. **[demo] Who pays (O-7):** typed slot arrays reused by generation; every post-boot unit charged to a Pool named by capability, `map`'s too (§5).
-> 4. **[demo] One accounting domain:** the Pool, for every counted unit; time stays with RFC-0006's `Core`, a stated split from research/0002 (§5).
+> 4. **[demo] One accounting domain:** the Pool, for every counted unit; time stays with RFC-0006's `SchedControl`, a stated split from research/0002 (§5).
 > 5. **[demo] Layout:** the same higher-half layout on both; the image read-only in the physmap; per-core stacks guarded, kept by the kernel (§6).
 > 6. **[demo] Objects:** `Region` (eager and zeroed, or boot-minted read-only) and `AddressSpace` join RFC-0003's objects beside `Pool` (§7).
 > 7. **[demo] Operations:** `map` / `unmap` / `protect` are capability-checked, bounded and atomic; the kernel never picks an address (§8).
@@ -104,7 +104,7 @@ pins another's charge. A slot whose generation cannot advance retires, debited o
 keep 64-bit generations, RFC-0007 (proposed) §6). `object.rs`'s "takes a reference count" is qualified to
 match in increment 7. **Where it lives:** generic array and Pool in `memory/`; the concrete store, one
 `Kernel` value with every type's array (RFC-0004/0006/0007 objects too), behind **one** `static` in
-`kernel/src/mm/` whose SAFETY argument is one core entered with interrupts masked (RFC-0006 (proposed) V1),
+`kernel/src/mm/` whose SAFETY argument is one core entered with interrupts masked (RFC-0006 (proposed) verdict 1),
 then the big lock. No other kernel global accretes.
 
 **A Pool is the accounting layer**: an RFC-0003 object holding balances of frames and of each type's slots.
@@ -130,9 +130,10 @@ every unit of r in use       ==  kept by the kernel (at boot, or retired), or ch
 **One accounting domain — decided here, as the programme gives this RFC O-7's model.** research/0002 Part 6
 wants one for memory, object quotas and scheduling contexts. **The Pool is it for every counted unit**,
 SchedContext slots included. **Time is not a unit**: RFC-0006 (proposed) sells per-core bandwidth through
-`Core`, which moving balance cannot conserve, and folding it in would make every Pool holder a CPU seller — a
-deliberate split, congruent by attribution. O-7 would add *"kernel memory is charged to a capability-named
-Pool; CPU time to a SchedContext funded through a `Core`"*, via `docs/CHANGELOG.md`.
+`SchedControl`, which moving balance cannot conserve, and folding it in would make every Pool holder a CPU seller —
+a deliberate split, congruent by attribution; RFC-0006 (proposed) §5 states the same split from its side, and leaves
+any later domain holding both to the broker RFC. O-7 would add *"kernel memory is charged to a capability-named
+Pool; CPU time to a SchedContext configured through a `SchedControl`"*, via `docs/CHANGELOG.md`.
 
 ## 6. The kernel's virtual layout
 
@@ -147,10 +148,10 @@ top 2 GiB, as `x86_64-unknown-none`'s default kernel code model expects (overrid
 | `0xFFFF_FFFF_0000_0000` – `0xFFFF_FFFF_7FFF_FFFF` | per-core kernel and emergency stacks, an unmapped guard page below each | Normal; RW; execute-never; kept by the kernel at boot |
 | `0xFFFF_FFFF_8000_0000` – top | image at `+0x20_0000` | `.text` RX, `.rodata` R, `.data`/`.bss` RW execute-never |
 
-- **Stacks.** RFC-0006 (proposed) V1 chose one kernel stack per core, allocated here at boot; core 0's boot
+- **Stacks.** RFC-0006 (proposed) verdict 1 chose one kernel stack per core, allocated here at boot; core 0's boot
   stack leaves `aarch64.ld`'s unguarded slot in increment 10. A fault's entry pushes onto the overflowed
-  stack, so **RFC-0006 (proposed) provides the overflow stack** (x86_64 IST; AArch64's EL1-origin vector
-  moving to the emergency stack, a kernel fault being fatal). Until then an overflow is a recursive abort.
+  stack, so **RFC-0006 (proposed) §9 provides the overflow path** (x86_64 `#DF` on an IST; AArch64's current-EL
+  vector testing `SP` and moving to the emergency stack, a kernel fault being fatal). Until then an overflow is a recursive abort.
 - **The user floor is 64 KiB** *(Linux `mmap_min_addr`)*; **the ceiling leaves the last page below the hole
   unmapped**, closing Intel's `SYSRET` hazard (CVE-2012-0217) for RFC-0007 by layout. The physmap is RAM only.
 - **The kernel's top-level entries never change after boot.** AArch64 shares `TTBR1_EL1`; x86_64 copies PML4
@@ -263,7 +264,7 @@ is today — a reading of "minimal assembly" for the maintainer to confirm (§17
   option **(a)** a peer-transferred Region carrying `REVOKE` could cut the broker off. It is **input to
   RFC-0003a's (a)/(b) choice**; the demo needs none of it.
 
-**Concurrency.** Under RFC-0006 (proposed) V1 — non-preemptible, one big lock once SMP lands — no kernel
+**Concurrency.** Under RFC-0006 (proposed) verdict 1 — non-preemptible, one big lock once SMP lands — no kernel
 access to a Region's frames (zeroing, table fill, IPC copy) interleaves with its destruction: each runs whole
 in one entry and re-resolves the Region; the dying mark covers destruction's gaps. Finer locking takes
 **Region before AddressSpace**. A former sharer faults: RFC-0006 (proposed) binds delivery, RFC-0007 (proposed)
