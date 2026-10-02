@@ -446,7 +446,7 @@ memory map (UEFI stub pending)` and halts — so the second Tier-1 build compile
 15. **`unmap` and `protect`** with invalidation and count decrements (§9, §12). Not demo.
 16. **User-memory module (§11)**: a message beyond the register budget. Not demo.
 17. **Destruction (§10)**, after RFC-0007 increment 11's fault message: a destroyed sharer's fault reaches its handler.
-18. **Stack overflow**, with RFC-0006's overflow stack: `provoke-stack-overflow` reaches the reporter.
+18. **Stack overflow**, with RFC-0006's overflow path (its §9): `provoke-stack-overflow` reaches the reporter.
 19. **PAN, SMAP, SMEP** where reported, with a `provoke-user-deref` self-test under `-cpu max`.
 20. **x86_64** tables, `CR3` and PCID, after the UEFI stub; **Device Regions** in Phase 2.
 
