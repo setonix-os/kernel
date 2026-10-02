@@ -273,10 +273,12 @@ fn build(arch: Arch, release: bool, features: Option<&str>) -> Result<PathBuf> {
 /// Rejects architectures whose boot path is not implemented yet.
 fn require_bootable(arch: Arch) -> Result<()> {
     if arch == Arch::X86_64 {
-        return Err("the x86_64 boot path is not implemented yet — \
-                    q35 has no bare-ELF equivalent of -kernel, so this needs a \
-                    UEFI stub and an ESP image first (see kernel/src/arch/x86_64/mod.rs)"
-            .into());
+        return Err(
+            "the x86_64 boot path is not implemented yet — the image has \
+             neither the Xen PVH note QEMU's -kernel needs for a 64-bit ELF \
+             nor a UEFI stub (see kernel/src/arch/x86_64/mod.rs)"
+                .into(),
+        );
     }
     Ok(())
 }

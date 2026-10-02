@@ -60,8 +60,8 @@ rests on: link script, boot stub, stack, `.bss`, the hardware-abstraction
 boundary, and the console.
 
 x86_64 compiles and links against the same architecture-independent kernel, which
-is what keeps the hardware-abstraction boundary honest, but it does not boot yet —
-`q35` needs a UEFI stub first.
+is what keeps the hardware-abstraction boundary honest, but it does not boot yet:
+the image carries neither the Xen PVH note QEMU's `-kernel` needs nor a UEFI stub.
 
 ## Building
 

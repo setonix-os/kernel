@@ -10,8 +10,10 @@
 //!
 //! What is missing, in the order it will be needed:
 //!
-//! - A UEFI entry path. `q35` has no equivalent of `-kernel` for a bare ELF, so
-//!   this needs a proper PE/COFF stub or a bootloader shim plus an ESP image.
+//! - An entry path. QEMU's x86 `-kernel` loads a 64-bit ELF only if it carries
+//!   a Xen PVH note (`XEN_ELFNOTE_PHYS32_ENTRY`), entering it in 32-bit protected
+//!   mode; real hardware needs a UEFI stub. Which this target gets first is a
+//!   decision for its boot RFC.
 //! - A console. The 16550 UART at `0x3f8` is the counterpart of the PL011, and
 //!   is where the console will land; the UEFI GOP framebuffer comes later.
 //! - GDT and IDT, neither of which AArch64 needs before its first print, and a
@@ -22,9 +24,9 @@
 
 /// The ELF entry point.
 ///
-/// **This image cannot boot.** There is no UEFI stub, no multiboot header, no
-/// descriptor tables and no stack of our own, so nothing will ever transfer
-/// control here in practice.
+/// **This image cannot boot.** There is no PVH note, no UEFI stub, no multiboot
+/// header, no descriptor tables and no stack of our own, so nothing will ever
+/// transfer control here in practice.
 ///
 /// It nevertheless calls straight through to the kernel proper, and that is the
 /// point: it makes the architecture-independent kernel genuinely compile and link

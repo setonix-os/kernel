@@ -65,11 +65,13 @@ Independently of that, a microkernel must not touch registers it would have to
 save and restore on every context switch: FP/SIMD belongs to userspace, enabled
 per process and saved lazily, once there is a userspace.
 
-aarch64 boots. x86_64 compiles and links but does not boot: `q35` has no
-bare-ELF equivalent of `-kernel`, so it needs a UEFI stub first. Its entry point
+aarch64 boots. x86_64 compiles and links but does not boot. QEMU's x86 `-kernel`
+loads a 64-bit ELF only if it carries a Xen PVH note
+(`XEN_ELFNOTE_PHYS32_ENTRY`), which this image does not; whether x86_64 enters
+through PVH, a UEFI stub or both is a decision for its boot RFC. Its entry point
 nevertheless calls straight through into the kernel proper, deliberately — an
-entry that merely halted would leave everything above `arch` as dead code on that
-target, and the second Tier-1 build would then prove nothing.
+entry that merely halted would leave everything above `arch` as dead code on
+that target, and the second Tier-1 build would then prove nothing.
 
 ## Building
 
