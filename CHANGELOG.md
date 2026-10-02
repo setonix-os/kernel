@@ -165,6 +165,13 @@ Release codenames follow the six Noongar seasons — Birak, Bunuru, Djeran, Maku
 
 ### Fixed
 
+- **The x86_64 docs no longer say `q35` has no bare-ELF `-kernel`.** `CLAUDE.md`, the README, the
+  x86_64 module, `xtask`'s refusal and a CI comment all claimed it. QEMU's x86 loader does take a
+  64-bit ELF through `-kernel` when it carries a Xen PVH note (`XEN_ELFNOTE_PHYS32_ENTRY`,
+  `hw/i386/x86-common.c`), and refuses this image only because it has none — reproduced on the
+  pinned QEMU 11.0.3, which reports "Error loading uncompressed kernel without PVH ELF Note". The
+  corrected text states the fact and leaves the choice between PVH and a UEFI stub to the x86_64
+  boot RFC.
 - **xtask validates its workspace root at the source.** CodeQL's one open alert flagged the image
   path as depending on a user-provided value (`CARGO_MANIFEST_DIR`). There is no privilege boundary
   in xtask for a hostile value to cross — cargo sets the variable, and the tool runs with the
