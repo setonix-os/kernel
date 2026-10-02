@@ -136,3 +136,11 @@ every rebuild.
 ## Licence
 
 GPLv3 — see [LICENCE](LICENCE). New files carry an SPDX header.
+
+The design documents cite Linux, the seL4 kernel and QEMU down to the file. Read and
+cite them freely; copy from them never. Linux and seL4's kernel code are
+GPL-2.0-only, which cannot be combined with this GPLv3 tree; QEMU is GPL version 2
+as a whole and licensed file by file, so even its GPL-2.0-or-later parts would need
+a per-file provenance check that `vendor/`, which takes MIT code, does not provide
+for. An increment re-derives the mechanism from the architecture manuals and the
+cited design, in its own words and code.

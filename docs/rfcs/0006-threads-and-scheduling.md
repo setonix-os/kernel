@@ -7,9 +7,9 @@
 | Status | **Proposed** — 2026-09-27, awaiting the maintainer's verdict |
 | Author | Drafted by Claude Code as sparring partner; verdict the maintainer's |
 | Date | 2026-09-27 |
-| Affects | Constitution §3 ("IPC is the product", priority inheritance, bolted-on multicore); the HAL (`kernel/src/arch/**`), `boot.s`'s park loop and `aarch64.ld`'s stack plan; RFC-0003 §14.2 (a dated note); RFC-0004 §4, §8, §9.2, §9.3 and its 2026-08-01 amendment (§13's amendments); research/0002 Part 6 (one correction); RFC-0005 §13 step 5 and §18.2; `CLAUDE.md` § Architectures (FP enabled per thread) and § Layout (gains `scheduler/`); every userspace driver |
+| Affects | Constitution §3 ("IPC is the product", priority inheritance, bolted-on multicore); the HAL (`kernel/src/arch/**`), `boot.s`'s park loop and `aarch64.ld`'s stack plan; RFC-0003 §6 and §14.2 (dated notes); RFC-0004 §4, §8, §9.2, §9.3 and its 2026-08-01 amendment (§13's amendments); research/0002 Part 6 (a correction and a departure); RFC-0005 §13 (the `SCTLR_EL1` bits it writes) and §6 (the stack window); `CLAUDE.md` § Architectures (FP enabled per thread) and § Layout (gains `scheduler/`); every userspace driver |
 | Depends on | RFC-0003 (capability table); RFC-0004 (IPC) and its 2026-08-01 amendment; RFC-0005 (proposed) for object memory, kernel stacks, discovery and address-space switching; RFC-0007 (proposed) for the trap path, the syscall encoding, the Process object and the root task |
-| Discharges | O-7 for CPU time and the scheduler's own structures; O-4 for time; both commitments of RFC-0004's 2026-08-01 amendment **as amended by verdict 12**; answers RFC-0004 §9.2 in shape; contributes to O-5, O-9, O-17 |
+| Discharges | O-7 for CPU time and the scheduler's own structures; O-4 for time; both commitments of RFC-0004's 2026-08-01 amendment **as amended by verdict 12**; answers RFC-0004 §9.2 in shape; O-5 for the register surface (`write_regs`); contributes to O-9, O-17 |
 
 > **Proposed verdicts.**
 >
@@ -18,13 +18,13 @@
 > 3. **Time is a capability:** a `SchedContext`, configured only through its core's `SchedControl` (§5).
 > 4. **Budgets are caps, not minima:** a guaranteed minimum is admission policy, unlike research/0002 (§5).
 > 5. **Priorities:** 256 fixed levels; any capability to a thread lends its priority ceiling; no new right (§6).
-> 6. **Endpoint queues are priority-ordered,** first come first served within a level, as in seL4 MCS (§6).
+> 6. **Endpoint queues are priority-ordered,** first come, first served within a level, as in seL4 MCS (§6).
 > 7. **Donation:** `call` lends time to a *passive* server; a caller's death never takes it back mid-request (§7).
 > 8. **Budget guard:** endpoints carry a `min_budget` checked at `call`; expiry fails one hop back (§7).
 > 9. **Timer:** tickless per-core deadlines; userspace timers become deadline objects on the same queue (§8).
-> 10. **FP/SIMD:** off by default, enabled per thread, saved lazily; the kernel touches it only to save it (§10).
+> 10. **FP/SIMD:** off by default, enabled per thread, saved lazily; the kernel touches it only to save and restore it (§10).
 > 11. **Interrupts and cores:** a line signals a notification; one big lock; a core starts when funded (§11–§12).
-> 12. **Amendments:** three to RFC-0004, a note on RFC-0003 §14.2, a correction to research/0002 (§13).
+> 12. **Amendments:** A1–A6 to RFC-0004, RFC-0003 and research/0002; C1, a constitutional question for the maintainer (§13).
 
 ## 1. The question
 
@@ -32,8 +32,9 @@
 not granted, a server never runs on time nobody paid for, and the kernel never waits on anything a process
 controls?**
 
-That is O-7's scheduler half plus RFC-0004's three hazards: direct switch, donation, and budget expiry inside a
-server. This RFC designs the mechanism; priorities, admission and load are for whoever holds its capabilities.
+That is O-7's scheduler half plus what RFC-0004 §4, §9.2 and its amendment hand this RFC: direct switch, donation,
+and budget expiry inside a server. This RFC designs the mechanism; priorities, admission and load are for whoever
+holds its capabilities.
 
 ## 2. Which pillar
 
@@ -54,8 +55,8 @@ it becomes one. **Borrow Ledger:** scheduler, timer and interrupt-controller cod
   written into the frame, or it restarts by rewinding the PC (4 bytes for `svc #0`, 2 for `syscall`). *(Heiser &
   Elphinstone, TOCS 2016; Ford et al., "Interface and Execution Models in the Fluke Kernel", OSDI 1999.)*
 
-**The cost:** every path must be bounded. Long ones — destruction, RFC-0005's `reissue` and teardown, RFC-0007's
-console write (both proposed) — take **preemption points**: on a pending interrupt (`ISR_EL1.I`; the LAPIC IRR)
+**The cost:** every path must be bounded. Long ones — destruction, and RFC-0005 (proposed)'s Region zeroing and
+teardown — take **preemption points**: on a pending interrupt (`ISR_EL1.I`; the LAPIC IRR)
 they leave the operation restartable and exit. **A restart re-resolves every handle and re-checks every right**;
 an object mid-teardown is marked *dying* so no entry invokes it meanwhile. The worst path between points is
 measured and published as the interrupt latency. The boot stack becomes core 0's kernel stack in RFC-0005's
@@ -71,14 +72,14 @@ big lock (§12) first.
 ## 4. The Thread object (verdict 2)
 
 A **Thread** is an RFC-0003 object belonging to one Process, which RFC-0007 (proposed) provides; its TCB is a
-slot in RFC-0005 (proposed)'s typed array for threads, charged to the Pool presented at creation.
+slot in RFC-0005 (proposed)'s typed array for threads, charged to the Pool invoked at creation (RFC-0007 §4).
 
 | Field | Meaning |
 |-------|---------|
 | `frame` | the full user register file, written at every kernel entry (§9) |
 | `state`, `blocked_on`, links | a state below; the endpoint, reply object or notification waited on; intrusive queue links |
 | `priority`, `mcp` | base priority and maximum controlled priority (§6); both **0 at creation** |
-| `home_sc`, `sc`, `effective` | the bound context, if any; the context held now, own or donated; the priority run at now (§7) |
+| `home_sc`, `sc`, `effective` | the bound context, if any; the context held now, own or donated; the priority it runs at now (§7) |
 | `bound_notification`, `ipc_buffer` | the notification a `recv` may also wake on (RFC-0004 §10); the IPC-buffer binding (RFC-0007, proposed) |
 | `fault_ep`, `timeout_ep` | **two kernel-held capability slots** *(seL4 MCS)*: moved in by the binder, generation-checked when a fault is raised, failing closed if the endpoint died; the thread cannot close them |
 | `fp_enabled`, `fp_state` | the FP/SIMD flag and save area (§10) |
@@ -89,17 +90,17 @@ slot in RFC-0005 (proposed)'s typed array for threads, charged to the Pool prese
 | `Ready` | runnable with released budget; in its core's run queue | dispatch, `suspend`, context removed |
 | `Running` | the current thread on its core; in no queue | preemption, timeslice end, exhaustion (→ `Throttled`), block, `yield`, fault, `suspend`, `thread_exit`, context removed (→ `Unfunded`) |
 | `Throttled` | holds a context whose released budget is spent, or below what its pending `call` needs; in the release queue | refill release, `suspend`, context removed |
-| `Unfunded` | runnable, no context: a passive thread woken by `send` or `notify`, `resume`d with none, or stranded (§7); in no queue | `bind_sc`, a donation, `suspend` |
+| `Unfunded` | runnable, no context: a passive thread woken by a `send` to an endpoint or a notification, `resume`d with none, or stranded (§7); in no queue | `bind_sc`, a donation, `suspend` |
 | `BlockedOnSend` | queued on an endpoint to `send` or `call` | rendezvous, endpoint destruction, `suspend` |
-| `BlockedOnRecv` | waiting on an endpoint (and any bound notification) | rendezvous, signal, `suspend` |
-| `BlockedOnReply` | waiting on a reply object after `call` or a fault message | reply, error completion (§7) |
-| `BlockedOnNotification` | waiting on a notification alone | signal, `suspend` |
+| `BlockedOnRecv` | waiting on an endpoint (and any bound notification) | rendezvous, signal, endpoint destruction, `suspend` |
+| `BlockedOnReply` | waiting on a reply object after `call` or a fault message | reply, error completion (§7), `suspend` |
+| `BlockedOnNotification` | waiting on a notification alone | signal, notification destruction, `suspend` |
 | `Exited` | finished; in no queue; the object lingers until destroyed | never |
 
 Faults reuse IPC: the kernel `call`s `fault_ep` for the thread, which waits `BlockedOnReply` (RFC-0007 defines
 the message); a fault donates as `call` does, a timeout fault never, and both bypass `min_budget`. Destroying
-a thread bumps its generation (RFC-0003 §7), unlinks it in O(1) and destroys any reply object it waits on
-(RFC-0004 §8); §7 governs a context it lent.
+a thread bumps its generation (RFC-0003 §7), unlinks it in O(1) and unbinds any reply object it waits on
+(RFC-0004 §8, reusable under RFC-0007 (proposed)'s amendment); §7 governs a context it lent.
 **Every internal link survives slot reuse:** queue links, `sc`, `home_sc`, a reply object's record of a lent
 context, an `IrqHandler`'s notification and a core's FP owner are each a counted reference holding the slot
 (RFC-0005 §5) or an `(index, generation)` pair checked on use — never a bare index.
@@ -108,22 +109,22 @@ Every operation is a method `call` on the **invoked** capability (RFC-0007 verdi
 **presented** one — resolved and checked in the caller's table, never moved, needing no `TRANSFER` — an encoding
 RFC-0007 (proposed) provides *(seL4's `extraCaps`)*. The list is closed:
 
-| Operation | Invoked: right | Presented: right | Effect |
-|-----------|----------------|------------------|--------|
+| Operation | Invoked: right | Presented or moved: right | Effect |
+|-----------|----------------|---------------------------|--------|
 | `set_priority(t, auth, p)` / `set_mcp(t, auth, m)` | `t`: `WRITE` | `auth`: any capability to a Thread, no right checked | value `≤ mcp(auth)` (§6) |
 | `bind_sc(t, sc)` / `unbind_sc(t)` | `t`: `WRITE` | `sc`: `WRITE` / — | active ↔ passive |
 | `bind_notification(t, n)` / `unbind_notification(t)` | `t`: `WRITE` | `n`: `READ` / — | a `recv` also wakes on `n` |
-| `set_fault_ep(t, ep)` / `set_timeout_ep(t, ep)` | `t`: `WRITE` | `ep`: `WRITE`, **moved** into the TCB | the binder derives first to keep a copy |
+| `set_fault_ep(t, ep)` / `set_timeout_ep(t, ep)` | `t`: `WRITE` | `ep`: `WRITE` and `TRANSFER` (RFC-0003 §6), **moved** into the TCB | the binder derives first to keep a copy |
 | `resume(t)` / `suspend(t)` | `t`: `WRITE` | — | `Inactive` ↔ runnable; a first `resume` closes the grant window (RFC-0007) |
 | `read_regs(t)` / `write_regs(t, …)` | `t`: `READ` / `WRITE` | — | the frame, `TPIDR_EL0` and `FS_BASE` only, sanitised (§9) |
 | `set_fp(t, on)` | `t`: `WRITE` | — | §10 |
-| `sc_configure(ctl, sc, B, T, refills, 0)` | `ctl`: `WRITE` | `sc`: `WRITE` | §5; the last word, the placement class, is reserved zero (§12) |
+| `sc_configure(ctl, sc, B, T, refills, class)` | `ctl`: `WRITE` | `sc`: `WRITE` | §5; `class`, packed beside `refills` (RFC-0007 §4), is reserved zero (§12) |
 | `sc_stats(sc)` / `ctl_info(ctl)` | `sc` / `ctl`: `READ` | — | §5's counters; the exclusivity check (§12) |
 | `yield()` / `thread_exit()` | none: two of RFC-0003 §9's three authority-free exceptions | — | tail of own level / `Exited` |
 
 No right joins RFC-0003's set. **The supervision cost:** a process with `WRITE` on its own thread can rebind
 its `fault_ep`, so a supervisor grants no `WRITE` on threads it creates for a child; threads the child creates
-are supervised through the Process (RFC-0007 open question 1). A TLS runtime sets `FS_BASE` by `write_regs`,
+are supervised through the Process (RFC-0007 Open question 1). A TLS runtime sets `FS_BASE` by `write_regs`,
 needing `WRITE` on its thread, or its spawner sets it before `resume`.
 
 ## 5. Scheduling contexts and `SchedControl` — time as a capability (verdicts 3, 4)
@@ -146,12 +147,12 @@ with released budget*: a spent partial context leaves its core idle by design, a
 | Aspect | Rule |
 |--------|------|
 | **`SchedControl`** | one per core, minted to the root task and listed in BootInfo (RFC-0007, proposed). Two methods: `sc_configure` (`WRITE`) binds a context to that core with its parameters — moving a context is `sc_configure` through another core's `SchedControl`, and the first one onto a parked core starts it (§12); `ctl_info` (`READ`) returns the count of contexts on the core and the object's reference count. Topology is BootInfo *data* from RFC-0005 (proposed)'s discovery; routing is `IrqControl`'s (§11). No syscall names a core by number. *(seL4 `SchedControl`; research/0002's "core-set capability".)* |
-| **`MIN_BUDGET`** | `B` below twice the published worst kernel path is refused — seL4 MCS's rule, `2u * getKernelWcetTicks() * CONFIG_KERNEL_WCET_SCALE` (`include/kernel/sporadic.h`), without the scale. The path is measured *between preemption points*, which is why RFC-0007's console write must take them (§11): its 44 ms hold would make `MIN_BUDGET` 88 ms. |
+| **`MIN_BUDGET`** | `B` below twice the published worst kernel path is refused — seL4 MCS's rule, `2u * getKernelWcetTicks() * CONFIG_KERNEL_WCET_SCALE` (`include/kernel/sporadic.h`), without the scale. The path is measured *between preemption points*; RFC-0007 (proposed)'s console write never waits and stores at most 24 bytes, so it sets no floor here (§11). |
 | **Full and partial** | full contexts (`B = T`) are never throttled and round-robin with timeslice `T`. Partial ones (`B < T`) are sporadic servers: no window of length `T` sees more than `B` consumed; refills fall due a period after use; when all eight are in use they merge, forfeiting bandwidth rather than exceeding it. *(Sprunt, Sha & Lehoczky 1989.)* |
-| **Billing** | the QNX caveat stated as design (ECRTS '21): each context's window is its own sliding period; billing is exact, from `CNTVCT_EL0` or the TSC read at every entry and exit — 16 ns on QEMU's `cortex-a72`, which keeps the pre-Armv8.6 62.5 MHz default (`target/arm/tcg/cpu64.c`, `target/arm/cpu.c`). Kernel time, **interrupts included, is billed to the context running on entry** *(as seL4)* — a leak costed in §17. |
+| **Billing** | the QNX caveat stated as design (ECRTS 2021): each context's window is its own sliding period; billing is exact, from `CNTVCT_EL0` or the TSC read at every entry and exit — 16 ns on QEMU's `cortex-a72`, which keeps the pre-Armv8.6 62.5 MHz default (`target/arm/tcg/cpu64.c`, `target/arm/cpu.c`). Kernel time, **interrupts included, is billed to the context running on entry** *(as seL4)* — a leak costed in §17. |
 | **Stall counters** | from the first version (research/0002 Part 6, after PSI and oomd): per context, time consumed, time and count throttled, time ready but waiting, expiries; read through `sc_stats` — the O-17 supervisor's wedged-server signal. |
 | **Lifecycle** | destroying or reconfiguring a context preempts the thread running on it (an IPI on SMP), clears every link to it — `sc`, `home_sc`, a reply object's record, its release-queue entry — before its slot count can reach zero, and leaves those threads `Unfunded`. A reply whose recorded context has gone moves nothing. |
-| **Accounting domain** | **decided: separate in Phase 1.** A context's memory is a slot charged to a Pool (RFC-0005); its time comes only from a `SchedControl`. One domain holding both is the broker RFC's; the cost is a broker reasoning over two ledgers. This answers RFC-0005 (proposed) open question 2. |
+| **Accounting domain** | **decided: separate in Phase 1.** A context's memory is a slot charged to a Pool (RFC-0005); its time comes only from a `SchedControl`. One domain holding both is the broker RFC's; the cost is a broker reasoning over two ledgers. RFC-0005 (proposed) §5 states the same split from the memory side. |
 
 ## 6. Priorities and dispatch (verdicts 5, 6)
 
@@ -170,11 +171,12 @@ priority authority, to be handed out sparingly.
   count-leading-zeros over four `u64` words — O(1). A preempted thread re-enters at the head of its level; one
   whose timeslice ended, at the tail; the running thread and one switched to directly are never queued.
   *(Elphinstone & Heiser, "From L3 to seL4", SOSP 2013.)* The per-core **release queue** is sorted by next
-  refill, O(n) in contexts only the `SchedControl` holder adds.
+  refill, O(n) in contexts only the `SchedControl` holder adds, plus §8's deadline objects, bounded by their array.
 - **Priority-aware direct switch** (RFC-0004 §4). When *C* wakes *W* by IPC on the same core and *W* has released
   budget: if *C* blocks (`call`, `recv`, `reply_recv`), switch to *W* when its effective priority is at least the
-  highest ready; if *C* stays runnable (`send`, `reply`, `notify`), only when *W* is also strictly more urgent.
-  Otherwise *W* is queued — on the release queue without budget, on its own core with an IPI (§12).
+  highest ready; if *C* stays runnable (`send` to an endpoint or a notification, `reply`), only when *W* is also
+  strictly more urgent. Otherwise *W* is queued — on the release queue without budget, on its own core with an IPI
+  (§12).
 - **Endpoint queues are priority-ordered, first-come within a level** — seL4 MCS's `tcbAppend`
   (`include/object/tcb.h`, "priority ordered endpoint or notification queue"), walking back from the tail; the
   FIFO `tcbEPAppend` is compiled only without MCS. The walk is O(n) with interrupts masked, *n* bounded by the
@@ -185,16 +187,16 @@ priority authority, to be handed out sparingly.
 ## 7. Donation, inheritance and budget expiry (verdicts 7, 8)
 
 **Donation.** When *C* `call`s a **passive** receiver *S*, the kernel moves *C*'s current context to *S*, recorded
-in the single-use reply object *R* (RFC-0004 §8); `reply` or `reply_recv` moves it back. *S* runs at
-`max(prio(S), eff(C))`, **fixed at donation**, not propagated if *C*'s priority later changes — O(1), one hop at
-a time. Lending priority is safe because time is lent with it. *(Ford & Lepreau, migrating threads, 1994; QNX
+in the reply object *R* that *S*'s `recv` bound to *C* (RFC-0004 §8); `reply` or `reply_recv` moves it back. *S*
+runs at `max(prio(S), eff(C))`, **fixed at donation**, not propagated if *C*'s priority later changes — O(1), one
+hop at a time. Lending priority is safe because time is lent with it. *(Ford & Lepreau, migrating threads, 1994; QNX
 priority inheritance; seL4 MCS passive servers.)*
 
 **An active receiver gets no donation (amendment A1).** It runs on its own context and priority, as in seL4 MCS
 (`reply_push`, `src/object/reply.c`, donates only to a receiver with none): a thread holds one context, and an
 active server chose to pay for itself. RFC-0004 §4 and §8 lend unconditionally, so this amends them. **The
 cost:** an active server inherits nothing, and a low-priority one blocks urgent clients; Constitution §3's
-inheritance holds for passive servers only.
+inheritance would hold for passive servers only, which is the question C1 (§13) puts to the maintainer.
 
 **Inversion, bounded.** Priority-ordered queues serve the most urgent waiter next, but the request in service
 runs on its client's context and a middle-priority thread can preempt it. `prio(S)` is therefore a **ceiling
@@ -203,34 +205,42 @@ seL4 MCS relies on)* — **required, not optional, for a server shared across tr
 **Rejected:** boosting a busy server to a waiting sender's priority (QNX): the kernel would guess which thread
 serves an endpoint and walk unbounded chains.
 
-**Caller death never unfunds a server.** If *C* exits or is killed mid-request, *R* is destroyed but the context
+**Caller death never unfunds a server.** If *C* exits or is killed mid-request, *R* is unbound but the context
 stays with *S* until *S* next blocks in `recv` or `reply_recv` (its `reply` fails `PeerGone`); it then detaches,
 and only its capability holder may rebind or destroy it. A client's `thread_exit` never pulls time from a server
 *(seL4 `reply_remove_tcb` likewise leaves the context with the server)*.
 
-**The 2026-08-01 amendment, discharged as amended,** after seL4 RFC-14 (Mitchell Johnston, "Budget limit
-thresholds on endpoints for SC Donation", seL4/rfcs pull request 24, open):
+**The 2026-08-01 amendment, discharged as amended,** after seL4 RFC-14 (Mitchell Johnston, "MCS: Budget limit
+thresholds on endpoints for SC Donation", proposed 2023-08-15; seL4/rfcs pull request 24, opened 2024-06-17 and
+still open):
 
 - **Prevention — `min_budget`,** fixed at endpoint creation (0 for none; RFC-0007 encodes it). A `call` needs
-  released budget of at least `min_budget + MIN_BUDGET`, the margin paying for the `call` and `reply` — **this
-  RFC's rule**; RFC-14's exact comparison is to be quoted before acceptance. A context whose `B` can never meet
-  it fails `BudgetRefused`; a non-donating `send` to such an endpoint is invalid.
+  released budget of at least `min_budget + MIN_BUDGET`, the margin paying for the `call` and `reply` — RFC-14's
+  comparison, which sets "the budget to pass the threshold" to "the 'threshold' value plus twice the kernel WCET,
+  to account for the call and reply system calls". RFC-14 also deducts "time consumed by the client, but not yet
+  charged to its SC", which is moot here because §5 bills at every entry. A context whose `B` can never meet it
+  fails `BudgetRefused`; a non-donating `send` to such an endpoint is invalid, as in RFC-14.
 - **A caller short *now* waits (amendment A2),** where the amendment says "refused up front": a partial context
   has its refills merged and deferred, waits `Throttled`, and the call restarts when the head refill suffices —
-  free in an event kernel, O(refills) ≤ 8, the deferral the RFC-14 discussion describes; a **full** context ends
-  its timeslice and retries on the next. Nothing is donated below the bar either way; refusal makes clients spin.
+  free in an event kernel, O(refills) ≤ 8, the deferral RFC-14 specifies ("refills will be deferred and merged
+  until its head refill has sufficient budget"); a **full** context ends its timeslice and retries on the next,
+  a branch of this RFC's own, since RFC-14 does not treat round-robin contexts. Nothing is donated below the bar
+  either way; refusal makes clients spin.
 - **Recovery — one layer down.** If a donated context is exhausted with no refill due while passive *S* runs, the
-  kernel returns it to *S*'s immediate caller, whose wait on *R* completes with `BudgetExpired`; *R* is consumed,
-  so a late `reply` fails closed. *S* is left `Unfunded`, registers intact. If `timeout_ep` is live, a **timeout
-  fault** carries consumed time and donates nothing (seL4 MCS likewise); the handler, on its own time, abandons
-  the request (`write_regs`) or lends *S* a context. It carries **no identity** — badges are reserved zero until
-  RFC-0003a — so a handler binds one endpoint per server. Unwinding further (A → B → C) would walk the reply
-  stack, O(n) with interrupts masked; B gets `BudgetExpired` and can fail A itself.
+  kernel returns it to *S*'s immediate caller — RFC-14's budget-limit return, applied here to plain expiry, where
+  seL4 today raises a timeout fault or postpones the context (`endTimeslice`) — whose wait on *R* completes with
+  `BudgetExpired`; *R* is unbound, so a late `reply` fails `PeerGone`. *S* is left `Unfunded`, registers intact. If
+  `timeout_ep` is live, a **timeout fault** carries consumed time and donates nothing (seL4 MCS likewise); the
+  handler, on its own time, abandons the request (`write_regs`) or lends *S* a context. It carries **no identity**
+  — badges are reserved zero until RFC-0003a — so a handler binds one endpoint per server. Unwinding further (A → B
+  → C) would walk the reply stack, O(n) with interrupts masked; B gets `BudgetExpired` and can fail A itself.
 - **`min_budget` 0 prevents nothing:** one client can strand a shared server for all until a handler funds it
   (O-26, A5). Zero suits a server with one client, or one under a supervisor.
 
 **Rejected:** the unwind without timeout faults — a woken supervisor beats a polling one. **Deferred:** RFC-14's
-budget limits, at a reported 22% extra fastpath cost, per-operation figures to be re-checked (Open question 3).
+budget limits: 22% on the IPC `Call` fastpath and 21% on `ReplyRecv` (327 and 352 cycles against 269 and 290),
+13–24% on the slow paths; thresholds alone cost 13% on the `Call` fastpath, and compiled in but unused, 3%
+(RFC-14, "Performance summary"; Open question 3).
 
 ## 8. The timer and preemption (verdict 9)
 
@@ -254,15 +264,15 @@ arms nothing; a lone partial one still arms its exhaustion.
   insert bounded by the deadline array's capacity *(Zircon's timer object)*. **Rejected:** minting a second
   hardware timer — AArch64 has the EL1 physical timer (PPI 30), x86_64 nothing per core short of the HPET.
 
-**Kernel-reserved bits, owned here.** RFC-0005 (proposed) writes `SCTLR_EL1` whole and must carry them; its §13
-step 5 says `nTWE = 0` today and needs correcting.
+**Kernel-reserved bits, owned here.** RFC-0005 (proposed) writes `SCTLR_EL1` whole, and its §13 table carries
+these values (`0x30D4581D` has `nTWI` clear and `nTWE` set).
 
 | Register | Value | Why |
 |----------|-------|-----|
 | `SCTLR_EL1.nTWI` (bit 16) | 0 | EL0 `wfi` traps (EC `0x01`) and completes as `yield`; `ELR_EL1` holds the `wfi` itself, so the saved PC advances by 4 |
 | `SCTLR_EL1.nTWE` (bit 18) | 1 | EL0 `wfe` does not trap, so spin-lock backoff costs no kernel entry; the `sev` residual is in §15's O-9 row |
 | `SCTLR_EL1.UMA` (bit 9), `SA` (bit 3) | 0, 1 | no EL0 DAIF access; `SP` alignment checked at EL1 (§9) |
-| `CNTKCTL_EL1`, `PMUSERENR_EL0` | 0 | no EL0 counter, timer or PMU; written at boot because their reset values are not architecturally fixed |
+| `CNTKCTL_EL1`, `PMUSERENR_EL0` | 0 | no EL0 counter, timer or PMU; written at boot because the Arm ARM resets every field of both to an architecturally UNKNOWN value on a Warm reset (QEMU happens to reset both to 0) |
 
 ## 9. The context switch — what is saved, where
 
@@ -271,7 +281,7 @@ A context switch is *which frame the exit path restores*; assembly stays in the 
 frame, so the entry stub's stores land there before it loads the per-core stack from the `TPIDR_EL1` block; with
 `SA` on and the frame 16-byte aligned, the current-EL `SP_ELx` synchronous vector reports a frame overwrite if
 `SP` lies inside a TCB. On x86_64 an interrupt from ring 3 loads `RSP` from `TSS.RSP0`, the TCB frame; **`syscall`
-does not switch `RSP`**, so its stub runs `swapgs`, parks the user `rsp` in per-CPU scratch, loads the frame
+does not switch `RSP`**, so its stub runs `swapgs`, parks the user `rsp` in per-core scratch, loads the frame
 pointer, saves, then loads the kernel stack. RFC-0007 (proposed) owns both entry sequences; this RFC owns the
 layout and §3's IRQ stub. The address-space switch (`TTBR0_EL1` with ASID; `CR3` with PCID) is RFC-0005's, made
 on exit when the process differs — where a time-protection flush would go (Ge et al., EuroSys 2019).
@@ -290,6 +300,13 @@ DAIF clear, only NZCV from the caller); on x86_64 `CS`/`SS` are constants, `RFLA
 0, IF set), and a non-canonical `RIP` or base is refused. It writes `TPIDR_EL0` and `FS_BASE` only; `TPIDRRO_EL0`
 and the user GS base are the kernel's IPC-buffer discovery registers (RFC-0007 §5). NMI, `#DB`, `#DF` and `#MC`
 use IST stacks, as they can arrive before `syscall`'s stack switch.
+
+**A kernel stack overflow is reported, never survived.** RFC-0005 (proposed) §6 puts an unmapped guard page below
+each per-core stack and reserves an emergency stack beside it. On AArch64 the current-EL `SP_ELx` vectors test
+`SP` against the stack's bounds before their first store, and switch to the emergency stack when it has left them
+*(Linux `kernel_ventry`'s overflow check)*; on x86_64 a push into the guard page cannot deliver its `#PF` and
+escalates to `#DF`, which runs on its IST stack *(Linux, likewise)*. Either way the reporter prints and the core
+halts; RFC-0005's increment 18 proves it.
 
 ## 10. FP/SIMD — owned by userspace, enabled per thread, saved lazily (verdict 10)
 
@@ -314,28 +331,28 @@ use IST stacks, as they can arrive before `syscall`'s stack switch.
 
 The kernel owns the controller and nothing behind it *(seL4 `IRQControl`/`IRQHandler`)*.
 
-- **Objects.** One `IrqControl` (the root's) mints at most one `IrqHandler` per device line; the timer PPI, IPI
-  SGIs or vector and spurious INTID 1023 are never minted. `bind(irq, notification, bits)` invokes the
+- **Objects.** One `IrqControl` (the root's) mints at most one `IrqHandler` per device line; the timer PPI, the IPI
+  SGIs or vector, and the spurious INTID 1023 are never minted. `bind(irq, notification, bits)` invokes the
   `IrqHandler` (`WRITE`) and presents the notification (`WRITE`); `ack(irq)` needs `WRITE`. **Phase 1 routes
   every line to the boot core**; SMP routing is `IrqControl`'s, never `SchedControl`'s (Open question 6). Shared
   PCI INTx lines on `q35` are **unsupported** until MSI.
 - **Delivery.** The kernel acknowledges, **masks the line**, signals end of interrupt, ORs `bits` into the
   notification and wakes a waiter; the driver's `ack` unmasks. A level-triggered line cannot storm, though it
   fires once per `ack` (§17). A destroyed notification leaves the line masked; the `IrqHandler` outlives a
-  crashed driver, and a restarted one re-binds (O-17).
-- **AArch64: GICv3 first.** `GICD_CTLR.ARE` and `EnableGrp1` (`virt` without `secure=on` has one security state,
-  `DS = 1`); SPIs through `GICD_ISENABLER<n>`, `GICD_IPRIORITYR<n>`, `GICD_IROUTER<n>`; the redistributor woken
-  by `GICR_WAKER`, SGIs and PPIs through `GICR_ISENABLER0` and `GICR_IPRIORITYR<n>`; every line in Group 1 (Group
-  0 arrives as FIQ) at a priority numerically below `ICC_PMR_EL1`'s mask; `ICC_SRE_EL1.SRE`, `ICC_IGRPEN1_EL1`,
-  `ICC_IAR1_EL1`, `ICC_EOIR1_EL1`. On `virt`: distributor `0x0800_0000`, redistributors from `0x080A_0000` (QEMU
-  `hw/arm/virt.c`), via RFC-0005's MMIO window. *(Arm IHI 0069.)* **Cost:** `virt` picks GICv2 at eight CPUs or
-  fewer, so xtask adds `gic-version=3`; the Raspberry Pi 4's GIC-400 (GICv2) is a **known** second driver.
+  crashed driver, and a restarted one rebinds (O-17).
+- **AArch64: GICv3 first.** `GICD_CTLR.EnableGrp1` (bit 1): `virt` without `secure=on` has one security state,
+  `DS = 1`, so `ARE` is RAO/WI (`hw/intc/arm_gicv3_dist.c`); SPIs through `GICD_ISENABLER<n>`,
+  `GICD_IPRIORITYR<n>`, `GICD_IROUTER<n>`; the redistributor woken by `GICR_WAKER`, SGIs and PPIs through
+  `GICR_ISENABLER0` and `GICR_IPRIORITYR<n>`; every line in Group 1 (Group 0 arrives as FIQ) at a priority
+  numerically below `ICC_PMR_EL1`'s mask; `ICC_SRE_EL1.SRE`, `ICC_IGRPEN1_EL1`, `ICC_IAR1_EL1`, `ICC_EOIR1_EL1`. On
+  `virt`: distributor `0x0800_0000`, redistributors from `0x080A_0000` (QEMU `hw/arm/virt.c`), via RFC-0005's MMIO
+  window. *(Arm IHI 0069.)* **Cost:** `virt` picks GICv2 at eight CPUs or fewer, so xtask adds `gic-version=3`; the
+  Raspberry Pi 4's GIC-400 (GICv2) is a **known** second driver.
 - **x86_64: LAPIC and I/O APIC.** The 8259s are masked; I/O APIC entries carry the mask bit; end of interrupt
   goes to the LAPIC (x2APIC EOI MSR `0x80B`). **MSI waits for the driver RFC:** without interrupt remapping a
   device can aim any vector at any core — O-18's precondition.
-- **Latency** is §3's worst path between preemption points. RFC-0007's console write must take one per
-  FIFO-full poll, restartable by byte count; until then it holds the kernel about 44 ms per 504 bytes on
-  hardware (nothing on QEMU, which has no baud delay).
+- **Latency** is §3's worst path between preemption points. RFC-0007 (proposed)'s console write never waits —
+  at most 24 flag reads and 24 stores per entry — so it needs no preemption point.
 
 ## 12. Multi-core shape, placement and exclusive cores (verdict 11)
 
@@ -353,9 +370,10 @@ Phase 1 runs `-smp 1`; the shape is fixed now so multicore is not bolted on.
   live elsewhere**: a thread whose registers core X owns lazily, run next on core Y, has Y ask X by IPI to save
   them. Cost: a cross-core FP handoff is an IPI round trip.
 - **Cores are parked until funded (default-deny).** On QEMU `virt` with `-kernel` the DTB advertises PSCI and
-  secondaries start powered off (checked on QEMU 8.2.2: CPU 1 never leaves the entry address), so `boot.s`'s
-  `wfe` loop matters only on spin-table firmware. The first `sc_configure` onto a core starts it — PSCI
-  `CPU_ON`, conduit from `/psci`; INIT-SIPI-SIPI on x86_64 — in increment 14, `boot.s`'s comment with it.
+  secondaries start powered off (checked on QEMU 8.2.2 and the pinned 11.0.3: CPU 1 never leaves the entry
+  address; the conduit is `hvc` unless `virtualization=on`), so `boot.s`'s `wfe` loop matters only on spin-table
+  firmware. The first `sc_configure` onto a core starts it — PSCI `CPU_ON`, conduit from `/psci`; INIT-SIPI-SIPI
+  on x86_64 — in increment 14, `boot.s`'s comment with it.
 - **SMT placement, one sentence now** (research/0002 Part 6, after L1TF and MDS): a context will carry a class
   set only by the `SchedControl` holder; SMT siblings never run different classes, donation never crosses one.
   The field is reserved zero until increment 14, so no thread labels itself; SMT-off is "never fund the sibling".
@@ -366,7 +384,9 @@ Phase 1 runs `-smp 1`; the shape is fixed now so multicore is not bolted on.
 
 ## 13. Amendments proposed to accepted documents (verdict 12)
 
-Each, if accepted, is appended to its target as a dated amendment and logged in `docs/CHANGELOG.md` (Changed).
+Each of A1–A6, if accepted, is appended to its target as a dated amendment and logged in `docs/CHANGELOG.md`
+(Changed). C1 is not an amendment this RFC can propose: constitution text is the maintainer's alone (§4, §11.1),
+so C1 only names the question A1 raises, and A1 cannot be accepted without an answer to it.
 
 | # | Target | Change | Why |
 |---|--------|--------|-----|
@@ -374,13 +394,16 @@ Each, if accepted, is appended to its target as a dated amendment and logged in 
 | A2 | RFC-0004 amendment 2026-08-01 | a caller short *now* waits `Throttled`; only a context that can *never* pass is refused | refusal makes clients spin; nothing is donated below the bar either way |
 | A3 | the same, and research/0002 Part 6 | seL4's timeout faults ship in MCS (`seL4_Fault_Timeout`); what is unmerged is RFC-14's threshold | a factual correction to "have remained future work" |
 | A4 | RFC-0003 §14.2 | the big lock covers the fast path by design; the question is closed by rejecting its premise | §12; Peters et al. 2015 |
+| A5 | research/0002 Part 6 | budgets are caps, not minima: the kernel enforces a sporadic cap, and a guaranteed minimum is the `SchedControl` holder's admission policy | verdict 4; a cap is what makes fixed-priority admission sound, and a kernel-guaranteed minimum would be policy (§5) |
+| A6 | RFC-0003 §6 | a capability may also rest in a kernel-held slot of a thread (`fault_ep`, `timeout_ep`), moved in and out with `TRANSFER` and generation-checked when used | RFC-0003's invariant names only "one table, or in flight in exactly one message"; the thread slots are a third place (§4) |
+| C1 | Constitution §3, "with priority inheritance" | for the maintainer: under A1, inheritance holds through donation to passive servers, and an active server runs on its own priority, a ceiling bounding the inversion (§7) | A1 narrows a constitutional clause, which no RFC can do on its own authority |
 
 ## 14. Lineage
 
 | Source | What is taken | What is left |
 |--------|---------------|--------------|
 | **seL4 MCS** (Lyons et al. 2018) | contexts as objects; passive servers; `SchedControl`; any-capability MCP; sporadic refills; `MIN_BUDGET`; timeout faults and TCB-held handlers; priority-ordered endpoint queues; no donation to active receivers | the WCET scale factor |
-| **seL4 RFC-14** (Johnston) | the endpoint threshold, deferral, one-layer return | budget limits, for now |
+| **seL4 RFC-14** (Johnston) | the endpoint threshold, deferral, and the one-layer return (its budget-limit mechanism, applied here to expiry) | budget limits, for now |
 | **Heiser & Elphinstone 2016; Fluke 1999; Elphinstone & Heiser 2013** | the event kernel; the running thread unqueued; priority-aware direct switch | per-thread kernel stacks; lazy scheduling; L4's unconditional switch |
 | **QNX Neutrino; Ford & Lepreau 1994** | inheritance across the message; partitions on budgets; the migrating-thread `call` | inheritance to busy servers; Mach |
 | **Sprunt, Sha & Lehoczky 1989; Zircon** | the sporadic server; the timer object | an unbounded replenishment list; per-thread timeslices |
@@ -402,7 +425,7 @@ Each, if accepted, is appended to its target as a dated amendment and logged in 
 
 | Grave | How this RFC stays out of it |
 |-------|------------------------------|
-| **Policy in the kernel** | no admission, balancing or budget choice; the constants it does choose are 256 levels, eight refills, `MIN_BUDGET`'s factor 2, the XCR0 extent, the thread and deadline array capacities (RFC-0005), and §19's interim constants until measured |
+| **Policy in the kernel** | no admission, balancing or budget choice; the constants it does choose are 256 levels, eight refills, `MIN_BUDGET`'s factor 2, the `XCR0` extent, the thread and deadline array capacities (RFC-0005), and §19's interim constants until measured |
 | **The catch-all right** | priority authority is a relation (MCP); `SchedControl` has one mutating method, selling time on one core, and a read of its own state; topology is data, routing is `IrqControl`'s; §4's list is closed |
 | **Bolted-on multicore** | per-core state, IPIs, the lock and its IPI-servicing spin, FP handoff, shootdowns and core start-up are stated before any SMP code |
 | **Drivers in the kernel; unused device paths** | the kernel masks and signals, never services a device; one controller and one timer per target; unclaimed lines never enabled |
@@ -433,21 +456,27 @@ Each, if accepted, is appended to its target as a dated amendment and logged in 
 5. **Numbers from measurement:** `MIN_BUDGET`, stack size, the worst path; x86_64's clock without invariant TSC.
 6. **Interrupt routing on SMP:** per-(line, core) handlers minted by `IrqControl`, or a per-core interrupt-target
    capability — decided with increment 14.
+7. **Priority authority from a rightless capability.** §6 lets any capability to a thread, a rightless one
+   included, lend its MCP, as seL4 does; but the crate documents `Rights::NONE` as a capability that "permits
+   nothing, though it still names its object" (`capability/src/rights.rs`). Keep seL4's rule, with RFC-0003
+   noting that naming alone confers MCP, or require a right on `auth`?
 
 ## 19. Implementation increments
 
 Pure logic lands in a new host-tested `no_std` workspace crate, `scheduler/`, generic over a thread index as
 `capability/` is over `ObjectRef` (`CLAUDE.md` § Layout gains it in increment 1); hardware behaviour is proved by
 counted boot-test strings. New `unsafe` stays in `kernel/src/arch/**`. The x86_64 HAL gains stubs that compile —
-`-> !` ones halt — so its entry still calls into the kernel proper. **D** marks what the demo needs.
+`-> !` ones halt — so its entry still calls into the kernel proper. **D** marks what the demo needs. The merged
+order across RFC-0005, RFC-0006 and RFC-0007 is RFC-0007 (proposed) §18's; the "Lands after" column states this
+RFC's constraints on it.
 
 | # | PR | Proves; how tested | Lands after | D |
 |---|----|--------------------|-------------|---|
 | 1 | `scheduler` I: run queues, the ten states, MCP, the priority-ordered endpoint queue | exhaustive host transition table against §4's "Left by" column; "a new thread cannot serve as `auth` above 0"; built for both targets | — | D |
 | 2 | `scheduler` II: full contexts, nanosecond conversion and rounding, billing, stall counters, interim constants | host tests against a shadow model | 1 | D |
-| 3 | GICv3 and the virtual timer, kernel-only; `CNTKCTL_EL1`, `PMUSERENR_EL0` zeroed; idle and its abandon-idle stub | xtask gains `gic-version=3`; `timer: tick 3` | — (physical addresses; 0005#9 must repoint the GIC with the console) | D |
-| 4 | Event-kernel dispatch at EL0, no address spaces yet: TCB frames and dispatch under RFC-0007#3's trap stub; §8's `SCTLR_EL1` bits | two EL0 self-test threads alternate under the timer: `sched: A B A B`; an EL0 `wfi` returns: `sched: wfi yields` | 3, 0007#3 | D |
-| 5 | Threads in address spaces; the boot stack moved into the guarded window, `aarch64.ld`'s comment with it | a spinning EL0 thread is preempted and resumes intact: `user: still here` | 4, 0005#10 | D |
+| 3 | GICv3 and the virtual timer, kernel-only; `CNTKCTL_EL1`, `PMUSERENR_EL0` zeroed; idle and its abandon-idle stub | xtask gains `gic-version=3`; `timer: tick 3` | — (physical addresses; 0005#10 repoints the GIC with the console) | D |
+| 4 | Event-kernel dispatch at EL0, no address spaces yet: TCB frames and dispatch under RFC-0007#3's trap stub; §8's `SCTLR_EL1` bits | two EL0 self-test threads alternate under the timer: `sched: A B A B`; an EL0 `wfi` returns: `sched: wfi yields`; retired with the MMU-off self-tests by 0005#9, and 5 re-proves preemption | 3, 0007#3 | D |
+| 5 | Threads in address spaces, on the guarded per-core stack 0005#10 installs | a spinning EL0 thread is preempted and resumes intact: `user: still here` | 4, 0005#13 | D |
 | 6a | Thread, SchedContext, `SchedControl` as RFC-0005 object-store slots; state machine wired; `(index, generation)` links | host: destroy a lent context, reuse the slot, `reply` — nothing moves | 2, 0005#7 | D |
 | 6b | Methods behind RFC-0007's dispatcher: `sc_configure`, `bind_sc`, `resume`, `set_priority`, `write_regs`, `thread_exit` | the root runs two EL0 threads at one level: `[a] 1 [b] 1 [a] 2` | 5, 6a, 0007#6 | D |
 | 7a | The direct-switch decision as a pure function | host tests over every §6 case | 1 | D |
@@ -459,7 +488,7 @@ counted boot-test strings. New `unsafe` stays in `kernel/src/arch/**`. The x86_6
 | 11 | Lazy FP/SIMD | two FP threads load markers into `v0`, each finds its own: `fp: isolated`; host: owner destroyed, slot reused, zeros loaded | 6b | |
 | 12 | `IrqControl` and `IrqHandler`; xtask gains serial input injection | PL011 receive (SPI 1, INTID 33) reaches an EL0 driver: `irq: notified` | 7c | |
 | 13 | x86_64 scheduling HAL (IDT, TSS, IST, LAPIC, `#NM`, `XSAVE`) | 3–5 and 11 again | its boot RFC, 0007#12 | |
-| 14 | SMP: PSCI `CPU_ON`, INIT-SIPI, the lock and its IPI-servicing spin, FP handoff, shootdowns, classes, routing | `-smp 2` boot-tests | 13 | |
+| 14 | SMP: PSCI `CPU_ON`, INIT-SIPI-SIPI, the lock and its IPI-servicing spin, FP handoff, shootdowns, classes, routing | `-smp 2` boot-tests | 13 | |
 | 15 | Deadline objects (RFC-0004 §9.3) | host tests on the shared release queue; `deadline: fired` | 9 | |
 
 **What the demo takes as interim, honestly.** It needs 1–7c and runs full contexts only.
@@ -470,8 +499,8 @@ counted boot-test strings. New `unsafe` stays in `kernel/src/arch/**`. The x86_6
 - **Provisional constants** in `scheduler/src/config.rs` until measured: `MIN_BUDGET_INTERIM` = 100 µs;
   `ROOT_TIMESLICE` = 5 ms, a full context; root priority and MCP 255, the root putting itself and the client at
   100 to share a level; `KERNEL_STACK_SIZE` = 16 KiB. Cost: the budget floor is a guess.
-- **No fault handler** (a faulting thread goes `Inactive`, RFC-0007 §7); **a non-preemptible console write**
-  (free on QEMU, 44 ms on hardware); **no userspace timer** for RFC-0004's watchdog; **x86_64 stubs** that halt.
+- **No fault handler** (a faulting thread goes `Inactive`, RFC-0007 §7); **no userspace timer** for RFC-0004's
+  watchdog; **x86_64 stubs** that halt.
 
 ## 20. What this unblocks
 

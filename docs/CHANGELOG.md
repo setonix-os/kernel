@@ -15,34 +15,34 @@ recorded is indistinguishable from law that was never agreed.
 - `docs/rfcs/0005-address-spaces-and-physical-memory.md` — **proposed**, the memory half of Phase 1 and
   the first of three interlocking kernel RFCs drafted together with RFC-0006 and RFC-0007. Physical
   memory comes from firmware tables into one bounded `MemoryMap` (the image moves to 0x4020_0000 because
-  QEMU places no DTB for an ELF at the base of RAM), and a colour-capable bitmap hands out frames. O-7's
+  QEMU puts no DTB in RAM for an ELF loaded at its base), and a colour-capable bitmap hands out frames. O-7's
   "who pays" is answered with typed fixed-capacity slot arrays reused by generation and a
   capability-named `Pool` charged for every post-boot frame and slot, `map`'s tables included. The Pool
-  is declared the single accounting domain for counted units, with CPU time left to RFC-0006's `Core`: a
+  is declared the single accounting domain for counted units, with CPU time left to RFC-0006's `SchedControl`: a
   stated split from research/0002. `Region` and `AddressSpace` join RFC-0003's objects, and `EXECUTE`
   joins its rights as bit 5 by a proposed dated amendment. W^X (O-13) holds in four layers, including per
   Region across every address space, backed by `SCTLR_EL1.WXN`, whose full value the RFC states. O-5
   becomes a structural rule: the kernel never dereferences a user virtual address. The SMP shootdown and
   ASID-rollover protocol is designed now rather than bolted on later. Donation (`reissue`) is
   deliberately not proposed but handed to RFC-0003a as input, because gating it on `REVOKE` would
-  pre-empt that RFC's (a)/(b) choice. Twenty increments, fourteen marked for the Phase-1 demo, each with
-  the interims it carries named and costed.
-- `docs/rfcs/0006-threads-and-scheduling.md` — **proposed**, revised the same day against a three-lens
-  review (constitution, technical correctness and implementability). Threads, scheduling contexts and
-  interrupts for Phase 1. The spine is unchanged. The kernel is event-driven, with one stack per core and
-  preemption points, and time is a capability: a `SchedContext` configured only through a per-core
-  `SchedControl` (seL4 MCS). Priorities are 256 fixed levels behind a priority ceiling that any
-  capability to a thread confers. The timer is tickless on both Tier-1 targets. FP/SIMD is enabled per
-  thread and saved lazily. A device line reaches its driver as a notification and stays masked until
-  `ack`. The review turned several quiet choices into verdicts. Endpoint queues are now priority-ordered,
-  because the FIFO citation was wrong. Budgets are declared caps, not minima, departing from
-  research/0002 on purpose. Userspace timers are named: deadline objects on the release queue. A caller's
-  death can no longer take time away from a server mid-request. The departures from accepted papers are
-  now listed as amendments A1–A4: donation only to passive receivers, a short caller waits instead of
-  being refused, seL4's timeout faults corrected, and the big lock rejecting RFC-0003 §14.2's premise.
-  The review also fixed the state machine (a tenth state, `Unfunded`), the FP ownership races, the SCTLR
-  bits RFC-0005 had inverted, and the parked-core start-up (checked against QEMU). The increments now
-  interlock with RFC-0005 and RFC-0007. The demo's interims are named with their numbers.
+  pre-empt that RFC's (a)/(b) choice. Twenty increments, thirteen marked for the Phase-1 demo, with
+  the interims the demo carries named and costed.
+- `docs/rfcs/0006-threads-and-scheduling.md` — **proposed**, threads, scheduling contexts and interrupts
+  for Phase 1, drafted alongside RFC-0005 and RFC-0007 and revised against a three-lens review
+  (constitution, technical correctness and implementability). The kernel is event-driven, with one stack
+  per core and preemption points, and time is a capability: a `SchedContext` configured only through a
+  per-core `SchedControl` (seL4 MCS). Priorities are 256 fixed levels behind a priority ceiling that any
+  capability to a thread confers, and endpoint queues are priority-ordered. Budgets are caps, not minima,
+  departing from research/0002 on purpose. The timer is tickless on both Tier-1 targets, and userspace
+  timers are named as deadline objects on the release queue. FP/SIMD is enabled per thread and saved
+  lazily. A device line reaches its driver as a notification and stays masked until `ack`. A caller's
+  death never takes time away from a server mid-request. Its departures from accepted papers and from
+  research/0002 are listed as amendments A1–A6: donation only to passive receivers, a short caller waits
+  instead of being refused, the claim that seL4's timeout faults remain future work corrected, the big
+  lock rejecting RFC-0003 §14.2's premise, budgets as caps, and capabilities held in a thread's fault
+  slots. Because A1 narrows the constitution's priority inheritance, the RFC also names that as a
+  question for the maintainer (C1) rather than amending the constitution itself. The demo's interims are
+  named with their numbers.
 - `docs/rfcs/0007-system-calls-and-process-bootstrap.md` — **proposed**, the third of the Phase-1 kernel
   RFCs drafted alongside RFC-0005 and RFC-0006, and the one that makes RFC-0003 §9 live. Every
   kernel-object operation is a `call` on its capability (seL4's uniform invocation), with twelve syscalls
@@ -54,7 +54,7 @@ recorded is indistinguishable from law that was never agreed.
   states honestly what that window does not close: a spawner that keeps the child's AddressSpace keeps
   control. There is one root task with every boot capability listed in BootInfo, and no kernel branch on
   "is root". The kernel never parses ELF. The console is a capability that never waits. The `user/abi`
-  binding gets a third designated `unsafe` tree, limited to trap instructions and entry stubs. It
+  binding gets a third designated `unsafe` tree, limited to trap instructions, a register read and entry stubs. It
   proposes dated amendments to RFC-0003 (the handle word) and RFC-0004 (reusable reply objects), and
   names every demo interim with its cost.
 - `docs/research/0002-virtualisation-and-containment-prior-art.md` — the second prior-art review, on
@@ -172,6 +172,39 @@ recorded is indistinguishable from law that was never agreed.
 
 ### Changed
 
+- **A third designated `unsafe` tree approved in principle (2026-09-27), binding nothing yet.** Asked in
+  a Claude Code session how the demo's userspace should issue `svc #0`, the maintainer approved in
+  principle a small write-ourselves crate, `user/abi`, whose `src/arch/**` would become a third tree
+  where `unsafe` is permitted, beside `kernel/src/arch/**` and `kernel/src/mm/**` — to be proposed in the
+  syscall RFC and accepted or rejected there. RFC-0007 (proposed) §12 has since narrowed the tree to trap
+  instructions, the discovery-register read and process entry stubs. Nothing changes until RFC-0007 is
+  accepted: `CLAUDE.md`'s `unsafe` policy, threat-model O-6 and the workspace lint comments move only
+  with its increment 7, and the Borrow Ledger reading it seeks is a separate verdict. Recorded so the
+  decision has a trace in the repository, not only in a chat.
+- **RFC-0005, RFC-0006 and RFC-0007 reconciled and fact-checked (2026-10-02), still proposed.** The three
+  were revised in parallel and had drifted at their seams; a cross-RFC pass aligned them, and an
+  independent check of every claim they had flagged as unverified settled each against primary sources:
+  QEMU 11.0.3's source and experiments on it, seL4's kernel and RFC-14, Arm's register descriptions, the
+  Intel SDM, Linux and TF-A. Seams closed: RFC-0005 names RFC-0006's `SchedControl`, not `Core`, and
+  adopts RFC-0007's `region_copy` into its operations table and W^X counts; RFC-0006 follows RFC-0007's
+  reusable reply objects, requires `TRANSFER` to move an endpoint into a thread, drops a 44 ms console
+  interim that RFC-0007's never-waiting console had made obsolete, and designs the kernel stack-overflow
+  path RFC-0005 relied on; the three implementation orders become one, in RFC-0007 §18. Facts settled:
+  DTB placement and `-initrd` on QEMU 11.0.3; the TLB no-caching rule cited to the Arm ARM (D8.12) and
+  the SDM (§4.10.2.3), with the permission-fault caveat that makes `protect` invalidate; `SCTLR_EL1`'s
+  RES1 bits named and sourced; RFC-14's threshold rule, deferral and performance figures quoted, and its
+  one-layer return attributed to its budget-limit mechanism. A line-by-line proofread then fixed
+  seventy-two smaller defects — argument orders matched to RFC-0007's encoding, verdicts and state tables
+  made to agree with their bodies, the `wfi` and FP/SIMD traps RFC-0007 had counted as faults, a
+  constitution pointer to a non-existent §11.1, and wrapping. An independent audit against the
+  constitution found the three on its vision in substance, and its editorial findings are applied: the
+  kernel's store is renamed the object store, so it no longer collides with the content-addressed store;
+  RFC-0006's amendment table gains A5 (budgets as caps) and A6 (capabilities resting in a thread), and
+  raises its narrowing of priority inheritance as a constitutional question for the maintainer (C1);
+  RFC-0007 names the missing receive-side badge register and the rule that the root must not become the
+  broker; and `CLAUDE.md` § Licence says that GPL-2.0 sources are cited, never copied. No verdict changed
+  in substance: RFC-0005's verdict 7 now names `region_copy`, and RFC-0006's verdict 12 lists the
+  amendments its body already implied.
 - **Constitution §3 and §7 amended, on the maintainer's authorisation (2026-08-05): the IPC
   doctrine's bulk-data clause, and the pinned AArch64 triple.** §3's "zero-copy page transfer for
   large ones" had become the last doctrinal statement of the mechanism accepted RFC-0004 pruned as
