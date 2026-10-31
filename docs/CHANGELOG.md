@@ -12,6 +12,20 @@ recorded is indistinguishable from law that was never agreed.
 
 ### Added
 
+- `docs/rfcs/0003a-selective-revocation.md` — **proposed**, the decision RFC-0003 deferred and its
+  2026-07-30 amendment said must be made, written before RFC-0007's handle-shaped verdicts are accepted
+  so the ABI is not frozen around an open revocation design. It chooses option (a): revocable authority
+  runs through kernel **forwarders**, objects that wrap an endpoint or notification (send side only, at
+  most four deep), so destroying one is a single generation advance and every copy made from it, moved
+  peer to peer included, fails `Revoked`. There is no derivation tree and no parent link; `TRANSFER` is
+  unchanged, and a direct grant simply forgoes revocation. Badges become live: one word set once at
+  derive, never by a sender, ORed into notifications and delivered on `recv` in a register this RFC
+  assigns to RFC-0007 (`x9`, `r14`). Destruction is authorised by `REVOKE` on the Pool that paid, and
+  `pool_reclaim` destroys everything a Pool paid for wherever it went, which closes RFC-0005's reclaim
+  gap. Eviction is the broker destroying an app's forwarders and reclaiming its Pool. The root itself is
+  revocable by nothing, deliberately. It proposes dated amendments to RFC-0003, RFC-0004 and O-3's text,
+  and seven to the proposed RFC-0005/0006/0007; the Phase-1 demo needs only the badge register reserved.
+  350 lines.
 - `docs/rfcs/0005-address-spaces-and-physical-memory.md` — **proposed**, the memory half of Phase 1 and
   the first of three interlocking kernel RFCs drafted together with RFC-0006 and RFC-0007. Physical
   memory comes from firmware tables into one bounded `MemoryMap` (the image moves to 0x4020_0000 because
