@@ -442,7 +442,7 @@ not a syscall per operation), with **Linux**, **Hubris**, **Genode** and **Redox
   separate AddressSpace and Thread capabilities, each droppable.
 - **Baroque hierarchies; multi-copy IPC.** Flat handles, no receive window, a flat BootInfo; one copy.
 - **Bolted-on multicore.** Entry is per-core from the first stub (`SP_EL1`, `TPIDR_EL1`; `swapgs`).
-  RFC-0006 (proposed) §12 provides the big kernel lock taken on entry, answering RFC-0003 §14.2 for now; single
+  RFC-0006 (proposed) §12 provides the big kernel lock taken on entry, deferring RFC-0003 §14.2; single
   fetch stays necessary under it, because other threads write the buffer from EL0 without the lock.
 - **Drivers pulled in; unused device paths.** The Console alone is reachable from EL0, bounded, its
   deletion scheduled.

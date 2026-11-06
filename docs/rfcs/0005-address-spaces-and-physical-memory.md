@@ -7,9 +7,9 @@
 | Status | **Proposed** — 2026-09-27, awaiting the maintainer's verdict |
 | Author | Drafted by Claude Code as sparring partner; verdict the maintainer's |
 | Date | 2026-09-27 |
-| Affects | Constitution §3 (kernel doctrine) and the Language clause's "minimal assembly" (§17.7); RFC-0003 (a dated amendment adding one right; three new objects; `capability/src/rights.rs` and `object.rs`'s doc comment); RFC-0004 §9.1; the boot stub, `aarch64.ld` and the exception reporter; `kernel/src/mm/**`; a new host-tested `memory/` crate; threat model §10 and O-7's text (proposals via `docs/CHANGELOG.md`) |
+| Affects | Constitution §3 (kernel doctrine) and the Language clause's "minimal assembly" (§17.7); RFC-0003 (a dated amendment adding one right; three new objects; `capability/src/rights.rs` and `object.rs`'s doc comment); RFC-0004 §9.1; the boot stub, `aarch64.ld` and the exception reporter; `kernel/src/mm/**`; a new host-tested `memory/` crate; threat model §9, §10 and the text of O-7 and O-8 (proposals via `docs/CHANGELOG.md`); Constitution §6, as a reading: a security target narrower than Tier-1 support (§6) |
 | Depends on | RFC-0003 (capability table), RFC-0004 (IPC); interlocks with RFC-0006 (threads and scheduling) and RFC-0007 (system calls and process bootstrap), proposed the same day |
-| Discharges | O-7 for kernel allocation (reclaim across a transfer stays open), O-8, O-13 (the mapping half); O-5 for every path by which the kernel touches user memory; O-3's destruction case extended to memory; answers RFC-0003 §14.3 and RFC-0004 §9.1 (share) |
+| Discharges | O-7 for kernel allocation (reclaim across a transfer stays open), O-8 on parts immune to Meltdown, O-13 (the mapping half); O-5 for every path by which the kernel touches user memory; O-3's destruction case extended to memory; answers RFC-0003 §14.3 and RFC-0004 §9.1 (share) |
 
 > **Proposed verdicts.** **[demo]** marks what the demo stands on; the rest is forward design.
 >
@@ -17,7 +17,7 @@
 > 2. **[demo] Frames:** a colour-capable bitmap; fresh frames and table frames zeroed, boot data handed over read-only (§4, §7).
 > 3. **[demo] Who pays (O-7):** typed slot arrays reused by generation; every post-boot unit charged to a Pool named by capability, `map`'s too (§5).
 > 4. **[demo] One accounting domain:** the Pool, for every counted unit; time stays with RFC-0006's `SchedControl`, a stated split from research/0002 (§5).
-> 5. **[demo] Layout:** the same higher-half layout on both; the image read-only in the physmap; per-core stacks guarded, kept by the kernel (§6).
+> 5. **[demo] Layout:** the same higher-half layout on both; the image read-only in the physmap; per-core stacks guarded, kept by the kernel; Meltdown-affected parts outside the target (§6).
 > 6. **[demo] Objects:** `Region` (eager and zeroed, or boot-minted read-only) and `AddressSpace` join RFC-0003's objects beside `Pool` (§7).
 > 7. **[demo] Operations:** `map` / `unmap` / `protect` and `region_copy` are capability-checked, bounded and atomic; the kernel never picks an address (§8).
 > 8. **[demo] Rights:** `EXECUTE` joins RFC-0003's set as bit 5 — on Regions and Pools only, refused at mint elsewhere — by dated amendment (§8).
@@ -164,15 +164,17 @@ top 2 GiB, as `x86_64-unknown-none`'s default kernel code model expects (overrid
   boot — one filled later would be missing from earlier copies (Linux's vmalloc-sync bugs); lower kernel
   tables may change, invalidated on every core (§12). *Rejected:* an identity-mapped kernel, where user
   addresses go; no physmap, an invalidation per IPC-buffer touch.
-- **The kernel stays mapped in every address space, physmap included, which assumes a CPU immune to
-  Meltdown-class speculation (CVE-2017-5754).** On an affected part, any process could read the physmap, all of
-  RAM, and O-8 falls. Such parts are outside the security target until page-table isolation exists (threat model
-  §9), and many x86_64 machines of the constitution's §6 decade are among them. Boot tests for immunity
-  (`IA32_ARCH_CAPABILITIES.RDCL_NO`, bit 0; `ID_AA64PFR0_EL1.CSV3`; a list of parts known immune that report
-  neither, as Linux keeps) and says so on the console. **The door stays open:** isolation would map only a
-  trampoline in user tables, needing two tags per AddressSpace and an entry stub that switches tables before
-  it touches a TCB frame (RFC-0006 (proposed) §9), so nothing here may assume the kernel is reachable at entry
-  beyond those stubs (§17.9).
+- **The kernel stays mapped in every address space, physmap included, which assumes a CPU immune to Rogue
+  Data Cache Load (Meltdown, CVE-2017-5754).** On an affected part any process could read the physmap, all of
+  RAM, so O-8 does not hold there. Such parts stay outside the security target unless page-table isolation is
+  built (§17.9), and many x86_64 machines of the constitution's §6 decade are among them. At each core's start
+  the kernel tests for immunity (`ID_AA64PFR0_EL1.CSV3`; `IA32_ARCH_CAPABILITIES.RDCL_NO`, bit 0, where CPUID
+  reports that register; or a list of parts known immune, as Linux keeps, which is what the Cortex-A72 needs),
+  treats any other part as affected, and says which on the console. **Isolation is not designed out, but it
+  reopens other RFCs.** Kernel entries could no longer be global; each AddressSpace would need two tags and, on
+  x86_64, two roots; and x86_64 pushes to `TSS.RSP0` before any stub runs, so RFC-0006 §9's TCB frame would give
+  way to an entry stack mapped in user tables, beside the IDT, GDT, TSS and IST stacks, changing RFC-0007 §3's
+  entry sequences.
 
 ## 7. The objects: Region, AddressSpace and Mapping
 
@@ -397,7 +399,7 @@ jumps high and drops the identity entry — the same "Rust runs only high" rule.
 | O-5 argument validation | no user virtual address dereferenced; carried ones are numbers; memory by capability through the physmap; snapshots (§11) | **discharged for the memory surface**; RFC-0007 inherits §11's sentence |
 | O-6 kernel memory safety | new `unsafe` only in `mm/**` (window access, volatile copy, the object store's static) and `arch/**` (tables, TLB, boot) | **stays Built** — every new block listed per PR |
 | O-7 no unprivileged exhaustion | arrays reused by generation; every post-boot unit charged to a Pool named by capability, `map`'s too; charge-first; `map` ≤ 512 leaves; zeroing in 512-page steps; run search bounded by RAM (§4, §5, §8) | **discharged for kernel allocation**; a transferred object stays charged to its payer until destroyed — **open** with RFC-0003a (§17.2); CPU time is RFC-0006's |
-| O-8 address-space disjointness | per-process tables; Regions only by capability; frames and tables zeroed before use; invalidate before free (§4, §7, §12) | **discharged** |
+| O-8 address-space disjointness | per-process tables; Regions only by capability; frames and tables zeroed before use; invalidate before free (§4, §7, §12) | **discharged** on immune parts; others outside the target (§6) |
 | O-9 no ambient side channel | no shared mapping a capability did not establish (§10) | **contributes** |
 | O-13 W^X | four layers, per Region across all spaces, counts falling only on completed invalidation (§9) | **discharged at mapping**; the load-path clause is Phase-3 policy over layer 3 |
 | O-2, O-4 | `perms` ⊆ rights; `protect` narrows; spending needs a Pool capability; no physical-address map | **maintained** |
@@ -419,6 +421,7 @@ jumps high and drops the identity entry — the same "Rust runs only high" rule.
 - **`map` needs the AddressSpace's own Pool**: a loader mapping into a child holds the child's Pool.
 - **47-bit halves on AArch64** give up half of what `T0SZ = 16` allows; **the 64 KiB floor is fixed**.
 - **User addresses are numbers only** (§11): every RFC-0007 syscall pays in ergonomics, for a bug class gone.
+- **Meltdown-affected parts are outside the security target** (§6), Tier-1 machines among them.
 - **The physmap is a large target** (§9) — a software invariant, as are W^X on x86_64 and O-5 without PAN.
 - **Every boot runs RWX** from MMU-on to Rust step (5), before any process exists; a stray early write goes
   uncaught. **Cache maintenance is untestable under QEMU**; **the load address is a QEMU `virt` fact**.
@@ -432,7 +435,8 @@ jumps high and drops the identity entry — the same "Rust runs only high" rule.
 4. **Hardware backing for software rules:** software PAN on Armv8.0; unmapping executable user frames from the
    physmap.
 5. **Preemptible teardown**: the O(mappings) walk made restartable at RFC-0006 (proposed)'s preemption points.
-6. **The firmware assumption** (§4) and O-7's new text (§5), via `docs/CHANGELOG.md`.
+6. **The firmware assumption** (§4), O-7's new text (§5) and, from §6, O-8 scoped as O-18 is, a §9 residual risk
+   and §7's "brought in by", all threat-model amendments on acceptance, via `docs/CHANGELOG.md`.
 7. **"Minimal assembly"** (the Constitution's Language clause): are runtime one-instruction
    `TLBI`/`DC`/`IC`/`TTBR` intrinsics within it (§9)?
 8. **One programme order** across RFC-0005/0006/0007 — RFC-0007 (proposed) §18 holds it, for the maintainer to fix.
@@ -457,8 +461,8 @@ function gets a documented x86_64 stub — an empty `MemoryMap`, on which memory
 7. **[demo] Object store and one Pool.** Conservation; reuse at generation + 1; stale references count nothing;
    mint refuses off-type `EXECUTE`.
 8. **`pool_split`/`move`/`merge` and closure forwarding**, under random churn. Host-only; not demo.
-9. **[demo] MMU on (§13, stub)**, `SCTLR_EL1`, `VBAR_EL1` high, DFSC decode:
-   `--expect "mm: running at 0xffffffff80"`.
+9. **[demo] MMU on (§13, stub)**, `SCTLR_EL1`, `VBAR_EL1` high, DFSC decode, and §6's immunity test:
+   `--expect "mm: running at 0xffffffff80"`, `--expect "mm: rdcl immune"`.
 10. **[demo] Final kernel map (§13, Rust)**, the object store behind its static: physmap with the image read-only,
     MMIO window with every kernel MMIO user repointed, core 0's stack moved behind a guard (`aarch64.ld`'s
     comment with it); `EPD0`, `WXN`. One `--expect` per self-test: `provoke-ro-text` and `provoke-ro-alias`

@@ -346,10 +346,6 @@ Given the scope, these risks are acknowledged and *not* mitigated, by decision r
 - **A user who consents to a harmful grant.** See §7. The broker informs; it cannot decide.
 - **DMA on IOMMU-less hardware (M5).** O-18 cannot hold there; such hardware is outside the security
   target, and the model says so rather than implying a protection that the silicon denies.
-- **Meltdown-class CPUs.** Hardware side channels are out of scope (§7), but one deserves naming, because the
-  design's own layout sets its price. RFC-0005 (proposed) keeps all of RAM mapped in every address space, so on
-  an affected part a process could read everything, and O-8 fails outright. Such parts are outside the security
-  target until page-table isolation exists; boot says so on the console rather than leaving it to be guessed.
 - **Diagnostic verbosity.** The exception reporter and panic handler print kernel addresses to the
   console. On the operator's serial line this is a feature; if a deployment exposes that console, it
   becomes an information leak. A deployment concern, flagged here so it is a decision and not a surprise.
