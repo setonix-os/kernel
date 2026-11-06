@@ -110,7 +110,8 @@ match in increment 7. **Where it lives:** generic array and Pool in `memory/`; t
 then the big lock. No other kernel global accretes.
 
 **A Pool is the accounting layer**: an RFC-0003 object holding balances of frames and of each type's slots.
-At boot every free unit becomes the balance of one root Pool (RFC-0007 (proposed) hands it over). Then:
+At boot every free unit becomes the balance of one root Pool, carrying every Pool right (RFC-0007 (proposed)
+hands it over). Then:
 
 ```text
 Σ balance(r) over all Pools  ==  units of r free        -- at every instant after boot
@@ -177,7 +178,7 @@ under a live mapping *(Zircon: a mapping keeps its VMO alive)*. One object, thre
   preemption points, the half-built Region held on the caller's thread; no capability exists until done.
 - **Boot-minted, read-only**, over the DTB and each boot module RFC-0007 (proposed) embeds (every segment
   page-aligned): their frames **move** into the Region, never zeroed (public boot data, so O-8 is untouched),
-  never charged, never `WRITE` — the DTB `READ`, a module `READ | EXECUTE | DUPLICATE | TRANSFER`, so text
+  never charged, never `WRITE` — the DTB `READ | DUPLICATE | TRANSFER`, a module `READ | EXECUTE | DUPLICATE | TRANSFER`, so text
   maps `RX` in place and W^X holds because no writable use can exist.
 - **Device**, minted at boot over `Mmio` the kernel does not keep; never executable, zeroed or charged;
   Phase 2. No operation maps a physical address given as a number: the catch-all right in costume.

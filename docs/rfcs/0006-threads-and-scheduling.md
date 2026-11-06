@@ -160,7 +160,7 @@ with released budget*: a spent partial context leaves its core idle by design, a
 capability to the Thread `auth`, and `p ≤ mcp(auth)`; MCP is set alike, so authority over urgency only narrows
 as it is delegated — O-2's shape *(seL4 `TCB_SetPriority`, whose authority is any TCB capability)*. **Threads are
 born at priority 0 and MCP 0**, so a fresh thread is no authority; the root's starts at 255 and 255 with a full
-context on core 0, the one bootstrap act (RFC-0007 §9). A **rightless** capability to a thread holding the MCP
+context on core 0, listed in BootInfo, the one bootstrap act (RFC-0007 §9). A **rightless** capability to a thread holding the MCP
 wanted delegates priority authority alone. **Rejected: `READ` or `WRITE` on `auth`**, which would make priority
 authority and register access one token; **a `SCHEDULE` right**, the catch-all right in embryo (the
 CAP_SYS_ADMIN grave); **dynamic priorities** (CFS, BSD decay), kernel-resident policies that churned while

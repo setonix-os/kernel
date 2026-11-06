@@ -191,12 +191,16 @@ recorded is indistinguishable from law that was never agreed.
 
 ### Changed
 
-- **RFC-0007 §9 gains two rules from an unmerged bootstrap draft of 2026-08-05.** That draft's design
-  went into RFC-0007, but two load-bearing rules did not: every capability traces to the boot grant,
-  so the grant graph is acyclic by construction (research/0002's demand, and O-22's induction), and the
-  boot grant must be complete, because nothing later makes authority from nothing. The draft described
-  three typed roots; these rules are restated for the root Pool, `SchedControl` and `IrqControl` the
-  RFCs now have. The draft itself is dropped.
+- **RFC-0007 §9 gains what an unmerged bootstrap draft held and no RFC did, 2026-11-06.** That draft of
+  2026-08-05 was never proposed, and most of its design went into RFC-0007. Three rules did not: every
+  capability has a finite chain back to the boot grant, a precondition of O-22 and not a bound; the root
+  starts the broker, whose start-up dependencies the broker RFC must prove acyclic, as grant order
+  alone cannot; and the boot grant must be complete. The draft's memory and object-creation roots are now
+  the root Pool, and its device root `IrqControl` and Device Regions; `SchedControl` is new. §9's list
+  gains what it had omitted: Device Regions, module 0's Region, the kernel-filled Regions and the root's
+  SchedContext. Boot capabilities carry every right, so RFC-0005's DTB gains `DUPLICATE` and `TRANSFER`
+  and its root Pool every Pool right, and `BootCap`'s `flags` becomes `rights`. The root has no grant
+  window. The draft's rejected options are folded in, and it is not retained.
 - **Drift between the documents corrected, 2026-11-06.** RFC-0002 gains a dated amendment: the retired
   docs repository is now deleted, not private. Threat-model O-20 says "signed" rather than "GPG-signed",
   since commits carry GPG or SSH signatures and both show Verified, and its header no longer says
