@@ -293,7 +293,7 @@ The one act the kernel performs unasked: at boot it builds **exactly one** proce
 module and gives it every boot capability *(seL4's root task; research/0002 Part 3 and its synthesis, "the
 bootstrap seam is a one-time kernel act")* — an AddressSpace, the segments mapped as in §10, a stack, a read-only
 **BootInfo** page, a Process and a Thread in §3's entry state with `a0` = BootInfo's address and `a1` = 0.
-Its priority, ceiling and full context are RFC-0006 (proposed) §6's one bootstrap act.
+Its priority, MCP and full context are RFC-0006 (proposed) §6's one bootstrap act.
 
 **BootInfo**, in `user/abi`, is a header (magic, version, length), one
 `#[repr(C)] BootCap { kind: u32, rights: u32, handle: u64, base: u64, size: u64 }` per initial capability, and
@@ -474,7 +474,7 @@ not a syscall per operation), with **Linux**, **Hubris**, **Genode** and **Redox
 3. **A sovereignty check** — should RFC-0005's AddressSpace query report its live-capability count, as
    RFC-0006's `ctl_info` does for `SchedControl`, so a child can confirm it holds the only one?
 4. **The Language clause** — do single-instruction `svc`/`syscall` wrappers and entry stubs in userspace
-   fall within "minimal assembly … for boot and context switching", as RFC-0005 §17.7 asks for `TLBI`?
+   fall within "minimal assembly … for boot and context switching", as RFC-0005 §17.7 asks for `TLBI`? **Answered 2026-11-06:** yes, by amending the clause.
 5. **The 64-word budget** — a verdict now, to be revisited with the first measurements.
 6. **The root is not the broker** — the root holds every boot capability (§9). The broker RFC must say how the
    broker is spawned from it holding only what mediation needs, and what the root then drops, so that a

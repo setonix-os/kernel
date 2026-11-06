@@ -112,7 +112,8 @@ See `CLAUDE.md` § `unsafe` policy for where it is permitted. Style rules:
 
 ## Assembly
 
-Kept to the minimum the constitution allows: boot and context switching only.
+Kept to the minimum the constitution's Language clause allows. The rules below apply to routines,
+not to a single-instruction `asm!`.
 
 - One instruction per line, with a comment explaining the *intent* of each block
 - Register usage documented at the top of every routine, including which are clobbered

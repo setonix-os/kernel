@@ -191,11 +191,16 @@ recorded is indistinguishable from law that was never agreed.
 
 ### Changed
 
-- **Constitution amended, 2026-11-06, by the maintainer.** §3's priority inheritance now holds through
-  scheduling-context donation, with a ceiling for a server on its own context: answers RFC-0006's C1, on
-  which its amendment A1 waited. The Language clause admits single-instruction operations Rust cannot
-  express, such as `TLBI` and `svc`: answers RFC-0005 §17.7 and RFC-0007 open question 4. Supersedes
-  neither pillar nor ledger row, and invalidates no code.
+- **Constitution §3 and the Language clause amended, on the maintainer's authorisation (2026-11-06).** §3's
+  "with priority inheritance to prevent priority inversion" becomes what the design does: a `call` to a passive
+  server lends its context and priority, and a priority ceiling, required of any server shared across trust
+  domains, bounds the inversion that remains. Donation alone never prevented it. This answers RFC-0006's C1.
+  It holds under RFC-0004 as accepted, and A1 remains proposed: RFC-0004 §4 and §8 stand until it is accepted. The
+  Language clause adds process entry, kernel entry and exit, and single-instruction operations stable Rust
+  cannot express, which regularises `vectors.s` and the existing `wfe`, `brk`, `ud2` and `hlt` and answers RFC-0005
+  §17.7 and RFC-0007 open question 4. Supersedes no pillar or ledger row; invalidates no code. `STYLE.md` and
+  `boot.s` now point at the clause, the RFCs mark their questions answered, and RFC-0006 §7 adds that an active
+  server's bound assumes a context that cannot be throttled mid-request.
 - **Four design concerns from a read of the whole document set, 2026-11-06.** RFC-0005 §6 now states that a
   kernel mapped in every address space leaves Meltdown-affected CPUs outside the security target, what
   page-table isolation would reopen, and an immunity test at each core's start; O-8's scope, a threat-model

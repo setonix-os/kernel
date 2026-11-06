@@ -271,7 +271,7 @@ execute-only exists on AArch64 but not on x86_64 without protection keys, so nei
 (`IC IALLUIS` otherwise; Linux's `sync_icache_aliases`), `DSB ISH`, `ISB`; the Cortex-A72 reports PIPT
 (`CTR_EL0 = 0x8444C004`); x86_64 is coherent in hardware. **QEMU models no cache, so errors here pass every
 test.** These and §12's `TLBI`s and `TTBR` writes are single-instruction `asm!` intrinsics in
-`kernel/src/arch/**`, as `wfe` is today — a reading of "minimal assembly" for the maintainer to confirm
+`kernel/src/arch/**`, as `wfe` is today, which the constitution's Language clause admits
 (§17.7). The physmap still aliases *user* code writable at EL1; writing through it only to zero, fill and
 reach IPC buffers is a convention (§16).
 
@@ -440,7 +440,7 @@ jumps high and drops the identity entry — the same "Rust runs only high" rule.
 6. **The firmware assumption** (§4), O-7's new text (§5) and, from §6, O-8 scoped as O-18 is, a §9 residual risk
    and §7's "brought in by", all threat-model amendments on acceptance, via `docs/CHANGELOG.md`.
 7. **"Minimal assembly"** (the Constitution's Language clause): are runtime one-instruction
-   `TLBI`/`DC`/`IC`/`TTBR` intrinsics within it (§9)?
+   `TLBI`/`DC`/`IC`/`TTBR` intrinsics within it (§9)? **Answered 2026-11-06:** yes, by amending the clause.
 8. **One programme order** across RFC-0005/0006/0007 — RFC-0007 (proposed) §18 holds it, for the maintainer to fix.
 9. **Page-table isolation** for Meltdown-class parts (§6): built, or those parts left outside the target for good?
 
