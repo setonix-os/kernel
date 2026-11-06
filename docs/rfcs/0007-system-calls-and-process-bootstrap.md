@@ -206,7 +206,8 @@ at the same rate); a 16-bit index (too few for server workloads).
 **The crate changes, as one dated RFC-0003 amendment** logged in `docs/CHANGELOG.md`, so the width lives
 in RFC-0003: `Handle::to_word`/`from_word`, `MAX_SLOT_GENERATION`, a `const` bound of `N` by 2^20 and
 `free_slots()` (§5); later, with destruction (increment 14), a split so a destroyed object reports
-`ObjectDestroyed` rather than the holder's own use-after-close as `StaleGeneration`.
+`ObjectDestroyed` rather than the holder's own use-after-close as `StaleGeneration`. The
+same amendment records that a capability also moves by `GRANT` (§8), beside RFC-0003 §6's IPC.
 
 ## 7. The error model
 
@@ -261,7 +262,8 @@ two tables never share one memory (O-8) — and the Process is born with an **em
 | `INFO` | `READ` | live capabilities in the table; threads not `Exited`; whether the window is open |
 
 **The grant window** closes at the first `resume` of any of its threads, which RFC-0006 reports by
-flagging the Process (the root, started without one, has no window); `GRANT` then answers `WindowClosed`, and authority arrives only by IPC, which the
+flagging the Process (the root, started without one, has no window); `GRANT` then
+answers `WindowClosed`, and authority arrives only by IPC, which the
 process consents to by receiving. It is **single-use** in research/0002's sense (Part 3, after Vault's
 response-wrapping) but lacks **prior-use detection**, which is the broker RFC's.
 
@@ -295,7 +297,9 @@ Its priority, ceiling and full context are RFC-0006 (proposed) §6's one bootstr
 
 **BootInfo**, in `user/abi`, is a header (magic, version, length), one
 `#[repr(C)] BootCap { kind: u32, rights: u32, handle: u64, base: u64, size: u64 }` per initial capability, and
-a string table for module names, pinned within a page by a host test. Every initial capability is *listed*,
+a string table for module names, starting on one page and running as many as the header's length says, so that
+it scales with cores and devices; a host test pins the layout. `base` and `size` locate a module's descriptor or a
+Region's range, and topology follows the string table as data. Every initial capability is *listed*,
 none at a well-known slot, so a reviewer can enumerate the whole grant. Kinds: the root's Process, the Console (§11), a read-only Region per module, module 0's included, with its
 descriptor; RFC-0005 adds the AddressSpace, the one root Pool, the DTB, the Regions the kernel filled for the root
 and, in Phase 2, a Device Region per `Mmio` range the kernel does not keep; RFC-0006 the Thread, the root's
@@ -309,9 +313,9 @@ the kernel); a `spawn_from_module` syscall (a loader as a kernel service); a `sy
 
 **Every capability traces to this grant.** Boot is the one grant no capability authorises. After it, a
 capability appears only by derivation or transfer, or as the reply to a method invoked on a capability the
-caller holds (a Pool's `region_create`, `IrqControl`'s mint); no kernel path makes one unasked. So every
-capability has a finite chain of such steps back to the boot grant, and the system has no other source. The
-chain is a logical trace, not a kernel record (RFC-0003 §7 keeps no derivation record), and it is provenance,
+caller holds (a Pool's `region_create`, `IrqControl`'s mint); no kernel path makes one unasked (§18's self-test
+interim aside). So every capability has a finite chain of such steps back to the boot grant, and the system has no other source. The
+chain is a logical trace, not a kernel record (RFC-0003's 2026-08-05 amendment; RFC-0003a §3), and it is provenance,
 not a bound: a method's reply is fresh authority no ancestor held, and kernel links such as a reply binding or
 a Mapping confer authority outside any table. It is a precondition of O-22; what a holder can reach is the
 broker RFC's to prove. *(seL4's one-time mint; Zircon's userboot.)*
@@ -319,17 +323,18 @@ broker RFC's to prove. *(seL4's one-time mint; Zircon's userboot.)*
 **The broker does not gate its own start.** Provenance alone does not stop a mediator waiting on itself: a
 broker and a store that each `call` the other while starting wedge with every capability in order. The kernel
 supplies one edge that depends on no running process, its grant to the root, and the root starts the rest.
-The dependency graph among services is the broker RFC's to state and prove acyclic (§17.6), which is what
-research/0002 Part 3's "provably acyclic" asks. The kernel mints to one process and stops: dividing authority
+The dependency graph among services is the broker RFC's to state and prove acyclic (§17.6), which is how
+this RFC reads research/0002 Part 3's "provably acyclic". The kernel mints to one process and stops: dividing authority
 among services is policy. **Rejected:** a multi-server boot, the kernel starting broker, store and drivers each
 endowed, which is policy in the kernel; first-grant wrapping for the root, whose grant crosses no channel.
 
 **The boot grant must be complete.** A root of authority is a boot capability that no Pool or other capability
 can produce. Since nothing after boot makes one from nothing, BootInfo's list must hold every root the system
-will ever hand out, with every right: a class of resource needing its own root (memory, a core's time, device
-lines, device memory), or a right, absent from it can never exist later. So each boot capability carries every
-right its kind defines, bar what RFC-0005 withholds from read-only boot Regions, and the root narrows by
-deriving. A new object kind paid for by a Pool is not such a class. A new class costs a boot change and a dated
+will ever hand out: a class of resource needing its own root (memory, a core's time, device lines, device
+memory), absent from it, can never exist later, and a right absent from a root can never be added to it. So each
+boot capability carries `DUPLICATE`, `TRANSFER` and every right its kind's methods check (`REVOKE` only where
+RFC-0003a leaves it), bar what RFC-0005 §7 withholds from boot-minted Regions, read-only and Device, and the root
+narrows by deriving. A new object kind paid for by a Pool is not such a class. A new class costs a boot change and a dated
 amendment here, deliberately. Two reaches lie outside the list, both named: §7's fault-report interim, and a
 device's DMA where no IOMMU confines it (O-18). **Rejected:** a kernel that mints on a request no capability
 authorises, an ambient grantor in instalments, which O-4 forbids and which would add a source.
@@ -358,7 +363,8 @@ it in a page-aligned, read-only, `KEEP`ed `.payload` section *(Hubris's `xtask d
 change relinks the kernel. **On x86_64**, the future boot RFC provides the path that loads the same
 bundle; increment 12 depends on it.
 
-**Loading.** The kernel loads **module 0 only**; the others reach the root as **read-only Regions**
+**Loading.** Every module, module 0 included, reaches the root as a **read-only Region**, and the kernel loads
+**module 0 only**
 (RFC-0005 §7) with descriptors in BootInfo *(Genode's core hands init boot modules read-only)*. Every
 loader, kernel or root, maps text `RX` and read-only data `R` **in place**, copies data pages into a fresh
 Region with `region_copy` — RFC-0005 (proposed) §8's page-granular, frame-to-frame copy, the one the kernel
@@ -418,7 +424,7 @@ not a syscall per operation), with **Linux**, **Hubris**, **Genode** and **Redox
 |-----------|----------|-----------------------------|
 | O-1 unforgeability | handles reach the kernel only as words resolved through the caller's table; word 0 and out-of-range indices fail closed (§6) | **binds at B1** — RFC-0003's mechanism made live |
 | O-2 non-widenability | `cap_derive` is the only duplication and is subset-only; presented handles move nothing; moves never widen (§4, §8) | **binds at B1** |
-| O-4 no ambient authority | twelve syscalls, each handle-indexed or authority-free; methods take handles; console by capability; no kernel path mints unasked (§4, §9, §11) | **discharged at the ABI, except the fault-report interim** (§7) until increment 11; each new method checked at review |
+| O-4 no ambient authority | twelve syscalls, each handle-indexed or authority-free; methods take handles; console by capability; no kernel path mints unasked (§4, §9, §11) | **discharged at the ABI, except the fault-report interim** (§7) until increment 11 and the self-test interim (§18) until increment 7; each new method checked at review |
 | O-5 argument validation | no pointer arguments; reserved tag bits zero; single fetch at rendezvous; transfers all-or-nothing; kernel-built `SPSR_EL1`; `sysretq` guards (§3, §5, §7) | **discharged for the syscall surface**, with RFC-0005 §11 for user memory |
 | O-6 kernel memory safety | a third designated tree, trap instructions, the discovery-register read and entry stubs only; threat-model O-6 names it (§12) | **stays Built**, with a repository-wide grep |
 | O-7 no unprivileged exhaustion | 512-byte copy bound; creation paid by a named Pool; reusable reply objects; fixed tables fail closed; a console that never waits (§4, §5, §11) | **contributes** — RFC-0005 owns the accounting |
@@ -493,7 +499,7 @@ prefixed strings, since bare `Kaya!` matches the kernel's greeting; every demo l
    on RFC-0005's store and root Pool, with its 14: an EL0 self-test in a kernel-built process prints
    through a Console handle, `--features syscall-selftest --expect "[el0] Kaya!"`.
 7. **[demo] The root reaches EL0** — `user/abi/src/arch/**` and every §12 edit in one PR, once the tree is
-   approved; module 0 becomes the root: `--expect "boot modules: 2" --expect "[root] up"`.
+   approved; module 0 becomes the root and increment 6's self-test is deleted: `--expect "boot modules: 2" --expect "[root] up"`.
 8. **[demo] `GRANT`, the window, `INFO`, `KILL`** in a host-tested `process/` crate (`CLAUDE.md` § Layout gains
    it), then wired: born empty; `GRANT` all-or-nothing; `WindowClosed` after the first resume; an AddressSpace
    bound once.
@@ -536,7 +542,7 @@ for the maintainer to fix:
 - **An active server** (RFC-0006's A1), so RFC-0004's donation is not exercised; **the root doubles as
   server**, running client-facing code in the process holding every boot capability, until increment 15.
 - **The kernel-built self-test process** (increment 6), feature-gated: a second grant the kernel makes, against
-  §9, until increment 7 replaces it. **The MMU-off self-test** (increment 3); **RFC-0006's provisional constants** for the root's scheduling.
+  §9, deleted by increment 7. **The MMU-off self-test** (increment 3); **RFC-0006's provisional constants** for the root's scheduling.
 
 ## 19. What this unblocks
 
