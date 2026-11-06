@@ -245,6 +245,14 @@ Release codenames follow the six Noongar seasons — Birak, Bunuru, Djeran, Maku
 
 ### Changed
 
+- **The five Claude Code commands are now skills.** `/audit-kernel`, `/check-coherence`,
+  `/check-primitive`, `/check-spelling` and `/check-style` move from `.claude/commands/` to
+  `.claude/skills/<name>/SKILL.md`, by `git mv` so their history follows them. The slash names still
+  invoke them, so the references in `CONTRIBUTING.md` and the pull-request template stand. Each
+  gains a description saying when to use it, which also lets a session reach for it unprompted, and
+  the two with real lessons behind them gain a dated **Lessons** section. `CLAUDE.md` § Claude Code
+  skills states the rule that keeps them current: a lesson lands in its skill in the same pull
+  request as the fix that taught it.
 - Contributor documents no longer assume a permanent team of one. `SECURITY.md`, `CONTRIBUTING.md` and
   `CLAUDE.md` now say "deliberately small team" — the project anticipates at least one more member, and
   a document that promises "one maintainer" would start lying the day they join. The constitution's §5
