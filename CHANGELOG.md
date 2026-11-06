@@ -172,6 +172,13 @@ Release codenames follow the six Noongar seasons — Birak, Bunuru, Djeran, Maku
 
 ### Fixed
 
+- **The British-spelling gate had been checking nothing in CI.** Inside the devcontainer the
+  checkout belongs to the runner's user, not root, so git refused it as "dubious ownership"; the
+  script read its file list through a process substitution, whose failure `set -e` cannot see, and
+  reported "OK: no files to check". The spelling gate and the new code-span gate now trust exactly
+  the repository root for that one call, fail when git does, and refuse an empty file list. The pin
+  check now also scans `.github/scripts/`, since CI's commands live there, and `check-all.sh` runs
+  each step under its own `set -e`, so a step that is a shell function cannot pass a failure.
 - **The x86_64 docs no longer say `q35` has no bare-ELF `-kernel`.** `CLAUDE.md`, the README, the
   x86_64 module, `xtask`'s refusal and a CI comment all claimed it. QEMU's x86 loader does take a
   64-bit ELF through `-kernel` when it carries a Xen PVH note (`XEN_ELFNOTE_PHYS32_ENTRY`,

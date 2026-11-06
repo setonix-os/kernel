@@ -38,11 +38,19 @@ script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 repo_root=$(cd "${script_dir}/../.." && pwd)
 cd "${repo_root}"
 
-mapfile -t files < <(git ls-files -- '*.md' ':!:vendor/**')
+# The list comes from git, and a failure inside a process substitution is
+# invisible to set -e. Capture it, fail loudly, and refuse an empty list: in CI
+# the container's root does not own the checkout, git rejects it as "dubious
+# ownership", and this script once passed by checking nothing.
+if ! listing=$(git -c safe.directory="${repo_root}" ls-files -- '*.md' ':!:vendor/**'); then
+    echo "ERROR: git ls-files failed in ${repo_root}; no file was checked." >&2
+    exit 1
+fi
+mapfile -t files < <(printf '%s' "${listing}")
 
 if [[ ${#files[@]} -eq 0 ]]; then
-    echo "OK: no Markdown files to check"
-    exit 0
+    echo "ERROR: git listed no Markdown files; refusing to pass on an empty set." >&2
+    exit 1
 fi
 
 # shellcheck disable=SC2016 # the program is awk, and its $ fields are awk's
@@ -136,11 +144,16 @@ FNR == 1 {
         }
         next
     }
+    # A backtick fence whose info string holds a backtick is not a fence
+    # (CommonMark 4.5); treating it as one would hide the rest of the file.
     if (match(line, /^[ \t]*(```+|~~~+)/)) {
-        flush()
-        fence = substr(line, RSTART, RLENGTH)
-        sub(/^[ \t]+/, "", fence)
-        next
+        run = substr(line, RSTART, RLENGTH)
+        sub(/^[ \t]+/, "", run)
+        if (!(substr(run, 1, 1) == "`" && index(substr(line, RSTART + RLENGTH), "`") > 0)) {
+            flush()
+            fence = run
+            next
+        }
     }
 
     if (d != depth) { flush(); depth = d }

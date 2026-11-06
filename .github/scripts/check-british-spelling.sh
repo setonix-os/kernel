@@ -79,16 +79,24 @@ allow_re=$(IFS='|'; echo "${ALLOWED_PATTERNS[*]}")
 
 # This script is excluded from its own scan: the word table below is, by
 # necessity, a list of American spellings.
-mapfile -t files < <(
-    git ls-files -- \
+# The list comes from git, and a failure inside a process substitution is
+# invisible to set -e. Capture it, fail loudly, and refuse an empty list: in CI
+# the container's root does not own the checkout, git rejects it as "dubious
+# ownership", and this script once passed by checking nothing.
+if ! listing=$(
+    git -c safe.directory="${repo_root}" ls-files -- \
         '*.md' '*.rs' '*.toml' '*.yml' '*.yaml' '*.sh' '*.s' '*.S' '*.ld' '*.json' '*.jsonc' \
         ':!:vendor/**' ':!:LICENCE' ':!:CODE_OF_CONDUCT.md' ':!:target/**' \
         ':!:.github/scripts/check-british-spelling.sh'
-)
+); then
+    echo "ERROR: git ls-files failed in ${repo_root}; no file was checked." >&2
+    exit 1
+fi
+mapfile -t files < <(printf '%s' "${listing}")
 
 if [[ ${#files[@]} -eq 0 ]]; then
-    echo "OK: no files to check"
-    exit 0
+    echo "ERROR: git listed no files; refusing to pass on an empty set." >&2
+    exit 1
 fi
 
 violations=0

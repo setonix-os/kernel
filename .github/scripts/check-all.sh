@@ -40,8 +40,18 @@ step() {
     local name=$1
     shift
     if [[ $github -eq 1 ]]; then echo "::group::${name}"; else echo "==> ${name}"; fi
-    local status=0
-    "$@" || status=$?
+    # Not `"$@" || status=$?`: on the left of || bash ignores set -e inside any
+    # function the step calls, so a failing command mid-function would pass.
+    # A subshell with set -e of its own, outside any || context, stops at the
+    # first failure; set +e around it keeps that failure from ending this shell.
+    local status
+    set +e
+    (
+        set -e
+        "$@"
+    )
+    status=$?
+    set -e
     if [[ $github -eq 1 ]]; then echo "::endgroup::"; fi
     if [[ $status -ne 0 ]]; then
         echo >&2
@@ -54,8 +64,7 @@ step() {
     steps=$((steps + 1))
 }
 
-# Chained with && because step() calls it on the left of ||, where bash ignores
-# set -e. sed rather than head: head exits early, and under pipefail the writer's
+# sed rather than head: head exits early, and under pipefail the writer's
 # SIGPIPE would fail the step.
 environment() {
     rustc --version &&

@@ -94,16 +94,17 @@ for action in "${forbidden_actions[@]}"; do
     fi
 done
 
-# Installing a toolchain by hand inside a workflow step defeats the same rule.
+# Installing a toolchain by hand inside a workflow step, or in a script CI runs
+# (the checks job runs check-all.sh), defeats the same rule.
 # Deliberately unanchored: the install idiom usually appears mid-line inside a
 # `run: |` block scalar (`curl ... sh.rustup.rs | sh`), where an anchored
 # pattern never matches.
-if grep -rnE '(sh\.rustup\.rs|rustup (default|toolchain install))' \
-        .github/workflows/ >/dev/null 2>&1; then
-    echo "ERROR: a workflow installs or switches a Rust toolchain by hand." >&2
+if grep -rnE --exclude=check-toolchain-pin.sh '(sh\.rustup\.rs|rustup (default|toolchain install))' \
+        .github/workflows/ .github/scripts/ >/dev/null 2>&1; then
+    echo "ERROR: a workflow or CI script installs or switches a Rust toolchain by hand." >&2
     echo "       The image's pinned toolchain is the only one CI may use (§7)." >&2
-    grep -rnE '(sh\.rustup\.rs|rustup (default|toolchain install))' \
-        .github/workflows/ >&2
+    grep -rnE --exclude=check-toolchain-pin.sh '(sh\.rustup\.rs|rustup (default|toolchain install))' \
+        .github/workflows/ .github/scripts/ >&2
     fail=1
 fi
 
