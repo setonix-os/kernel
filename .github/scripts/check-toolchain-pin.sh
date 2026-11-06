@@ -11,9 +11,10 @@
 #      .devcontainer/Dockerfile. Two files, one version.
 #   2. Both Tier-1 bare-metal targets must still be listed. A toolchain file that
 #      had quietly lost one would let a one-architecture kernel pass CI.
-#   3. No workflow may install a toolchain of its own. This is the check that
-#      keeps the arrangement honest: the moment a `dtolnay/rust-toolchain` or a
-#      `setup-node` reappears in .github/workflows/, CI has a second source of
+#   3. No workflow, and no script CI runs, may install a toolchain of its own.
+#      This is the check that keeps the arrangement honest: the moment a
+#      `dtolnay/rust-toolchain` or a `setup-node` reappears in .github/workflows/,
+#      or a `rustup toolchain install` in .github/scripts/, CI has a second source of
 #      truth for a version and §7's guarantee is gone — silently, because
 #      everything would still build.
 #
@@ -114,4 +115,4 @@ fi
 
 echo "OK: Rust pinned to $toml_channel in rust-toolchain.toml and $dockerfile"
 echo "OK: both Tier-1 bare-metal targets present"
-echo "OK: no workflow installs a toolchain outside the devcontainer"
+echo "OK: no workflow or CI script installs a toolchain outside the devcontainer"

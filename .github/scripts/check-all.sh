@@ -44,6 +44,8 @@ step() {
     # function the step calls, so a failing command mid-function would pass.
     # A subshell with set -e of its own, outside any || context, stops at the
     # first failure; set +e around it keeps that failure from ending this shell.
+    # Call step only at top level: on the left of || or && or inside an if, bash
+    # disables set -e in the subshell too, and the guarantee silently goes.
     local status
     set +e
     (

@@ -35,7 +35,7 @@ set -euo pipefail
 export LC_ALL=C
 
 script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
-repo_root=$(cd "${script_dir}/../.." && pwd)
+repo_root=$(cd "${script_dir}/../.." && pwd -P) # physical: safe.directory matches it
 cd "${repo_root}"
 
 # The list comes from git, and a failure inside a process substitution is

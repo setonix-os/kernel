@@ -164,7 +164,8 @@ When invoking cargo directly, **always name the package**. The workspace's crate
 have incompatible targets — `setonix-kernel` only ever cross-compiles, `xtask`
 only ever builds for the host, and `setonix-capability` builds for both — so an
 unscoped `--target` tries to build the host tool for bare metal and fails for a
-reason unrelated to your change:
+reason unrelated to your change. For example (the full set CI runs, with its exact
+flags, is `.github/scripts/check-all.sh`):
 
 ```bash
 cargo clippy --package setonix-kernel --target aarch64-unknown-none-softfloat -- -D warnings

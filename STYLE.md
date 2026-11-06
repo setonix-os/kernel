@@ -36,6 +36,7 @@ location.
 | Design decisions and their rationale | `docs/rfcs/` |
 | Repo-local rules, `unsafe` policy, HAL boundary | `CLAUDE.md` |
 | Build commands | `CONTRIBUTING.md` § Development Setup |
+| The checks CI runs, and their exact invocations | `.github/scripts/check-all.sh` |
 | Coding standards | `CONTRIBUTING.md` § Coding Standards |
 | Commit conventions | `CONTRIBUTING.md` § Commit Messages |
 | British spelling word list | `.github/scripts/check-british-spelling.sh` |
@@ -71,7 +72,7 @@ cargo fmt --all --check # Check without modifying
 ### Linting
 
 `clippy` with warnings as errors, configured by `[workspace.lints]` in `Cargo.toml`. CI enforces it
-package by package — see `CONTRIBUTING.md` § Development Setup for the exact scoped invocations.
+package by package — `.github/scripts/check-all.sh` holds the exact scoped invocations.
 
 ### Naming Conventions
 
