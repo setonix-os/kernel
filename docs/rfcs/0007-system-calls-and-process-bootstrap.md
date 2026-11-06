@@ -474,7 +474,7 @@ not a syscall per operation), with **Linux**, **Hubris**, **Genode** and **Redox
 3. **A sovereignty check** — should RFC-0005's AddressSpace query report its live-capability count, as
    RFC-0006's `ctl_info` does for `SchedControl`, so a child can confirm it holds the only one?
 4. **The Language clause** — do single-instruction `svc`/`syscall` wrappers and entry stubs in userspace
-   fall within "minimal assembly … for boot and context switching", as RFC-0005 §17.7 asks for `TLBI`?
+   fall within "minimal assembly … for boot and context switching", as RFC-0005 §17.7 asks for `TLBI`? **Answered 2026-11-06:** yes, by amending the clause.
 5. **The 64-word budget** — a verdict now, to be revisited with the first measurements.
 6. **The root is not the broker** — the root holds every boot capability (§9). The broker RFC must say how the
    broker is spawned from it holding only what mediation needs, and what the root then drops, so that a

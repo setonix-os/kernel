@@ -19,8 +19,9 @@ greeting you by name.
 components (e.g. from Redox OS) retain their notices and are incorporated under
 GPLv3 as permitted by the MIT licence.
 
-**Language:** Rust. No exceptions beyond the minimal assembly required for boot
-and context switching.
+**Language:** Rust. No exceptions beyond the minimal assembly required for boot,
+process and thread entry, kernel entry and exit, context switching, and single
+instructions or indivisible pairs stable Rust cannot express.
 
 **Status:** Phase 1. Phase 0 is complete — the constitution, the settled Borrow
 Ledger, and the threat model (`docs/threat-model.md`) are all written. The

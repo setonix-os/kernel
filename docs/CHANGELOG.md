@@ -191,6 +191,12 @@ recorded is indistinguishable from law that was never agreed.
 
 ### Changed
 
+- **Constitution's Language clause amended, on the maintainer's authorisation (2026-11-06).** It now admits
+  process and thread entry, kernel entry and exit, and single instructions or indivisible pairs stable Rust
+  cannot express. That regularises `vectors.s` and the existing `wfe`, `brk`, `ud2` and `hlt`, and answers
+  RFC-0005 §17.7 and RFC-0007 open question 4. Supersedes no pillar or ledger row; invalidates no code.
+  `STYLE.md` and `boot.s` now point at the clause. A change to §3 was drafted and withdrawn: priority
+  inheritance waits for RFC-0006's verdict, where C1 stays open.
 - **Four design concerns from a read of the whole document set, 2026-11-06.** RFC-0005 §6 now states that a
   kernel mapped in every address space leaves Meltdown-affected CPUs outside the security target, what
   page-table isolation would reopen, and an immunity test at each core's start; O-8's scope, a threat-model
