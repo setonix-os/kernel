@@ -196,6 +196,14 @@ recorded is indistinguishable from law that was never agreed.
   which its amendment A1 waited. The Language clause admits single-instruction operations Rust cannot
   express, such as `TLBI` and `svc`: answers RFC-0005 §17.7 and RFC-0007 open question 4. Supersedes
   neither pillar nor ledger row, and invalidates no code.
+- **Four design concerns from a read of the whole document set, 2026-11-06.** RFC-0005 §6 now states that a
+  kernel mapped in every address space leaves Meltdown-affected CPUs outside the security target, what
+  page-table isolation would reopen, and an immunity test at each core's start; O-8's scope, a threat-model
+  residual risk and §7's bring-in are proposed for its acceptance. RFC-0003a's T2 proposes rewriting O-22's first sentence, which
+  its forwarders cannot meet, leaving the inventory and the proof to the broker RFC. RFC-0006 and RFC-0003a name the interrupt latency a hostile process can impose
+  through masked queue walks, making the thread and deadline capacities provisional security parameters.
+  RFC-0006's A4 no longer closes RFC-0003 §14.2: the big lock stands for now, and open question 9 owes the
+  threshold for replacing it. RFC-0007 §15 follows.
 - **RFC-0007 §9 gains what an unmerged bootstrap draft held and no RFC did, 2026-11-06.** That draft of
   2026-08-05 was never merged, and most of its design went into RFC-0007. Three rules did not: every
   capability has a finite chain back to the boot grant, a precondition of O-22 and not a bound; the root
