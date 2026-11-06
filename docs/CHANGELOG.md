@@ -191,6 +191,13 @@ recorded is indistinguishable from law that was never agreed.
 
 ### Changed
 
+- **Drift between the documents corrected, 2026-11-06.** RFC-0002 gains a dated amendment: the retired
+  docs repository is now deleted, not private. Threat-model O-20 says "signed" rather than "GPG-signed",
+  since commits carry GPG or SSH signatures and both show Verified, and its header no longer says
+  "once merged". RFC-0003a and RFC-0007 record that `pool_split` still has no ABI row, which only the
+  RFC-0003b draft supplies. RFC-0007 §11 and §18 give the demo's granted capabilities `TRANSFER`, without
+  which its own `GRANT` refuses them. RFC-0005 and RFC-0007 no longer presume a UEFI stub, leaving x86_64's
+  boot path to its boot RFC as `CLAUDE.md` does.
 - **A third designated `unsafe` tree approved in principle (2026-09-27), binding nothing yet.** Asked in
   a Claude Code session how the demo's userspace should issue `svc #0`, the maintainer approved in
   principle a small write-ourselves crate, `user/abi`, whose `src/arch/**` would become a third tree

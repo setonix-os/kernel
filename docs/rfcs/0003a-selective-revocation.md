@@ -34,7 +34,8 @@ choice, and settles what hangs on it before RFC-0007 freezes the syscall ABI. *W
 the broker's policy; the kernel only makes revocation possible. RFC-0003 §14.1 planned this "with the broker
 RFC as input"; the maintainer chose to decide first, so §14.1 is superseded by the duties the broker inherits (§16).
 **What a payer may destroy beyond a forwarder, and how a funder takes back everything a Pool paid for, RFC-0003b
-(draft) proposes**, split out so that this core can be decided on its own; nothing here depends on it.
+(draft) proposes**, split out so that this core can be decided on its own; nothing here depends on it,
+bar one encoding (§10).
 
 ## 2. Which pillar
 
@@ -347,6 +348,8 @@ depth limit is four, not two.
 
 Accepted documents gain dated amendments when this RFC is accepted; proposed ones absorb these before their own
 verdict. Each change is logged in `docs/CHANGELOG.md`. RFC-0003b proposes its own, on top of these.
+One row is owed whatever RFC-0003b's fate: §7 and §8 use RFC-0005's `pool_split`, RFC-0007 §4 has no method for
+it, and today only the RFC-0003b draft encodes one.
 
 | # | Target | Change | Why |
 |---|--------|--------|-----|

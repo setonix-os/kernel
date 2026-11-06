@@ -146,3 +146,9 @@ organisation from the constitution, which is a far worse outcome than an awkward
   into this repository as ancestry first, so every signed commit of the paper
   trail remains publicly reachable; the retired repository is a frozen
   duplicate, not the canonical record.
+
+- **2026-11-06 — the retired docs repository is deleted.** The amendment above kept it, private, as a
+  frozen duplicate; the maintainer has since deleted it from GitHub, as deprecated and no longer worth keeping. Nothing
+  of substance is lost: its history is ancestry of this repository, bar the retirement-banner commit
+  that stayed there alone (`docs/CHANGELOG.md`). The statement above is left as written, because it
+  was true when made.

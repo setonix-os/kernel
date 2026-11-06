@@ -8,7 +8,7 @@
 | Author | Drafted by Claude Code as sparring partner; verdict the maintainer's |
 | Date | 2026-09-27 |
 | Affects | Constitution §3 (capabilities are the only authority; the Language clause) and §4 (a Borrow Ledger reading, §12); `CLAUDE.md` § `unsafe` policy and § Layout; threat-model O-6's text; RFC-0003 (a dated amendment: the handle word, a slot-generation bound, `free_slots`, one error variant split); RFC-0004 §8 (a dated amendment: reply objects are unbound, not destroyed); `docs/CHANGELOG.md`; the workspace (`user/`), the comments in `Cargo.toml` and `xtask/Cargo.toml`, `kernel/src/main.rs`'s grep scope; `xtask`, `kernel/build.rs` and `aarch64.ld`; the kernel's trap path |
-| Depends on | RFC-0003 (accepted; §9 binds every syscall); RFC-0004 (accepted; §5, §6, §8, §9.4, §10 and the 2026-08-01 amendment); RFC-0005 and RFC-0006 (proposed, drafted alongside); a future x86_64 boot RFC for the UEFI stub |
+| Depends on | RFC-0003 (accepted; §9 binds every syscall); RFC-0004 (accepted; §5, §6, §8, §9.4, §10 and the 2026-08-01 amendment); RFC-0005 and RFC-0006 (proposed, drafted alongside); a future x86_64 boot RFC for its boot path |
 | Discharges | O-5 (argument validation) for the syscall surface; O-27 (explicit authority at spawn); binds O-1 and O-2 at B1; discharges O-4 at the ABI, bar the fault-report interim; keeps O-6 Built with a third designated tree; contributes to O-7, O-9 and O-13; designs O-17's fault path |
 
 > **Proposed verdicts.**
@@ -132,6 +132,8 @@ invocation)*. A handle word marked **moved** leaves the caller's table, which al
 (RFC-0003 §6). `tag.caps` is zero on every method (`InvalidArgument`): `caps[]` belongs to endpoint
 messages, whose receiver needs its new handle words delivered to memory. Replies carry new handle words
 from MR0; labels count from 1 per kind; the `abi` data half (increment 2) is the table of record.
+RFC-0005's `pool_split`, `pool_move` and `pool_merge` have no row yet: its increment 8 is host-only, and a
+row is owed before any program splits a Pool.
 
 | Invoked (right) | Label: method | MR0 | MR1 | MR2 | MR3 | Reply |
 |-----------------|---------------|-----|-----|-----|-----|-------|
@@ -324,8 +326,8 @@ name, descriptor and segment bytes — named by `SETONIX_PAYLOAD`; `kernel/build
 and substitutes an empty bundle when it is unset, so a kernel from a bare `cargo build` prints
 `boot modules: 0`. A `global_asm!` `.incbin` under `kernel/src/arch/aarch64/` embeds it; `aarch64.ld` places
 it in a page-aligned, read-only, `KEEP`ed `.payload` section *(Hubris's `xtask dist`)*. **Cost:** a user
-change relinks the kernel. **On x86_64**, the future boot RFC provides the UEFI stub that loads the same
-bundle as a file; increment 12 depends on it.
+change relinks the kernel. **On x86_64**, the future boot RFC provides the path that loads the same
+bundle; increment 12 depends on it.
 
 **Loading.** The kernel loads **module 0 only**; the others reach the root as **read-only Regions**
 (RFC-0005 §7) with descriptors in BootInfo *(Genode's core hands init boot modules read-only)*. Every
@@ -343,8 +345,8 @@ waits:** the kernel stores bytes while the PL011's transmit-full flag is clear a
 accepted, and `abi` yields and retries the rest, so any waiting happens at EL0, preemptibly. The hold is at
 most 24 flag reads and 24 stores, inside RFC-0006 (proposed)'s measured worst path, so the console sets no
 floor under `MIN_BUDGET` and needs no preemption point. The root receives it with `DUPLICATE | TRANSFER | WRITE`
-(no input path, so no `READ`) and derives `WRITE`-only copies for chosen children; a program not
-handed one cannot print, but for §7's interim. **Rejected:** seL4's `DebugPutChar`, any thread's in a
+(no input path, so no `READ`) and derives `TRANSFER | WRITE` copies for chosen children, `TRANSFER` because
+`GRANT` moves them (§8); a program not handed one cannot print, but for §7's interim. **Rejected:** seL4's `DebugPutChar`, any thread's in a
 `CONFIG_PRINTING` build; a console at a well-known handle. **Adopted in spirit:** Zircon's write-only
 debuglog. Once a userspace UART driver exists the root hands out an endpoint speaking `WRITE`, no client
 changes, and the Console object is **deleted** (increment 13).
@@ -466,7 +468,7 @@ prefixed strings, since bare `Kaya!` matches the kernel's greeting; every demo l
 9. **[demo] The root spawns the client,** in three PRs:
     - **a.** A host-tested `no_std` `user/loader` crate: descriptor in, method calls out, W^X and overlaps
       refused; a host test that the spawner ends holding only the Process capability.
-    - **b.** The root runs the plan, granting a `WRITE`-only Console and a send-only endpoint:
+    - **b.** The root runs the plan, granting a Console and a send-side endpoint capability, each `TRANSFER | WRITE`:
       `--expect "[root] up" --expect "[client] up"`.
     - **c.** O-27 evidence: the client probes indices 0–63 at generation 1 with `cap_rights` (exhaustive
       while no slot has been vacated), printing `[client] 2 handles`, and the root prints `INFO`'s count,
@@ -477,7 +479,7 @@ prefixed strings, since bare `Kaya!` matches the kernel's greeting; every demo l
 11. **Fault messages and death notification** (§17.1): the root prints `[root] child faulted`, and
     `report-user-faults` leaves the boot-tests.
 12. **x86_64 trap path and `abi` stubs** (`IA32_EFER.SCE`, `IA32_LSTAR`/`IA32_STAR`/`IA32_FMASK`, `swapgs`,
-    the `sysretq` guards), after the x86_64 boot RFC's UEFI stub: the demo boot-tests on `q35`.
+    the `sysretq` guards), after the x86_64 boot RFC's boot path: the demo boot-tests on `q35`.
 13. **Delete the Console object** when the Phase-2 UART driver lands.
 14. **`Revoked`**: the crate's `ObjectDestroyed` split, with RFC-0005's destruction (its 17).
 15. **The root spawns the server** and stops serving, removing that interim.

@@ -50,14 +50,16 @@ The paper trail lives in this repository, beside the code it governs:
 - [docs/threat-model.md](docs/threat-model.md) — what Setonix defends and the
   numbered obligations its design must discharge; expands the constitution's §9
   seed.
+- [docs/research/](docs/research/) — the prior-art reviews the RFCs cite.
 
 ## Status
 
-Phase 1, first milestone: the kernel boots on QEMU aarch64 `virt` and greets you
-on the PL011 UART. That is all it does — there is no scheduler, no IPC, no
-capability table and no MMU yet. What it does prove is the chain everything else
-rests on: link script, boot stub, stack, `.bss`, the hardware-abstraction
-boundary, and the console.
+Phase 1. The kernel boots on QEMU aarch64 `virt`, greets you on the PL011 UART and
+reports its own faults. That proves the chain everything else rests on: link
+script, boot stub, stack, `.bss`, the hardware-abstraction boundary, and the
+console. Beside it, the capability table (RFC-0003) is built and tested on the
+host, but the kernel does not use it yet: there is still no scheduler, no IPC and
+no MMU. Their designs are the RFCs under [docs/rfcs/](docs/rfcs/).
 
 x86_64 compiles and links against the same architecture-independent kernel, which
 is what keeps the hardware-abstraction boundary honest, but it does not boot yet:

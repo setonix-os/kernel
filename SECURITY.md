@@ -27,19 +27,8 @@ Do not run it anywhere that matters.
 
 The project's threat model is [docs/threat-model.md](docs/threat-model.md), the authoritative
 statement of what Setonix defends and the obligations (`O-1`, `O-2`, …) its design must discharge. It
-expands the seed in [the constitution §9](CONSTITUTION.md):
-
-**Assets:** app integrity, user-data confidentiality, capability integrity, update-channel
-authenticity.
-
-**Adversaries:** malicious or compromised apps; compromised app authors shipping malicious signed
-updates; network attackers; hostile inputs to servers.
-
-**Trust boundaries:** kernel/userspace; app/broker; app/app; device/author.
-
-**Out of scope initially:** physical access, hardware side channels, compromised toolchain.
-
-That last exclusion is worth reading carefully before assuming a finding is in scope.
+expands the seed in [the constitution §9](CONSTITUTION.md). Read its § Out of scope before assuming
+a finding is in scope.
 
 ## Design Flaws Are in Scope
 
