@@ -191,6 +191,11 @@ recorded is indistinguishable from law that was never agreed.
 
 ### Changed
 
+- **Constitution amended, 2026-11-06, by the maintainer.** §3's priority inheritance now holds through
+  scheduling-context donation, with a ceiling for a server on its own context: answers RFC-0006's C1, on
+  which its amendment A1 waited. The Language clause admits single-instruction operations Rust cannot
+  express, such as `TLBI` and `svc`: answers RFC-0005 §17.7 and RFC-0007 open question 4. Supersedes
+  neither pillar nor ledger row, and invalidates no code.
 - **RFC-0007 §9 gains what an unmerged bootstrap draft held and no RFC did, 2026-11-06.** That draft of
   2026-08-05 was never merged, and most of its design went into RFC-0007. Three rules did not: every
   capability has a finite chain back to the boot grant, a precondition of O-22 and not a bound; the root
