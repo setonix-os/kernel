@@ -90,8 +90,8 @@ done
 # A grep cannot parse YAML, so instead of trying to, this check accepts `uses:`
 # in exactly one form, `uses: VALUE` as a mapping key or as the first key of a
 # list item, and fails every other way of writing it: a space before the colon,
-# a quoted key, a flow mapping or sequence, a value on the next line, or an
-# explicit `?` key. Each is valid YAML that GitHub would honour and a narrower
+# a quoted key, a flow mapping or sequence, a value on the next line, an
+# explicit `?` key, an escaped double-quoted key or an alias used as a key. Each is valid YAML that GitHub would honour and a narrower
 # pattern would have waved through. Full-line comments are skipped; anything
 # else that merely contains the word `uses` before a colon, even in a `run:`
 # script, is refused too, and is reworded rather than special-cased.
@@ -109,6 +109,9 @@ quote="[\"']"
 canonical='^[[:space:]]*(-[[:space:]]+)?uses:[[:space:]]'
 any_uses_key="(^|[^[:alnum:]_-])${quote}?uses${quote}?[[:space:]]*:"
 explicit_key='^[[:space:]]*(-[[:space:]]+)?[?]([[:space:]]|$)'
+# "\x75ses": spells uses in an escape; *k: is a key whose text an anchor elsewhere supplies.
+escaped_key='^[[:space:]]*(-[[:space:]]+)?"[^"]*[\\][^"]*"[[:space:]]*:'
+alias_key='^[[:space:]]*(-[[:space:]]+)?[*][^[:space:]:]+[[:space:]]*:'
 pinned='@[0-9a-f]{40}$'
 
 reject() {
@@ -134,6 +137,11 @@ for file in "${action_files[@]}"; do
         [[ $line =~ ^[[:space:]]*# ]] && continue
         where="${file}:${lineno}: ${line}"
 
+        if [[ $line =~ $escaped_key || $line =~ $alias_key ]]; then
+            reject "an escaped or aliased mapping key, which this check cannot read:" \
+                "Write the key plainly, as \`uses: VALUE\`."
+            continue
+        fi
         if [[ $line =~ $explicit_key ]]; then
             reject "an explicit \`?\` mapping key, which this check cannot read:" \
                 "Write the key plainly, as \`uses: VALUE\`."
@@ -161,6 +169,10 @@ for file in "${action_files[@]}"; do
         done
 
         case "$value" in
+            *..*)
+                reject "a local path containing '..', which could leave the scanned directories:"
+                continue
+                ;;
             ./.github/actions/* | ./.github/workflows/*) continue ;;
             ./*)
                 reject "a local action outside .github/actions/, which this check does not scan:"

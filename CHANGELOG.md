@@ -294,8 +294,9 @@ Release codenames follow the six Noongar seasons — Birak, Bunuru, Djeran, Maku
       under `.github/actions/`. It fails an action owned by anyone but GitHub or `setonix-os`, one
       not pinned to a full commit SHA, and the toolchain installers it already banned, now however
       their value is quoted. Because a grep cannot parse YAML, it accepts `uses:` in one plain form
-      and fails every other spelling of the key, such as a flow mapping, a quoted key or a space
-      before the colon, each of which a narrower pattern would have waved through. `CLAUDE.md`
+      and fails every other spelling of the key, such as a flow mapping, a quoted, escaped or
+      aliased key or a space before the colon, each of which a narrower pattern would have waved
+      through; a local action path containing `..` fails too. `CLAUDE.md`
       § Toolchain states the owner rule and defers to `STYLE.md` § Action Pinning for the pin.
     - Neither workflow grants `packages: read` any longer, since nothing reads the registry with
       the token; main's boot job keeps `packages: write`. Every `run:` step runs under bash with
