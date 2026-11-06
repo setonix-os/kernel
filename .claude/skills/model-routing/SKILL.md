@@ -13,15 +13,14 @@ Match the model to the difficulty of the task, not to its importance alone.
 
 | Work | Choice |
 |------|--------|
-| Implementers, investigations, fixes of real bugs | Opus at medium effort |
-| Hard design, `unsafe` or boot code; `/review`'s soundness and adversary lenses | Opus at high effort |
-| `/review`'s rules-and-documents lens; fixes that are all documents or nits | Sonnet at high or medium |
-| Mechanical work with a checkable answer: scanning a log, listing links, summing a table | Haiku, checked |
+| Nearly everything: implementers, fixes, investigations, every review lens | Opus at medium effort |
+| The exception, with the reason stated: `unsafe` or boot code, or a review round that a medium one plainly missed | Opus at high effort |
+| Mechanical work with a checkable answer: scanning a log, listing links, summing a table | A cheaper model, checked |
 | Frontier-hard work only | Fable, with the reason stated |
 
-Avoid maximum effort: it costs about twice what high does, and high still finds the serious defects.
-Measure before cheapening a review that guards security. If a cheaper reviewer misses a high that a
-later round finds, go back at once.
+Opus at medium as the default is a trial, on the maintainer's word of 2026-11-06: log what each run
+found, and go up a level at once if a medium review misses a high that a later round finds. Avoid
+maximum effort: it costs about twice what high does, and high still finds the serious defects.
 
 ## How many
 
