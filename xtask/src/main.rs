@@ -177,7 +177,10 @@ Options:
                             (e.g. provoke-exception, for the exception self-test)
   --debug                   run-qemu only: halt at reset and await gdb on :1234
   --expect <string>         boot-test only: the string that must appear
-  --timeout <seconds>       boot-test only: deadline (default: 30)"
+  --timeout <seconds>       boot-test only: deadline (default: 30)
+
+The kernel build always passes --locked. Run xtask as `cargo xtask`, which
+brings Cargo.lock up to date first; CI's `cargo --locked xtask` refuses instead."
     );
 }
 

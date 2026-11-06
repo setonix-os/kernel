@@ -18,11 +18,11 @@ concurrency:
     group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
     cancel-in-progress: true
 
-# devcontainers/ci does not carry the runner's environment into the container:
-# it forwards only the variables its `env` input names, plus the GITHUB_* file
-# paths. Every devcontainers/ci step therefore names CARGO_TERM_COLOR and
-# RUSTFLAGS there; a bare name takes its value from this block, which stays the
-# single source.
+# devcontainers/ci does not, by default (inheritEnv), carry the runner's
+# environment into the container: it forwards only the variables its `env` input
+# names, plus the GITHUB_* file paths. Every devcontainers/ci step therefore
+# names CARGO_TERM_COLOR and RUSTFLAGS there; a bare name takes its value from
+# this block, which stays the single source.
 env:
     CARGO_TERM_COLOR: always
     RUSTFLAGS: "-Dwarnings"
@@ -47,7 +47,8 @@ jobs:
             - name: Checkout repository
               uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
               with:
-                persist-credentials: false # nothing after checkout uses git credentials
+                # Nothing after checkout uses git credentials, so none are persisted.
+                persist-credentials: false
 
             - name: Run checks in the devcontainer
               uses: devcontainers/ci@513af61f4de4f75d37e4438f184ba4358f0fc1ca # v0.3.1900000450
@@ -78,8 +79,8 @@ jobs:
                     bash .github/scripts/check-british-spelling.sh
                     echo "::endgroup::"
 
-                    # The one cargo command without --locked: cargo fmt rejects
-                    # the flag, and leaves the lockfile alone in any case.
+                    # The one cargo build or check here without --locked: cargo
+                    # fmt rejects the flag, and leaves the lockfile alone anyway.
                     echo "::group::Formatting"
                     cargo fmt --all --check
                     echo "::endgroup::"
@@ -90,7 +91,7 @@ jobs:
 
                     # Both Tier-1 architectures on every pull request, so neither
                     # becomes the one that only builds "usually" (§6). Scoped by
-                    # package: the workspace holds two crates with incompatible
+                    # package: the workspace's crates have incompatible
                     # targets, and an unscoped --target would try to build the
                     # host tool for bare metal.
                     for target in aarch64-unknown-none-softfloat x86_64-unknown-none; do
@@ -129,7 +130,8 @@ jobs:
             - name: Checkout repository
               uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
               with:
-                persist-credentials: false # nothing after checkout uses git credentials
+                # Nothing after checkout uses git credentials, so none are persisted.
+                persist-credentials: false
 
             # The smoke test that matters. One assertion, but it exercises the
             # link script, the boot stub, the stack, .bss zeroing, the
