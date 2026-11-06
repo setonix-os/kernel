@@ -30,6 +30,17 @@ recorded is indistinguishable from law that was never agreed.
   irrevocable once handed on. Payer destruction of every other type and `pool_reclaim` are left to a
   separate draft, RFC-0003b. It proposes dated amendments to RFC-0003, RFC-0004 and O-3's text, and six
   to the proposed RFC-0005/0006/0007; the Phase-1 demo needs only the badge register reserved. 412 lines.
+- `docs/rfcs/0003b-pool-reclaim-and-payer-destruction.md` — **draft**, held for validation against an
+  executable model before it is reviewed again. It holds the half of selective revocation that meets
+  RFC-0005's accounting and RFC-0006's scheduling, split from RFC-0003a: `REVOKE` on the paying Pool
+  destroys any object at its own RFC's bound, payer `KILL` included; `pool_reclaim` destroys everything a
+  Pool paid for wherever it went, restartable from the list head, and then the Pool itself; balance crosses
+  one funding edge, dying Pools let nothing out, and Pools nest at most eight deep. A context destroyed
+  while lent to a passive server finishes its loan before it dies, so reclaim never strands a shared
+  server mid-request, and servers otherwise depend only on what they pay for. `SchedControl` and
+  `IrqControl` go to a resource server behind a root-held forwarder. It lists the properties the model
+  must show and proposes seven amendments, one to RFC-0003a and six to the proposed RFC-0005/0006/0007.
+  294 lines.
 - `docs/rfcs/0005-address-spaces-and-physical-memory.md` — **proposed**, the memory half of Phase 1 and
   the first of three interlocking kernel RFCs drafted together with RFC-0006 and RFC-0007. Physical
   memory comes from firmware tables into one bounded `MemoryMap` (the image moves to 0x4020_0000 because
