@@ -19,9 +19,9 @@ greeting you by name.
 components (e.g. from Redox OS) retain their notices and are incorporated under
 GPLv3 as permitted by the MIT licence.
 
-**Language:** Rust. No exceptions beyond the minimal assembly required for boot
-and process entry, kernel entry and exit, context switching, and single-instruction
-operations stable Rust cannot express.
+**Language:** Rust. No exceptions beyond the minimal assembly required for boot,
+process and thread entry, kernel entry and exit, context switching, and single
+instructions or indivisible pairs stable Rust cannot express.
 
 **Status:** Phase 1. Phase 0 is complete — the constitution, the settled Borrow
 Ledger, and the threat model (`docs/threat-model.md`) are all written. The
@@ -79,10 +79,8 @@ The kernel is hand-written and minimal. It provides mechanism, never policy.
   sender→receiver switch; bulk data moves zero-copy through shared-memory
   regions established out of band, IPC carrying only small descriptors. *(L4,
   as corrected by RFC-0004)*
-- **Everything is a message.** A `call` to a passive server lends it the caller's
-  scheduling context, and with it the caller's priority; a priority ceiling on the
-  server bounds the inversion that remains, and is required of any server shared
-  across trust domains. *(QNX; seL4 MCS)*
+- **Everything is a message**, with priority inheritance to prevent priority
+  inversion. *(QNX)*
 - **Typed, bidirectional channels** as the userspace-facing IPC abstraction.
   *(Fuchsia/Zircon)*
 - **Known graves to avoid:** multi-copy IPC (Mach), policy in the kernel

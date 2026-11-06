@@ -17,14 +17,14 @@
 > 2. **Thread:** ten states, one of them `Unfunded`; born at priority 0; fault handlers held in the thread (§4).
 > 3. **Time is a capability:** a `SchedContext`, configured only through its core's `SchedControl` (§5).
 > 4. **Budgets are caps, not minima:** a guaranteed minimum is admission policy, unlike research/0002 (§5).
-> 5. **Priorities:** 256 fixed levels; any capability to a thread lends its MCP; no new right (§6).
+> 5. **Priorities:** 256 fixed levels; any capability to a thread lends its priority ceiling; no new right (§6).
 > 6. **Endpoint queues are priority-ordered,** first come, first served within a level, as in seL4 MCS (§6).
 > 7. **Donation:** `call` lends time to a *passive* server; a caller's death never takes it back mid-request (§7).
 > 8. **Budget guard:** endpoints carry a `min_budget` checked at `call`; expiry fails one hop back (§7).
 > 9. **Timer:** tickless per-core deadlines; userspace timers become deadline objects on the same queue (§8).
 > 10. **FP/SIMD:** off by default, enabled per thread, saved lazily; the kernel touches it only to save and restore it (§10).
 > 11. **Interrupts and cores:** a line signals a notification; one big lock; a core starts when funded (§11–§12).
-> 12. **Amendments:** A1–A6 to RFC-0004, RFC-0003 and research/0002; C1, the constitutional question, answered (§13).
+> 12. **Amendments:** A1–A6 to RFC-0004, RFC-0003 and research/0002; C1, a constitutional question for the maintainer (§13).
 
 ## 1. The question
 
@@ -196,14 +196,13 @@ priority inheritance; seL4 MCS passive servers.)*
 **An active receiver gets no donation (amendment A1).** It runs on its own context and priority, as in seL4 MCS
 (`reply_push`, `src/object/reply.c`, donates only to a receiver with none): a thread holds one context, and an
 active server chose to pay for itself. RFC-0004 §4 and §8 lend unconditionally, so this amends them. **The
-cost:** an active server inherits nothing, and a low-priority one blocks urgent clients; Constitution §3
-speaks of donation to passive servers (C1, §13).
+cost:** an active server inherits nothing, and a low-priority one blocks urgent clients; Constitution §3's
+inheritance would hold for passive servers only, which is the question C1 (§13) puts to the maintainer.
 
 **Inversion, bounded.** Priority-ordered queues serve the most urgent waiter next, but the request in service
 runs on its client's context and a middle-priority thread can preempt it. `prio(S)` is therefore a **ceiling
 floor**, bounding inversion to one request when set to the highest client priority *(the priority-ceiling bound
-seL4 MCS relies on)* — **required, not optional, for a server shared across trust domains**, passive or active. For an active server the
-bound also assumes a context that cannot be throttled mid-request.
+seL4 MCS relies on)* — **required, not optional, for a server shared across trust domains**, passive or active.
 **Rejected:** boosting a busy server to a waiting sender's priority (QNX): the kernel would guess which thread
 serves an endpoint and walk unbounded chains.
 
@@ -392,17 +391,16 @@ Phase 1 runs `-smp 1`; the shape is fixed now so multicore is not bolted on.
 Each of A1–A6, if accepted, is appended to its target as a dated amendment and logged in `docs/CHANGELOG.md`
 (Changed). C1 is not an amendment this RFC can propose: constitution text is the maintainer's alone (§4, §11.1),
 so C1 only names the question A1 raises, and A1 cannot be accepted without an answer to it.
-Constitution §3 was amended to answer it on 2026-11-06.
 
 | # | Target | Change | Why |
 |---|--------|--------|-----|
-| A1 | RFC-0004 §4, §8 | `call` donates only to a **passive** receiver, which runs at `max(prio(S), eff(C))` rather than the caller's priority; an active one runs on its own context | a thread holds one context; seL4 MCS `reply_push`; cost in §7 |
+| A1 | RFC-0004 §4, §8 | `call` donates only to a **passive** receiver; an active one runs on its own context | a thread holds one context; seL4 MCS `reply_push`; cost in §7 |
 | A2 | RFC-0004 amendment 2026-08-01 | a caller short *now* waits `Throttled`; only a context that can *never* pass is refused | refusal makes clients spin; nothing is donated below the bar either way |
 | A3 | the same, and research/0002 Part 6 | seL4's timeout faults ship in MCS (`seL4_Fault_Timeout`); what is unmerged is RFC-14's threshold | a factual correction to "have remained future work" |
 | A4 | RFC-0003 §14.2 | the big lock covers the fast path for now; the question stays open (Open question 9) | §12; Peters et al. 2015 |
 | A5 | research/0002 Part 6 | budgets are caps, not minima: the kernel enforces a sporadic cap, and a guaranteed minimum is the `SchedControl` holder's admission policy | verdict 4; a cap is what makes fixed-priority admission sound, and a kernel-guaranteed minimum would be policy (§5) |
 | A6 | RFC-0003 §6 | a capability may also rest in a kernel-held slot of a thread (`fault_ep`, `timeout_ep`), moved in and out with `TRANSFER` and generation-checked when used | RFC-0003's invariant names only "one table, or in flight in exactly one message"; the thread slots are a third place (§4) |
-| C1 | Constitution §3, "with priority inheritance" | **answered 2026-11-06 by amending §3:** under A1, inheritance holds through donation to passive servers, and an active server runs on its own priority, a ceiling bounding the inversion (§7) | A1 narrows a constitutional clause, which no RFC can do on its own authority |
+| C1 | Constitution §3, "with priority inheritance" | for the maintainer: under A1, inheritance holds through donation to passive servers, and an active server runs on its own priority, a ceiling bounding the inversion (§7) | A1 narrows a constitutional clause, which no RFC can do on its own authority |
 
 ## 14. Lineage
 

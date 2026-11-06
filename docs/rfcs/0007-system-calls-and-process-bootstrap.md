@@ -293,7 +293,7 @@ The one act the kernel performs unasked: at boot it builds **exactly one** proce
 module and gives it every boot capability *(seL4's root task; research/0002 Part 3 and its synthesis, "the
 bootstrap seam is a one-time kernel act")* — an AddressSpace, the segments mapped as in §10, a stack, a read-only
 **BootInfo** page, a Process and a Thread in §3's entry state with `a0` = BootInfo's address and `a1` = 0.
-Its priority, MCP and full context are RFC-0006 (proposed) §6's one bootstrap act.
+Its priority, ceiling and full context are RFC-0006 (proposed) §6's one bootstrap act.
 
 **BootInfo**, in `user/abi`, is a header (magic, version, length), one
 `#[repr(C)] BootCap { kind: u32, rights: u32, handle: u64, base: u64, size: u64 }` per initial capability, and

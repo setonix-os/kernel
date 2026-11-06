@@ -3,7 +3,7 @@
 // AArch64 boot stub — the first Setonix instructions to execute.
 //
 // Assembly is the one place the constitution allows outside Rust, and it is kept
-// to the minimum its Language clause allows; this file is the boot half. Every
+// to the minimum its Language clause allows; this file is the boot path. Every
 // instruction here should be checked against the Arm Architecture Reference Manual
 // by the reviewer before it merges — §5.3 delegates the writing of the kernel core, not
 // the understanding of it, and this file is the least forgiving in the tree.
