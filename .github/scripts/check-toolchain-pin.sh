@@ -11,17 +11,18 @@
 #      .devcontainer/Dockerfile. Two files, one version.
 #   2. Both Tier-1 bare-metal targets must still be listed. A toolchain file that
 #      had quietly lost one would let a one-architecture kernel pass CI.
-#   3. No workflow, and no script CI runs, may install a toolchain of its own.
-#      This is the check that keeps the arrangement honest: the moment a
+#   3. No workflow, composite action or script CI runs may install a toolchain of
+#      its own. This is the check that keeps the arrangement honest: the moment a
 #      `dtolnay/rust-toolchain` or a `setup-node` reappears in .github/workflows/,
 #      or a `rustup toolchain install` in .github/scripts/, CI has a second source of
 #      truth for a version and §7's guarantee is gone — silently, because
 #      everything would still build.
-#   4. Every action a workflow `uses:` is owned by GitHub (`actions/`, `github/`)
-#      or by this organisation (`setonix-os/`). The repository's Actions policy
-#      allows nothing else, so a third-party action would fail only once CI ran
-#      it; this check fails it before the push. Anything else a workflow needs is
-#      a `run:` step, in the open, where its review is the review of the diff.
+#   4. Every action a workflow or composite action `uses:` is owned by GitHub
+#      (`actions/`, `github/`) or by this organisation (`setonix-os/`), and is
+#      pinned to a full commit SHA. The repository's Actions policy allows no other
+#      owner, so a third-party action would fail only once CI ran it; this check
+#      fails it before the push. Anything else a workflow needs is a `run:` step,
+#      in the open, where its review is the review of the diff.
 #
 # Resolves paths relative to the repository root regardless of the caller's CWD.
 
@@ -76,9 +77,24 @@ for target in aarch64-unknown-none-softfloat x86_64-unknown-none; do
     fi
 done
 
-# --- 3. No workflow may bring its own toolchain ----------------------------
-# Each pattern is an action that would install a language runtime or compiler
-# outside the container, creating a version that can drift from the Dockerfile's.
+# --- 3 and 4. What workflows and composite actions may use ------------------
+# One scan of every `uses:` in .github/workflows/ and in each composite action
+# under .github/actions/ (whose steps a workflow pulls in unseen). A value must:
+#
+#   - not be an action that installs a toolchain (rule 3);
+#   - be owned by GitHub or by setonix-os, or be a local path under
+#     .github/actions/ or .github/workflows/, which this scan covers (rule 4);
+#   - be pinned to a full commit SHA, as STYLE.md § Action Pinning requires.
+#     Dependabot writes `@<sha> # vX.Y.Z`, and the comment is stripped first.
+#
+# A grep cannot parse YAML, so instead of trying to, this check accepts `uses:`
+# in exactly one form, `uses: VALUE` as a mapping key or as the first key of a
+# list item, and fails every other way of writing it: a space before the colon,
+# a quoted key, a flow mapping or sequence, a value on the next line, or an
+# explicit `?` key. Each is valid YAML that GitHub would honour and a narrower
+# pattern would have waved through. Full-line comments are skipped; anything
+# else that merely contains the word `uses` before a colon, even in a `run:`
+# script, is refused too, and is reworded rather than special-cased.
 
 forbidden_actions=(
     'dtolnay/rust-toolchain'
@@ -89,61 +105,103 @@ forbidden_actions=(
     'actions/setup-java'
 )
 
-for action in "${forbidden_actions[@]}"; do
-    if grep -rn "uses:[[:space:]]*${action}" .github/workflows/ >/dev/null 2>&1; then
-        echo "ERROR: .github/workflows/ uses '${action}', which installs a toolchain" >&2
-        echo "       outside the devcontainer. §7 requires CI to run the same image," >&2
-        echo "       so tool versions belong in .devcontainer/Dockerfile and nowhere" >&2
-        echo "       else. Offending lines:" >&2
-        grep -rn "uses:[[:space:]]*${action}" .github/workflows/ >&2
-        fail=1
+quote="[\"']"
+canonical='^[[:space:]]*(-[[:space:]]+)?uses:[[:space:]]'
+any_uses_key="(^|[^[:alnum:]_-])${quote}?uses${quote}?[[:space:]]*:"
+explicit_key='^[[:space:]]*(-[[:space:]]+)?[?]([[:space:]]|$)'
+pinned='@[0-9a-f]{40}$'
+
+reject() {
+    echo "ERROR: $1" >&2
+    echo "       ${where}" >&2
+    shift
+    for detail in "$@"; do echo "       ${detail}" >&2; done
+    fail=1
+}
+
+mapfile -t action_files < <(
+    find .github/workflows -type f \( -name '*.yml' -o -name '*.yaml' \) 2>/dev/null
+    if [[ -d .github/actions ]]; then
+        find .github/actions -type f \( -name 'action.yml' -o -name 'action.yaml' \)
     fi
+)
+
+uses_seen=0
+for file in "${action_files[@]}"; do
+    lineno=0
+    while IFS= read -r line || [[ -n $line ]]; do
+        lineno=$((lineno + 1))
+        [[ $line =~ ^[[:space:]]*# ]] && continue
+        where="${file}:${lineno}: ${line}"
+
+        if [[ $line =~ $explicit_key ]]; then
+            reject "an explicit \`?\` mapping key, which this check cannot read:" \
+                "Write the key plainly, as \`uses: VALUE\`."
+            continue
+        fi
+        if ! [[ $line =~ $canonical ]]; then
+            if [[ $line =~ $any_uses_key ]]; then
+                reject "\`uses\` written in a form this check cannot read:" \
+                    "Write it as \`uses: VALUE\`, a block mapping key on one line."
+            fi
+            continue
+        fi
+
+        uses_seen=$((uses_seen + 1))
+        value=${line#*uses:}
+        value=${value%%#*}
+        value=$(sed -E "s/^[[:space:]]*['\"]?//; s/['\"]?[[:space:]]*$//" <<<"$value")
+
+        for action in "${forbidden_actions[@]}"; do
+            if [[ $value == "$action" || $value == "$action"@* || $value == "$action"/* ]]; then
+                reject "'${action}' installs a toolchain outside the devcontainer:" \
+                    "§7 requires CI to run the same image, so tool versions belong in" \
+                    ".devcontainer/Dockerfile and nowhere else."
+            fi
+        done
+
+        case "$value" in
+            ./.github/actions/* | ./.github/workflows/*) continue ;;
+            ./*)
+                reject "a local action outside .github/actions/, which this check does not scan:"
+                continue
+                ;;
+            actions/* | github/* | setonix-os/*) ;;
+            *)
+                reject "an action owned by neither GitHub nor setonix-os:" \
+                    "The repository allows no other, so CI would refuse '${value}'." \
+                    "Write the step as \`run:\` instead (CLAUDE.md § Toolchain)."
+                ;;
+        esac
+
+        if ! [[ $value =~ $pinned ]]; then
+            reject "an action not pinned to a full commit SHA:" \
+                "Pin '${value%@*}' to a 40-character SHA with a \`# vX.Y.Z\` comment (STYLE.md § Action Pinning)."
+        fi
+    done <"$file"
 done
 
-# Installing a toolchain by hand inside a workflow step, or in a script CI runs
-# (the checks job runs check-all.sh), defeats the same rule.
+if [[ $uses_seen -eq 0 ]]; then
+    echo "ERROR: found no \`uses:\` in .github/workflows/; the action checks would" >&2
+    echo "       pass by checking nothing. Has the layout changed?" >&2
+    fail=1
+fi
+
+# Installing a toolchain by hand inside a workflow step, a composite action, or a
+# script CI runs (the checks job runs check-all.sh) defeats rule 3 the same way.
 # Deliberately unanchored: the install idiom usually appears mid-line inside a
 # `run: |` block scalar (`curl ... sh.rustup.rs | sh`), where an anchored
 # pattern never matches.
+hand_install_dirs=(.github/workflows/ .github/scripts/)
+if [[ -d .github/actions ]]; then hand_install_dirs+=(.github/actions/); fi
 if grep -rnE --exclude=check-toolchain-pin.sh '(sh\.rustup\.rs|rustup (default|toolchain install))' \
-        .github/workflows/ .github/scripts/ >/dev/null 2>&1; then
-    echo "ERROR: a workflow or CI script installs or switches a Rust toolchain by hand." >&2
-    echo "       The image's pinned toolchain is the only one CI may use (§7)." >&2
+        "${hand_install_dirs[@]}" >/dev/null 2>&1; then
+    echo "ERROR: a workflow, composite action or CI script installs or switches a Rust" >&2
+    echo "       toolchain by hand. The image's pinned toolchain is the only one CI may use (§7)." >&2
     grep -rnE --exclude=check-toolchain-pin.sh '(sh\.rustup\.rs|rustup (default|toolchain install))' \
-        .github/workflows/ .github/scripts/ >&2
+        "${hand_install_dirs[@]}" >&2
     fail=1
 fi
-
-# --- 4. Only GitHub's and our own actions ----------------------------------
-# Every `uses:` value, in any of YAML's three quotings, with a trailing comment
-# stripped. A list item (`- uses:`) and a mapping key (`uses:`) are both
-# matched, which is every form a step or a reusable-workflow call can take.
-# A `./` path is an action in this repository, and so ours by definition.
-
-uses_lines=$(grep -rnE '^[[:space:]]*(-[[:space:]]+)?uses:' .github/workflows/ || true)
-
-if [[ -z "$uses_lines" ]]; then
-    echo "ERROR: found no \`uses:\` in .github/workflows/; the action-owner check" >&2
-    echo "       would pass by checking nothing. Has the layout changed?" >&2
-    fail=1
-fi
-
-while IFS= read -r line; do
-    [[ -z "$line" ]] && continue
-    value=${line#*uses:}
-    value=${value%%#*}
-    value=$(sed -E "s/^[[:space:]]*['\"]?//; s/['\"]?[[:space:]]*$//" <<<"$value")
-    case "$value" in
-        actions/* | github/* | setonix-os/* | ./*) ;;
-        *)
-            echo "ERROR: a workflow uses an action owned by neither GitHub nor setonix-os:" >&2
-            echo "       ${line}" >&2
-            echo "       The repository allows no other, so CI would refuse '${value}'." >&2
-            echo "       Write the step as \`run:\` instead (CLAUDE.md § Toolchain)." >&2
-            fail=1
-            ;;
-    esac
-done <<<"$uses_lines"
 
 if [[ $fail -ne 0 ]]; then
     exit 1
@@ -152,4 +210,4 @@ fi
 echo "OK: Rust pinned to $toml_channel in rust-toolchain.toml and $dockerfile"
 echo "OK: both Tier-1 bare-metal targets present"
 echo "OK: no workflow or CI script installs a toolchain outside the devcontainer"
-echo "OK: every action a workflow uses is GitHub's or setonix-os's"
+echo "OK: every action used is GitHub's or setonix-os's, pinned to a full SHA"
