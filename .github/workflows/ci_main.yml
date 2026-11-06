@@ -1,11 +1,10 @@
 name: CI - Main Branch
 
+# Read-only by default. The one job that publishes raises its own scope below,
+# so the checks job never holds write access to the registry.
 permissions:
     contents: read
-    # Main is the only branch that publishes the devcontainer image, which then
-    # serves as the layer cache every pull request pulls from. Same discipline as
-    # a build cache: write on main, read everywhere else.
-    packages: write
+    packages: read
 
 on:
     push:
@@ -15,6 +14,11 @@ concurrency:
     group: ${{ github.workflow }}-${{ github.ref }}
     cancel-in-progress: true
 
+# devcontainers/ci does not, by default (inheritEnv), carry the runner's
+# environment into the container: it forwards only the variables its `env` input
+# names, plus the GITHUB_* file paths. Every devcontainers/ci step therefore
+# names CARGO_TERM_COLOR and RUSTFLAGS there; a bare name takes its value from
+# this block, which stays the single source.
 env:
     CARGO_TERM_COLOR: always
     RUSTFLAGS: "-Dwarnings"
@@ -32,6 +36,9 @@ jobs:
         steps:
             - name: Checkout repository
               uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+              with:
+                # Nothing after checkout uses git credentials, so none are persisted.
+                persist-credentials: false
 
             - name: Run checks in the devcontainer
               uses: devcontainers/ci@513af61f4de4f75d37e4438f184ba4358f0fc1ca # v0.3.1900000450
@@ -41,19 +48,37 @@ jobs:
                 # Published only after the boot job below has also passed, so
                 # this step builds and runs without pushing.
                 push: never
+                env: |
+                    CARGO_TERM_COLOR
+                    RUSTFLAGS
                 # The list of checks exists once, in the script, so that the command a
-                # contributor runs before pushing is exactly this one.
-                runCmd: bash .github/scripts/check-all.sh --github
+                # contributor runs before pushing is exactly this one. The guard runs
+                # first because check-all.sh supplies -Dwarnings itself when RUSTFLAGS
+                # is unset, which here would hide a name with.env failed to forward.
+                runCmd: |
+                    set -euo pipefail
+                    : "${RUSTFLAGS:?RUSTFLAGS was not forwarded into the container}"
+                    bash .github/scripts/check-all.sh --github
 
     boot:
         name: Boot (QEMU aarch64 virt)
         needs: checks
         runs-on: ubuntu-latest
         timeout-minutes: 30
+        # Main is the only branch that publishes the devcontainer image, which
+        # then serves as the layer cache every pull request pulls from. Same
+        # discipline as a build cache: write on main, read everywhere else. Job
+        # permissions replace the workflow's, so contents is restated.
+        permissions:
+            contents: read
+            packages: write
 
         steps:
             - name: Checkout repository
               uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+              with:
+                # Nothing after checkout uses git credentials, so none are persisted.
+                persist-credentials: false
 
             - name: Log in to GitHub Container Registry
               uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
@@ -75,11 +100,16 @@ jobs:
                 imageName: ${{ env.DEVCONTAINER_IMAGE }}
                 cacheFrom: ${{ env.DEVCONTAINER_IMAGE }}
                 push: always
+                env: |
+                    CARGO_TERM_COLOR
+                    RUSTFLAGS
                 runCmd: |
                     set -euo pipefail
-                    cargo xtask boot-test --arch aarch64 --expect "Kaya!"
-                    cargo xtask boot-test --arch aarch64 --release --expect "Kaya!"
-                    cargo xtask boot-test --arch aarch64 --features provoke-exception --expect "BRK instruction"
+                    # with.env forwards it; a name missing there arrives unset, and warnings pass again.
+                    : "${RUSTFLAGS:?RUSTFLAGS was not forwarded into the container}"
+                    cargo --locked xtask boot-test --arch aarch64 --expect "Kaya!"
+                    cargo --locked xtask boot-test --arch aarch64 --release --expect "Kaya!"
+                    cargo --locked xtask boot-test --arch aarch64 --features provoke-exception --expect "BRK instruction"
 
     ci-success:
         name: CI Success

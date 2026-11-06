@@ -177,7 +177,10 @@ Options:
                             (e.g. provoke-exception, for the exception self-test)
   --debug                   run-qemu only: halt at reset and await gdb on :1234
   --expect <string>         boot-test only: the string that must appear
-  --timeout <seconds>       boot-test only: deadline (default: 30)"
+  --timeout <seconds>       boot-test only: deadline (default: 30)
+
+The kernel build always passes --locked. Run xtask as `cargo xtask`, which
+brings Cargo.lock up to date first; CI's `cargo --locked xtask` refuses instead."
     );
 }
 
@@ -226,12 +229,18 @@ fn cargo() -> String {
 }
 
 /// Cross-compiles the kernel and returns the path to the resulting image.
+///
+/// The inner build is always `--locked`, which costs nothing locally: the
+/// `cargo run` that started xtask has already resolved the whole workspace's
+/// lockfile, so it is current by the time this runs. Under `cargo --locked
+/// xtask`, as CI invokes it, both builds then refuse a stale lockfile.
 fn build(arch: Arch, release: bool, features: Option<&str>) -> Result<PathBuf> {
     let root = workspace_root()?;
 
     let mut command = Command::new(cargo());
     command.current_dir(&root).args([
         "build",
+        "--locked",
         "--package",
         "setonix-kernel",
         "--target",
