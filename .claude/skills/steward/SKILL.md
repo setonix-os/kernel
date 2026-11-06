@@ -1,6 +1,7 @@
 ---
+# SPDX-License-Identifier: GPL-3.0-or-later
 name: steward
-description: "Keep the project's skills true: fold in what this session taught, fix stale commands, merge or split skills. Run from /checkpoint at the end of a working session, and whenever a skill's instructions turn out wrong."
+description: "Keep the project's skills true: fold in what this session taught, fix stale commands, merge or split skills. Run from /handoff at the end of a working session, and whenever a skill's instructions turn out wrong."
 ---
 
 The skills are how a session starts from what earlier sessions learned, so a stale one misleads

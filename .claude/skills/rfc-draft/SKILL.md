@@ -1,4 +1,5 @@
 ---
+# SPDX-License-Identifier: GPL-3.0-or-later
 name: rfc-draft
 description: "Draft or revise an RFC under docs/rfcs/, and check it before review. Use for any design decision (constitution §5.5)."
 ---
@@ -29,12 +30,12 @@ obligations it must discharge.
 For a design with hard cases, write down every case and the result each must give before drafting
 mechanisms. Meeting them one review round at a time costs far more.
 
-If reviews keep finding holes at the seams, stop and model it (`/review` § When to stop).
+If reviews keep finding holes at the seams, stop and model it (`/pr-review` § When to stop).
 
 ## Lessons
 
 - **2026-11-06 — a number is not a reservation.** A bootstrap draft sat uncommitted while another
-  session used its number for a different RFC, and two of its rules were nearly lost. Commit a draft
-  early, on a branch.
+  session used its number for a different RFC, and three of its rules were nearly lost. Push a draft
+  early, on its own branch, whatever `/pre-push` says of finished work.
 - **2026-11-06 — one word can overclaim.** "Nothing is lost" was false while the project's own
-  changelog recorded the exception.
+  changelog recorded the exception. This is why step 1 exists.

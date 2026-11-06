@@ -1,4 +1,5 @@
 ---
+# SPDX-License-Identifier: GPL-3.0-or-later
 name: fact-check
 description: "Verify what a document claims: citations, numbers, file paths and statements about the tree. Use on any RFC or research note before review, and on any claim about hardware, QEMU or another system."
 ---

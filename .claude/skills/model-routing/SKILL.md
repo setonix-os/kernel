@@ -1,4 +1,5 @@
 ---
+# SPDX-License-Identifier: GPL-3.0-or-later
 name: model-routing
 description: "Choose the model, effort and number of agents for a piece of work, brief them, and log what they cost. Use before spawning any agent."
 ---
@@ -9,11 +10,9 @@ rebuilt context, and rounds a checklist would have avoided.
 
 ## Which model
 
-Match the model to the difficulty of the task, not to its importance alone.
-
 | Work | Choice |
 |------|--------|
-| Nearly everything: implementers, fixes, investigations, every review lens | Opus at medium effort |
+| Nearly everything: implementers, fixes, investigations, every `/pr-review` lens | Opus at medium effort |
 | The exception, with the reason stated: `unsafe` or boot code, or a review round that a medium one plainly missed | Opus at high effort |
 | Mechanical work with a checkable answer: scanning a log, listing links, summing a table | A cheaper model, checked |
 | Frontier-hard work only | Fable, with the reason stated |
@@ -39,12 +38,12 @@ Reviews take most of the tokens, so the cheapest review is the round not needed.
 `/rfc-draft`'s self-check, or the equivalent for code, before any reviewer starts.
 
 Every brief ends with the house rule: clean up what you made, and only that; never clear a shared
-scratchpad; report anything you could not remove. Reviews have their own brief: see `/review`.
+scratchpad; report anything you could not remove. Reviews have their own brief: see `/pr-review`.
 
 ## Afterwards
 
-Log each agent's tokens as its notification reports them, in `agent-usage-log.csv` in the superfolder,
-outside the repository: date, pull request, work, runs, tokens, model, effort, and what it found.
+Log each agent's tokens as its notification reports them, in the maintainer's `agent-usage-log.csv`, in
+the parent folder of his clone and outside the repository; where it is absent, report them instead: date, pull request, work, runs, tokens, model, effort, and what it found.
 Compare periodically, and take a refinement to the maintainer with a recommendation.
 
 Look for repeat costs unasked: the same fix by hand twice, a trap an agent fell into, a procedure that
@@ -61,7 +60,6 @@ should be a script or a skill. Say so at a natural pause, as a concrete proposal
   every file in a scratchpad shared with its session.
 - **2026-11-06 — measure across many runs.** In about 640 logged reviews on a sibling project, Opus
   reviewers found roughly ten times the highs per run that Sonnet did, at about twice the tokens.
-  Sonnet mostly had the lower-risk lenses, so that compares roles as much as models. It is why the
-  soundness lens stays on Opus.
-- **2026-11-06 — a third fresh pass still paid.** The boot-grant review went from three highs to
-  none in two rounds; the stop rule then saved a third.
+  Sonnet mostly had the lower-risk lenses, so that compares roles as much as models.
+- **2026-11-06 — medium can catch what high left.** A narrow Opus re-check at medium found two highs
+  in text that a round at high had just passed. One run proves little; it is why the trial is logged.

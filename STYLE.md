@@ -45,7 +45,7 @@ location.
 | Lint policy | `Cargo.toml` § `[workspace.lints]` |
 | Formatting rules | `.editorconfig`, `rustfmt.toml` |
 | Security policy | `SECURITY.md` |
-| Where the work stands, and work still to do | `TODO.md` |
+| Where the work stands, and work with no other home | `TODO.md` |
 | How recurring jobs are done, and their lessons | `.claude/skills/` |
 
 **Guidelines:**
