@@ -291,12 +291,12 @@ bootstrap seam is a one-time kernel act")* — an AddressSpace, the segments map
 **BootInfo** page, a Process and a Thread in §3's entry state with `a0` = BootInfo's address and `a1` = 0.
 Its priority, ceiling and full context are RFC-0006 (proposed) §6's one bootstrap act.
 
-**BootInfo**, in `user/abi`, is a header (magic, version, length), one `#[repr(C)] BootCap { kind: u32,
-flags: u32, handle: u64, base: u64, size: u64 }` per initial capability, and a string table for module
-names, pinned within a page by a host test. Every initial capability is *listed*, none at a well-known
-slot, so a reviewer can enumerate the whole grant. Kinds: the root's Process, the Console (§11), a
-read-only Region per further module with its descriptor; RFC-0005 adds the AddressSpace, the one root Pool
-and the DTB; RFC-0006 the Thread, a `SchedControl` per core and the `IrqControl`. Kinds appear as built.
+**BootInfo**, in `user/abi`, is a header (magic, version, length), one
+`#[repr(C)] BootCap { kind: u32, flags: u32, handle: u64, base: u64, size: u64 }` per initial capability, and
+a string table for module names, pinned within a page by a host test. Every initial capability is *listed*,
+none at a well-known slot, so a reviewer can enumerate the whole grant. Kinds: the root's Process, the Console
+(§11), a read-only Region per further module with its descriptor; RFC-0005 adds the AddressSpace, the one root
+Pool and the DTB; RFC-0006 the Thread, a `SchedControl` per core and the `IrqControl`. Kinds appear as built.
 
 **The root is not a superuser.** Its capabilities are ordinary, droppable and generation-checked, and **no
 kernel code branches on "is this the root task"**. They are **not revocable** until RFC-0003a, though

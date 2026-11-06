@@ -118,8 +118,8 @@ jobs:
             # available at this stage covers that much. Plain TCG, so no KVM and
             # no privileged container are required.
             #
-            # x86_64 is absent on purpose: q35 has no bare-ELF equivalent of
-            # -kernel, so that path needs a UEFI stub before it can boot at all.
+            # x86_64 is absent on purpose: QEMU's -kernel loads a 64-bit ELF only
+            # with a Xen PVH note, and the image has neither that nor a UEFI stub.
             # `cargo xtask boot-test --arch x86_64` says so explicitly rather
             # than failing obscurely.
             # Two boots: the ordinary path must greet, and the provoked path

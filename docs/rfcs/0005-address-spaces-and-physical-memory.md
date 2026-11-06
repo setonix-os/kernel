@@ -64,16 +64,16 @@ number into `&mut [u64; 512]` through a kernel window (§6, §13) is `unsafe`, i
 
 ## 4. Physical memory: discovery and the frame allocator
 
-**Discovery.** QEMU fixes RAM at 0x4000_0000 on `virt`; every other address "may vary" and comes from the
-DTB, "at the start of RAM" with no register naming it (`docs/system/arm/virt.rst`) — and `hw/arm/boot.c`
-puts it only *below* the image (`dtb_limit`). Checked on QEMU 8.2.2 and the pinned 11.0.3
-(`arm_setup_direct_kernel_boot`): an ELF at 0x4000_0000 gets the DTB written at physical 0x0 — the flash window,
-not RAM — and nothing in `x0`; at 0x4020_0000 it lands at 0x4000_0000 (`dtb_start = loader_start`, `dtb_limit =
-image_low_addr`), and `arm_load_dtb` silently drops a DTB that does not fit below the image. **So the image loads
-at 0x4020_0000**, capping the DTB at 2 MiB (`virt`'s is 1 MiB). A minimal FDT reader (Borrow Ledger boot-path
-row; Devicetree Specification v0.4) reads the cell sizes, `/memory`, `/memreserve/` and `/reserved-memory`,
-bounds-checks every offset and fails closed; threat model §10 gains a proposed assumption, *firmware tables
-describe memory truthfully*. x86_64's UEFI stub (no RFC yet) hands over `GetMemoryMap` after
+**Discovery.** QEMU fixes RAM at 0x4000_0000 on `virt`; every other address "may vary" and comes from the DTB,
+"at the start of RAM" with no register naming it (`docs/system/arm/virt.rst`) — and `hw/arm/boot.c` puts it
+only *below* the image (`dtb_limit`). Checked on QEMU 8.2.2 and the pinned 11.0.3
+(`arm_setup_direct_kernel_boot`): an ELF at 0x4000_0000 gets the DTB written at physical 0x0 — the flash
+window, not RAM — and nothing in `x0`; at 0x4020_0000 it lands at 0x4000_0000 (`dtb_start = loader_start`,
+`dtb_limit = image_low_addr`), and `arm_load_dtb` silently drops a DTB that does not fit below the image. **So
+the image loads at 0x4020_0000**, capping the DTB at 2 MiB (`virt`'s is 1 MiB). A minimal FDT reader (Borrow
+Ledger boot-path row; Devicetree Specification v0.4) reads the cell sizes, `/memory`, `/memreserve/` and
+`/reserved-memory`, bounds-checks every offset and fails closed; threat model §10 gains a proposed assumption,
+*firmware tables describe memory truthfully*. x86_64's UEFI stub (no RFC yet) hands over `GetMemoryMap` after
 `ExitBootServices`. **Both produce one `MemoryMap`**: same-kind neighbours coalesced, then at most **256**
 sorted, disjoint `(PhysRange, Kind)` entries (raw UEFI maps run to 100–200) — `Usable`, `KernelImage`,
 `DeviceTree`, `Reserved`, and `Mmio` from Phase 1's hard-coded addresses — failing closed beyond that; image,
@@ -254,11 +254,12 @@ execute-only exists on AArch64 but not on x86_64 without protection keys, so nei
    `mark_linear_text_alias_ro`)*. x86_64 has no `WXN`: `CR0.WP` and `SMEP` where present.
 
 `map RX` makes AArch64's instruction side coherent: `DC CVAU` via the physmap, `DSB ISH`, `IC IVAU` if PIPT
-(`IC IALLUIS` otherwise; Linux's `sync_icache_aliases`), `DSB ISH`, `ISB`; the Cortex-A72 reports PIPT (`CTR_EL0 =
-0x8444C004`); x86_64 is coherent in hardware. **QEMU models no cache, so errors here pass every test.** These
-and §12's `TLBI`s and `TTBR` writes are single-instruction `asm!` intrinsics in `kernel/src/arch/**`, as `wfe`
-is today — a reading of "minimal assembly" for the maintainer to confirm (§17.7). The physmap still aliases
-*user* code writable at EL1; writing through it only to zero, fill and reach IPC buffers is a convention (§16).
+(`IC IALLUIS` otherwise; Linux's `sync_icache_aliases`), `DSB ISH`, `ISB`; the Cortex-A72 reports PIPT
+(`CTR_EL0 = 0x8444C004`); x86_64 is coherent in hardware. **QEMU models no cache, so errors here pass every
+test.** These and §12's `TLBI`s and `TTBR` writes are single-instruction `asm!` intrinsics in
+`kernel/src/arch/**`, as `wfe` is today — a reading of "minimal assembly" for the maintainer to confirm
+(§17.7). The physmap still aliases *user* code writable at EL1; writing through it only to zero, fill and
+reach IPC buffers is a convention (§16).
 
 ## 10. Sharing and destruction (RFC-0004 §9.1)
 
@@ -429,8 +430,8 @@ jumps high and drops the identity entry — the same "Rust runs only high" rule.
 
 One reviewable PR each; **[demo]** marks what the demo needs. Pure logic lands in a new `memory/` crate as
 `capability/` does (`no_std` in the kernel, `std` under test, both targets in CI, no `unsafe`). Each new `arch`
-function gets a documented x86_64 stub — an empty `MemoryMap`, on which memory initialisation prints `mm: no
-memory map (UEFI stub pending)` and halts — so the second Tier-1 build compiles the whole path.
+function gets a documented x86_64 stub — an empty `MemoryMap`, on which memory initialisation prints
+`mm: no memory map (UEFI stub pending)` and halts — so the second Tier-1 build compiles the whole path.
 
 1. **[demo] Relink at 0x4020_0000; prove the DTB.** MMU off. `--expect "DTB 0xd00dfeed at 0x40000000"`.
 2. **[demo] Addresses, `MemoryMap`, FDT reader.** Host tests on a `dumpdtb` fixture, hostile blobs and later
