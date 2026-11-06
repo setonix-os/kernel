@@ -142,6 +142,29 @@ records how this project does a recurring job, and it ends with a dated **Lesson
 work goes wrong, or better than expected, the lesson goes into the skill it concerns in the same
 pull request as the fix, with the date and the cause, so the next session starts from it.
 
+Where the work stands lives in [TODO.md](TODO.md) § Resume here, which `/handoff` overwrites.
+Start a session with `git fetch origin`, then `git show origin/main:TODO.md`: the working tree may be
+behind it.
+
+## Never do these
+
+Those that cite a source restate it, so that a session meets the rule where it reads its
+instructions. The others are owned here.
+
+- Never push to `main`, merge a pull request, or approve one: the maintainer alone merges
+  (constitution §5.1).
+- Never amend `CONSTITUTION.md` or the Borrow Ledger of your own accord: raise the question, and draft
+  only on the maintainer's instruction (`CONTRIBUTING.md` § Amending the constitution).
+- Never edit `CODE_OF_CONDUCT.md` or `LICENCE`, and never vendored text (constitution §11.5).
+- Never change GitHub settings, rulesets or package visibility: advise, and the maintainer applies.
+- Never bypass signing or hooks, and never loosen a check to pass it: change the content, or propose
+  a check's own recorded exception to the maintainer.
+- Never add a workflow-installed toolchain (constitution §7).
+- Never litter. Everyone, every session and every agent, removes what they made once done: temporary
+  files, worktrees, throwaway branches, task-only containers and processes left running. Throwaway
+  build output goes in the session scratchpad or the system temporary folder, never beside the
+  project. Clean up only what you made: uncommitted work, stashes and unpushed commits are not litter.
+
 ## Development environment
 
 Canonical setup is the devcontainer in [.devcontainer/](.devcontainer/) —

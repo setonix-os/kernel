@@ -311,6 +311,8 @@ is worse than no test.
 | `STYLE.md` | Style conventions |
 | `SECURITY.md` | Security policy and vulnerability reporting |
 | `CHANGELOG.md` | User-facing change history |
+| `TODO.md` | Where the work stands, and work with no other home |
+| `.claude/skills/` | How recurring jobs are done, with their dated lessons |
 | Rustdoc comments | API documentation (`cargo doc --open`) |
 
 Update `CHANGELOG.md`'s `[Unreleased]` section for all notable changes, and bump `STYLE.md`'s
