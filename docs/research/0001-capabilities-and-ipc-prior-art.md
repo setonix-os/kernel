@@ -69,8 +69,10 @@ RFC amendments; this note is the evidence they cite.
       broker**. The broker was never in the loop, so it cannot revoke what it never mediated.
     - For the kernel to revoke a transferred capability instead, it must enumerate capabilities across
       *every* process's table — a **global mapping database with cross-core two-phase commit**, which
-      is exactly the cost Barrelfish paid when its flat capability system later needed transitive
-      revocation, and exactly the cost our flat table chose to avoid.
+      is the cost Barrelfish pays. Barrelfish keeps capabilities in CNodes, a two-level L1/L2 table, and
+      every copy in a per-core mapping database, so across cores its delete and revoke run a two-phase
+      commit, a mark and sweep sequenced through each capability's owner core (TN-013 §3.2.1, §4.1,
+      §6.3.5). That is exactly the cost our flat table chose to avoid.
   *([Barrelfish capability management TN-013](https://barrelfish.org/publications/TN-013-CapabilityManagement.pdf); [Hille et al., ATC'19](https://www.usenix.org/system/files/atc19-hille.pdf))*
 - **"Badges + a one-level parent link" cannot express multi-level transitive revocation.** In seL4 a
   badge supports *one level* of derived children and revoke still recurses via the CDT. A one-level
