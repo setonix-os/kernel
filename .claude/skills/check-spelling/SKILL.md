@@ -1,3 +1,8 @@
+---
+name: check-spelling
+description: "Audit the repository for British English spelling and offer to fix every violation. Use when prose, comments or console output change."
+---
+
 Audit the repository for British English spelling and offer to fix every violation.
 
 ## How
@@ -29,3 +34,9 @@ grouped by which of the three categories above it falls into. Offer to fix categ
 propose the exact `ALLOWED_PATTERNS` additions for category 2 rather than applying them silently.
 
 If the script exits clean, say so in one line. Do not pad the result.
+
+## Lessons
+
+- **2026-10-02 — the script checks words, not typography.** A typographic apostrophe and inline code spans
+  broken across a line end both passed the spelling script and markdownlint. Scan for them separately when
+  prose has been rewrapped.

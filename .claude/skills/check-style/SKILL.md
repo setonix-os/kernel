@@ -1,3 +1,8 @@
+---
+name: check-style
+description: "Review changed or specified files for STYLE.md compliance. Use before opening or updating a pull request."
+---
+
 Review all changed or specified files for `STYLE.md` compliance.
 
 If `$ARGUMENTS` names no files, check everything modified since the last commit.

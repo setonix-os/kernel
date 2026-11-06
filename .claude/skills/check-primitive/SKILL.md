@@ -1,3 +1,8 @@
+---
+name: check-primitive
+description: "Audit a proposed or recent change against the constitution: the primitive, mechanism not policy, the Borrow Ledger, the graves, scope. Use before any design or kernel change is allowed to land."
+---
+
 Audit a proposed or recent change against the project's constitution before it is allowed to land.
 
 This command has no counterpart in the maintainer's other projects — it exists because Setonix has a

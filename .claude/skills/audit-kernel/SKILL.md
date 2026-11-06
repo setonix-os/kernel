@@ -1,3 +1,8 @@
+---
+name: audit-kernel
+description: "Thorough Rust kernel-code audit (memory safety, unsafe, bare-metal correctness) of named files, or all of kernel/src/. Use before landing any change to kernel code, and whenever unsafe blocks are added or changed."
+---
+
 Perform a thorough Rust kernel-code audit on the specified files, or on all of `kernel/src/` if none are given.
 
 Adapted from the `/audit-code` command in the maintainer's tron_grid project. The Vulkan-specific
