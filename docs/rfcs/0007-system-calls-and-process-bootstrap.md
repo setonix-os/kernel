@@ -22,7 +22,7 @@
 > 7. **Handle word:** 20-bit index, 44-bit slot generation; word `0` is null; recorded as a dated RFC-0003 amendment (§6).
 > 8. **Errors in two layers:** numbered transport status in a register, method result in the reply label; faults are not errors (§7).
 > 9. **Process object:** table, one AddressSpace for life, threads; born empty; `GRANT` only until the first `resume`; then `WRITE` means `KILL` (§8).
-> 10. **One root task,** built once from a load descriptor, every boot capability listed in BootInfo, no "is root" branch anywhere; every capability traces to that one grant, which must be complete (§9).
+> 10. **One root task,** built once from a load descriptor, every boot capability listed in BootInfo, no "is root" branch; every capability traces to that one, complete grant (§9).
 > 11. **Boot images:** `arch::boot_modules()` yields descriptors a host-side ELF reader made; the kernel parses no ELF; AArch64 embeds, as an interim (§10).
 > 12. **Console as a capability:** one `WRITE` of at most 24 bytes that never waits; deleted when the Phase-2 UART driver lands (§11).
 > 13. **`user/abi`** is the microkernel-core row; its `src/arch/**` — trap instructions, a register read and entry stubs — is the third `unsafe` tree (§12).
@@ -300,7 +300,8 @@ Its priority, ceiling and full context are RFC-0006 (proposed) §6's one bootstr
 a string table for module names, starting on one page and running as many as the header's length says, so that
 it scales with cores and devices; a host test pins the layout. `base` and `size` locate a module's descriptor or a
 Region's range, and topology follows the string table as data. Every initial capability is *listed*,
-none at a well-known slot, so a reviewer can enumerate the whole grant. Kinds: the root's Process, the Console (§11), a read-only Region per module, module 0's included, with its
+none at a well-known slot, so a reviewer can enumerate the whole grant. Kinds: the root's Process, the
+Console (§11), a read-only Region per module, module 0's included, with its
 descriptor; RFC-0005 adds the AddressSpace, the one root Pool, the DTB, the Regions the kernel filled for the root
 and, in Phase 2, a Device Region per `Mmio` range the kernel does not keep; RFC-0006 the Thread, the root's
 SchedContext, a `SchedControl` per core and the `IrqControl`. Kinds appear as built, and the list stays complete
