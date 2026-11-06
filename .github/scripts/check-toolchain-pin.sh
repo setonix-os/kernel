@@ -11,9 +11,10 @@
 #      .devcontainer/Dockerfile. Two files, one version.
 #   2. Both Tier-1 bare-metal targets must still be listed. A toolchain file that
 #      had quietly lost one would let a one-architecture kernel pass CI.
-#   3. No workflow may install a toolchain of its own. This is the check that
-#      keeps the arrangement honest: the moment a `dtolnay/rust-toolchain` or a
-#      `setup-node` reappears in .github/workflows/, CI has a second source of
+#   3. No workflow, and no script CI runs, may install a toolchain of its own.
+#      This is the check that keeps the arrangement honest: the moment a
+#      `dtolnay/rust-toolchain` or a `setup-node` reappears in .github/workflows/,
+#      or a `rustup toolchain install` in .github/scripts/, CI has a second source of
 #      truth for a version and §7's guarantee is gone — silently, because
 #      everything would still build.
 #
@@ -94,16 +95,17 @@ for action in "${forbidden_actions[@]}"; do
     fi
 done
 
-# Installing a toolchain by hand inside a workflow step defeats the same rule.
+# Installing a toolchain by hand inside a workflow step, or in a script CI runs
+# (the checks job runs check-all.sh), defeats the same rule.
 # Deliberately unanchored: the install idiom usually appears mid-line inside a
 # `run: |` block scalar (`curl ... sh.rustup.rs | sh`), where an anchored
 # pattern never matches.
-if grep -rnE '(sh\.rustup\.rs|rustup (default|toolchain install))' \
-        .github/workflows/ >/dev/null 2>&1; then
-    echo "ERROR: a workflow installs or switches a Rust toolchain by hand." >&2
+if grep -rnE --exclude=check-toolchain-pin.sh '(sh\.rustup\.rs|rustup (default|toolchain install))' \
+        .github/workflows/ .github/scripts/ >/dev/null 2>&1; then
+    echo "ERROR: a workflow or CI script installs or switches a Rust toolchain by hand." >&2
     echo "       The image's pinned toolchain is the only one CI may use (§7)." >&2
-    grep -rnE '(sh\.rustup\.rs|rustup (default|toolchain install))' \
-        .github/workflows/ >&2
+    grep -rnE --exclude=check-toolchain-pin.sh '(sh\.rustup\.rs|rustup (default|toolchain install))' \
+        .github/workflows/ .github/scripts/ >&2
     fail=1
 fi
 
@@ -113,4 +115,4 @@ fi
 
 echo "OK: Rust pinned to $toml_channel in rust-toolchain.toml and $dockerfile"
 echo "OK: both Tier-1 bare-metal targets present"
-echo "OK: no workflow installs a toolchain outside the devcontainer"
+echo "OK: no workflow or CI script installs a toolchain outside the devcontainer"

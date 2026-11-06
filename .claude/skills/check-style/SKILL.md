@@ -1,22 +1,19 @@
+---
+name: check-style
+description: "Review changed or specified files for STYLE.md compliance. Use before opening or updating a pull request."
+---
+
 Review all changed or specified files for `STYLE.md` compliance.
 
 If `$ARGUMENTS` names no files, check everything modified since the last commit.
 
 ## What the tools already cover
 
-Run these first and report their output rather than re-deriving it by eye:
+Run this first and report its output rather than re-deriving it by eye. It is CI's checks job, run
+locally (`CONTRIBUTING.md` § Before pushing):
 
 ```bash
-cargo fmt --all --check
-cargo clippy --package setonix-kernel --all-features --target aarch64-unknown-none-softfloat -- -D warnings
-cargo clippy --package setonix-kernel --all-features --target x86_64-unknown-none -- -D warnings
-cargo clippy --package setonix-capability --target aarch64-unknown-none-softfloat -- -D warnings
-cargo clippy --package setonix-capability --target x86_64-unknown-none -- -D warnings
-cargo clippy --package setonix-capability --all-targets --all-features -- -D warnings
-cargo clippy --package xtask --all-targets --all-features -- -D warnings
-markdownlint-cli2 "**/*.md"
-bash .github/scripts/check-toolchain-pin.sh
-bash .github/scripts/check-british-spelling.sh
+bash .github/scripts/check-all.sh
 ```
 
 Your job is the part no tool checks.

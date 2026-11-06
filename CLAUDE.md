@@ -81,6 +81,9 @@ cargo xtask run-qemu  --arch aarch64 [--debug]        # --debug: gdb stub on :12
 cargo xtask boot-test --arch aarch64 --expect "Kaya!"
 ```
 
+Before pushing, run everything CI's checks job runs with the one command in
+[CONTRIBUTING.md § Before pushing](CONTRIBUTING.md#before-pushing).
+
 Always name the package when invoking cargo directly. The workspace's crates
 have incompatible targets — the kernel only cross-compiles, `xtask` only builds
 for the host, and `capability` builds for both — so an unscoped `--target` will
@@ -124,6 +127,13 @@ withheld by a packaging decision. Distribution packages remain only for tools
 that publish no upstream binary, and each is labelled in the Dockerfile as a
 gatekeeper not yet removed. Adding a tool means adding it there, with a pinned
 version and a verified download.
+
+## Claude Code skills
+
+Project skills live in `.claude/skills/<name>/SKILL.md` and are invoked as `/<name>`. A skill
+records how this project does a recurring job, and it ends with a dated **Lessons** list. When
+work goes wrong, or better than expected, the lesson goes into the skill it concerns in the same
+pull request as the fix, with the date and the cause, so the next session starts from it.
 
 ## Development environment
 
