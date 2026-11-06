@@ -305,6 +305,19 @@ kernel code branches on "is this the root task"**. They are **not revocable** un
 research/0002 Part 3 asks for revocable init capabilities. **Rejected:** a kernel boot manifest (policy in
 the kernel); a `spawn_from_module` syscall (a loader as a kernel service); a `system:masters` superuser.
 
+**Every capability traces to this grant.** Boot is the one grant no capability authorises. After it, a
+capability appears only by derivation or transfer, or as the reply to a method invoked on a capability the
+caller holds (a Pool's `region_create`, `IrqControl`'s mint); no kernel path makes one unasked. Each step
+follows its source in time, so the grant graph is acyclic by construction, with no checker: a cycle would
+need a grant that precedes its own source. This is the "provably acyclic" graph research/0002 Part 3 asks
+for, and the induction O-22's containment argument stands on.
+
+**The boot grant must be complete.** Since nothing after boot makes authority from nothing, BootInfo's list
+is the closure of every authority the system will ever hand out: a resource class absent from it can never
+exist later. A new class costs a boot change and a dated amendment here, deliberately. **Rejected:** a kernel
+that mints on request, an ambient grantor in instalments, which O-4 forbids and which would give the graph
+more than one source.
+
 ## 10. Getting the first images into memory
 
 **Verdict sought — the mechanism:** the kernel reaches modules through `arch::boot_modules()`, which yields
@@ -396,6 +409,7 @@ not a syscall per operation), with **Linux**, **Hubris**, **Genode** and **Redox
 | O-9 no ambient side channel | result registers carry results or zero; no grant after start; no ambient console (§3, §8, §11) | **contributes**, except the fault-report interim (§7) |
 | O-13 W^X | the build refuses writable-and-executable segments; loaders map per descriptor (§10) | **contributes** — RFC-0005 owns enforcement |
 | O-17 contained drivers | fault messages to `fault_ep`; `KILL`-only authority over a started Process; dead processes inspectable (§7, §8) | **designed, deferred** — the interim stops the thread |
+| O-22 broker compromise containment | one acyclic grant graph with one source (§9) | **enables** — the bound itself is the broker RFC's to prove |
 | O-27 explicit authority at spawn | empty table at birth; grants only by explicit move before start; root's grant enumerated; a host test and a boot-test count the child's table (§8, §9, §18) | **discharged** in its letter; the spawner's retained control is named (§8), not claimed away |
 
 ## 15. Graves checked (§3)

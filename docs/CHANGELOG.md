@@ -191,6 +191,12 @@ recorded is indistinguishable from law that was never agreed.
 
 ### Changed
 
+- **RFC-0007 §9 gains two rules from an unmerged bootstrap draft of 2026-08-05.** That draft's design
+  went into RFC-0007, but two load-bearing rules did not: every capability traces to the boot grant,
+  so the grant graph is acyclic by construction (research/0002's demand, and O-22's induction), and the
+  boot grant must be complete, because nothing later makes authority from nothing. The draft described
+  three typed roots; these rules are restated for the root Pool, `SchedControl` and `IrqControl` the
+  RFCs now have. The draft itself is dropped.
 - **Drift between the documents corrected, 2026-11-06.** RFC-0002 gains a dated amendment: the retired
   docs repository is now deleted, not private. Threat-model O-20 says "signed" rather than "GPG-signed",
   since commits carry GPG or SSH signatures and both show Verified, and its header no longer says
