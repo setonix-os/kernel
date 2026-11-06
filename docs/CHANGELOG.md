@@ -12,6 +12,25 @@ recorded is indistinguishable from law that was never agreed.
 
 ### Added
 
+- `docs/rfcs/0003a-selective-revocation.md` — **proposed**, the decision RFC-0003 deferred and its
+  2026-07-30 amendment said must be made, written before RFC-0007's handle-shaped verdicts are accepted
+  so the ABI is not frozen around an open revocation design. It chooses option (a): revocable authority
+  runs through kernel **forwarders**, objects that wrap an endpoint or notification (send side only, at
+  most four deep), so revoking one is a single generation write and every copy made from it, moved peer
+  to peer included, fails `Revoked`. Queued senders and receivers are checked again at rendezvous, in an
+  ordered table per sender kind (send, call, fault, timeout fault), so a queued send reaches only the
+  endpoint it waits on, under a capability that still holds `WRITE`, with no preemption point between pops.
+  There is no derivation tree and no parent link; `TRANSFER` is unchanged, and a direct grant simply
+  forgoes revocation, as does a capability a server returns through a forwarder, which stays the server's
+  to revoke. Badges become live: one word set once at derive, never by a sender nor by an interrupt's
+  binder, ORed into notifications and delivered on `recv` in a register this RFC assigns to RFC-0007
+  (`x9`, `r14`), restored from the frame on every return but a syscall's. `REVOKE` becomes a Pool right,
+  off Regions, and destroys the forwarders that Pool paid for. Eviction is the broker destroying an app's
+  forwarders and telling its servers; it ends authority, not memory. The root itself is revocable by
+  nothing, deliberately, which is sound only while it serves no client, and boot-minted objects are
+  irrevocable once handed on. Payer destruction of every other type and `pool_reclaim` are left to a
+  separate draft, RFC-0003b. It proposes dated amendments to RFC-0003, RFC-0004 and O-3's text, and six
+  to the proposed RFC-0005/0006/0007; the Phase-1 demo needs only the badge register reserved. 473 lines.
 - `docs/rfcs/0005-address-spaces-and-physical-memory.md` — **proposed**, the memory half of Phase 1 and
   the first of three interlocking kernel RFCs drafted together with RFC-0006 and RFC-0007. Physical
   memory comes from firmware tables into one bounded `MemoryMap` (the image moves to 0x4020_0000 because
@@ -433,6 +452,11 @@ recorded is indistinguishable from law that was never agreed.
   markdownlint's `MD028` passes without the rule being disabled. Reformatting project law is the
   cheaper of the two options: a loosened rule stops catching the same class of problem everywhere else,
   permanently, to avoid one edit here.
+- **research/0001's description of Barrelfish corrected.** It had called Barrelfish's capability system
+  "flat". Per its capability-management note TN-013, Barrelfish keeps capabilities in CNodes, a two-level
+  L1/L2 table, and every copy in a per-core mapping database, with delete and revoke across cores run as a
+  two-phase commit; the paragraph now says so, in the words RFC-0003a uses. The conclusion it supported, that
+  cross-table revocation costs a mapping database a flat table avoids, is unchanged.
 
 ### Outstanding Phase 0 deliverables
 
