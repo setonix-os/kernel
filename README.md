@@ -50,6 +50,7 @@ The paper trail lives in this repository, beside the code it governs:
 - [docs/threat-model.md](docs/threat-model.md) — what Setonix defends and the
   numbered obligations its design must discharge; expands the constitution's §9
   seed.
+- [docs/research/](docs/research/) — the prior-art reviews the RFCs cite.
 
 ## Status
 

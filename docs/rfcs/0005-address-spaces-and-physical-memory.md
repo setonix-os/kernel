@@ -73,8 +73,8 @@ window, not RAM — and nothing in `x0`; at 0x4020_0000 it lands at 0x4000_0000 
 the image loads at 0x4020_0000**, capping the DTB at 2 MiB (`virt`'s is 1 MiB). A minimal FDT reader (Borrow
 Ledger boot-path row; Devicetree Specification v0.4) reads the cell sizes, `/memory`, `/memreserve/` and
 `/reserved-memory`, bounds-checks every offset and fails closed; threat model §10 gains a proposed assumption,
-*firmware tables describe memory truthfully*. x86_64's UEFI stub (no RFC yet) hands over `GetMemoryMap` after
-`ExitBootServices`. **Both produce one `MemoryMap`**: same-kind neighbours coalesced, then at most **256**
+*firmware tables describe memory truthfully*. x86_64's boot path (no RFC yet; PVH, a UEFI stub or both) hands over
+the firmware's map, under UEFI `GetMemoryMap` after `ExitBootServices`. **Both produce one `MemoryMap`**: same-kind neighbours coalesced, then at most **256**
 sorted, disjoint `(PhysRange, Kind)` entries (raw UEFI maps run to 100–200) — `Usable`, `KernelImage`,
 `DeviceTree`, `Reserved`, and `Mmio` from Phase 1's hard-coded addresses — failing closed beyond that; image,
 boot stack, DTB and boot tables tagged first. Nothing above `arch` names FDT or UEFI.
@@ -372,7 +372,7 @@ and `WXN`, then `TLBI VMALLE1`, `DSB ISH`, `ISB`. **The boot tables are never fr
 give image frames a second owner.
 
 The reporter gains a DFSC and fault-level decode (it prints `FAR` already); x86_64's `#PF` prints `CR2` and
-its error code. **x86_64**, once the UEFI stub exists, is already paging: Rust builds §6's PML4 with a
+its error code. **x86_64**, once its boot path exists, is brought to paging by its stub if firmware has not: Rust builds §6's PML4 with a
 temporary identity entry for a trampoline page and sets `IA32_EFER.NXE` (bit 11), `CR0.WP` (bit 16),
 `CR4.PGE` (bit 7) and `CR4.PCIDE`/`SMEP`/`SMAP` (bits 17, 20, 21) where CPUID permits; assembly loads `CR3`,
 jumps high and drops the identity entry — the same "Rust runs only high" rule. *Rejected:* a separate loader
@@ -431,7 +431,7 @@ jumps high and drops the identity entry — the same "Rust runs only high" rule.
 One reviewable PR each; **[demo]** marks what the demo needs. Pure logic lands in a new `memory/` crate as
 `capability/` does (`no_std` in the kernel, `std` under test, both targets in CI, no `unsafe`). Each new `arch`
 function gets a documented x86_64 stub — an empty `MemoryMap`, on which memory initialisation prints
-`mm: no memory map (UEFI stub pending)` and halts — so the second Tier-1 build compiles the whole path.
+`mm: no memory map (boot path pending)` and halts — so the second Tier-1 build compiles the whole path.
 
 1. **[demo] Relink at 0x4020_0000; prove the DTB.** MMU off. `--expect "DTB 0xd00dfeed at 0x40000000"`.
 2. **[demo] Addresses, `MemoryMap`, FDT reader.** Host tests on a `dumpdtb` fixture, hostile blobs and later
@@ -464,7 +464,7 @@ function gets a documented x86_64 stub — an empty `MemoryMap`, on which memory
     handler.
 18. **Stack overflow**, with RFC-0006's overflow path (its §9): `provoke-stack-overflow` reaches the reporter.
 19. **PAN, SMAP, SMEP** where reported, with a `provoke-user-deref` self-test under `-cpu max`.
-20. **x86_64** tables, `CR3` and PCID, after the UEFI stub; **Device Regions** in Phase 2.
+20. **x86_64** tables, `CR3` and PCID, after its boot path; **Device Regions** in Phase 2.
 
 **Programme order:** one merged order for all three RFCs lives in RFC-0007 (proposed) §18, for the maintainer to
 fix (§17.8). This RFC's constraints on it: 1–8, 11 and 12 need nothing else and leave the MMU off; the

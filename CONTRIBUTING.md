@@ -273,7 +273,7 @@ git config user.signingkey <your-key-id>
 git config commit.gpgsign true
 ```
 
-— for SSH, also `git config gpg.format ssh` — and add the public key to your GitHub account as a
+— for SSH, also set `gpg.format` to `ssh`, with `user.signingkey` the path to your public key — and add the public key to your GitHub account as a
 signing key so the badge reads Verified. To re-sign an existing
 branch: `git rebase --exec "git commit --amend --no-edit -S" main`.
 
