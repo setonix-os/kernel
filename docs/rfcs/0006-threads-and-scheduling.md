@@ -368,7 +368,7 @@ Phase 1 runs `-smp 1`; the shape is fixed now so multicore is not bolted on.
   §14.2's aim, sharing without a global lock on the fast path: resolve→check→act holds within an entry, and §3
   covers restarts (A4). It does not close the question (Open question 9). Constitution §6 targets server workloads,
   which run on many cores. Scheduling state stays per core, but the object store, tables, endpoints and cross-core
-  wake-ups do not, and RFC-0003a §4 and RFC-0005 §5 and §10 rest on the lock, so a replacement re-proves them.
+  wake-ups do not, and RFC-0003a §4 and §12 and RFC-0005 §5, §10 and §12 rest on the lock, so a replacement re-proves them.
 - **A core waiting for the lock services IPIs while it spins** *(as seL4's CLH lock does)*: two operations need
   a synchronous answer from another core — RFC-0005's x86_64 TLB shootdown, lacking a broadcast, and **FP state
   live elsewhere**: a thread whose registers core X owns lazily, run next on core Y, has Y ask X by IPI to save
@@ -417,7 +417,7 @@ so C1 only names the question A1 raises, and A1 cannot be accepted without an an
 
 | Obligation | This RFC | Status after implementation |
 |-----------|----------|-----------------------------|
-| O-7 no unprivileged exhaustion | time only through contexts; `MIN_BUDGET`; eight refills; O(1) expiry return; bounded queue walks (Open question 8); no wait holding a lock; lines masked until `ack` | **discharged for CPU time and scheduler structures, except interrupt-entry time**, billed to the running context and bounded per `ack`; memory is RFC-0005's half |
+| O-7 no unprivileged exhaustion | time only through contexts; `MIN_BUDGET`; eight refills; O(1) expiry return; bounded queue walks (Open question 8); no wait holding a lock; lines masked until `ack` | **discharged for CPU time and scheduler structures, except interrupt-entry time and RFC-0003a's queue pops**, billed to the running context and bounded per `ack` and per rendezvous; memory is RFC-0005's half |
 | O-4 no ambient authority | no thread runs without a context; priority through MCP, born 0; time through `SchedControl`; lines through `IrqControl`; only `yield` and `thread_exit` authority-free | **discharged for time** |
 | O-5 argument validation | `write_regs` sanitises `SPSR_EL1`/`RFLAGS`, refuses non-canonical `RIP` and bases, cannot reach the discovery registers; restarts re-resolve | **discharged for this surface** |
 | O-9 no ambient side channel | no EL0 counter, timer or PMU; FP owner cleared on reuse; parked cores. **Residual:** untrapped `wfe` lets a thread observe another's `sev` (Arm ARM: an SEV on any PE is a wake-up event) — one bit, no data | **contributes**; fine-grained timing channels stay out of scope |
@@ -442,7 +442,7 @@ so C1 only names the question A1 raises, and A1 cannot be accepted without an an
 | **Every server needs someone to think about time** | a passive server cannot run until called; an active one needs a configured context and inherits nothing (A1); "spawn a thread and it runs" is gone |
 | **A stranded server is userspace's problem** | `min_budget` 0 lets one client strand it for all; a supervisor is required before any passive server on partial contexts is trusted |
 | **Caps, not minima** | a spent partial context idles its core even when nothing else would run |
-| **Priority-ordered endpoint queues** | an O(n) walk with interrupts masked, *n* up to the thread capacity, paid when a more urgent thread enqueues behind waiters; a process with a large enough Pool can impose it on others, so the thread and deadline capacities are security parameters (Open question 8) |
+| **Priority-ordered endpoint queues** | an O(n) walk with interrupts masked, *n* up to the thread capacity, paid when a more urgent thread enqueues ahead of less urgent waiters; a process with a large enough Pool can impose it on others, so the thread and deadline capacities are security parameters (Open question 8) |
 | **Interrupt time is billed to whoever runs** | a driver `ack`ing a level line in a loop charges other processes, one interrupt per `ack` — seL4's choice; passive drivers (Open question 4) could bill the driver |
 | **No userspace timer yet** | RFC-0004 §8's load-bearing watchdog lacks a source until increment 15 — an unmet RFC-0004 dependency |
 | **Exclusivity is checkable, not revocable** | `ctl_info` shows whether a grantor kept a copy; if one did, it can still configure onto the core |
@@ -467,8 +467,10 @@ so C1 only names the question A1 raises, and A1 cannot be accepted without an an
 8. **Masked walks under attack.** §6's walk is bounded by the thread capacity, and RFC-0003a's pops by that
    capacity times the release queue, which Pool-charged deadline objects lengthen. Both capacities therefore bound
    the interrupt latency a hostile process can impose; the first control is the Pool slot balance its funder
-   sets. Both are provisional (§19) until measured with queues full. Per-level endpoint queues would give O(1)
-   insertion; the pops need RFC-0003a's open question 3, or a cap per rendezvous.
+   sets. Both are provisional (§19) until measured with queues full, the deadline capacity after increment 15.
+   Per-level endpoint queues would give O(1) insertion. The pops have no easy remedy: a cap per rendezvous must
+   first answer RFC-0003a §4's objection that no one is there to resume them, eager clearing (its open question 3)
+   reaches only revoked waits, and row 8's short callers, who are not dead, need an answer of their own.
 9. **Replacing the big lock** (§12). What would replace it, and when: the core count, metric and threshold, set
    from IPC throughput measured with increment 14, before SMP is called done.
 
@@ -499,7 +501,7 @@ RFC's constraints on it.
 | 11 | Lazy FP/SIMD | two FP threads load markers into `v0`, each finds its own: `fp: isolated`; host: owner destroyed, slot reused, zeros loaded | 6b | |
 | 12 | `IrqControl` and `IrqHandler`; xtask gains serial input injection | PL011 receive (SPI 1, INTID 33) reaches an EL0 driver: `irq: notified` | 7c | |
 | 13 | x86_64 scheduling HAL (IDT, TSS, IST, LAPIC, `#NM`, `XSAVE`) | 3–5 and 11 again | its boot RFC, 0007#12 | |
-| 14 | SMP: PSCI `CPU_ON`, INIT-SIPI-SIPI, the lock and its IPI-servicing spin, FP handoff, shootdowns, classes, routing | `-smp 2` boot-tests | 13 | |
+| 14 | SMP: PSCI `CPU_ON`, INIT-SIPI-SIPI, the lock and its IPI-servicing spin, FP handoff, shootdowns, classes, routing | `-smp 2` boot-tests; RFC-0005 §6's immunity test on each core; IPC throughput against core count (Open question 9) | 13 | |
 | 15 | Deadline objects (RFC-0004 §9.3) | host tests on the shared release queue; `deadline: fired` | 9 | |
 
 **What the demo takes as interim, honestly.** It needs 1–7c and runs full contexts only.
@@ -509,8 +511,8 @@ RFC's constraints on it.
   context refills at once; expiry inside a server needs a partial context.
 - **Provisional constants** in `scheduler/src/config.rs` until measured: `MIN_BUDGET_INTERIM` = 100 µs;
   `ROOT_TIMESLICE` = 5 ms, a full context; root priority and MCP 255, the root putting itself and the client at
-  100 to share a level; `KERNEL_STACK_SIZE` = 16 KiB. The thread and deadline capacities are provisional too (Open
-  question 8). Cost: the budget floor is a guess.
+  100 to share a level; `KERNEL_STACK_SIZE` = 16 KiB. Cost: the budget floor is a guess.
+- **The thread and deadline capacities** (RFC-0005 §5) are provisional until measured (Open question 8).
 - **No fault handler** (a faulting thread goes `Inactive`, RFC-0007 §7); **no userspace timer** for RFC-0004's
   watchdog; **x86_64 stubs** that halt.
 

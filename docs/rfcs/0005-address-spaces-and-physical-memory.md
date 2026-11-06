@@ -7,7 +7,7 @@
 | Status | **Proposed** — 2026-09-27, awaiting the maintainer's verdict |
 | Author | Drafted by Claude Code as sparring partner; verdict the maintainer's |
 | Date | 2026-09-27 |
-| Affects | Constitution §3 (kernel doctrine) and the Language clause's "minimal assembly" (§17.7); RFC-0003 (a dated amendment adding one right; three new objects; `capability/src/rights.rs` and `object.rs`'s doc comment); RFC-0004 §9.1; the boot stub, `aarch64.ld` and the exception reporter; `kernel/src/mm/**`; a new host-tested `memory/` crate; threat model §9, §10 and the text of O-7 and O-8 (proposals via `docs/CHANGELOG.md`); Constitution §6, as a reading: a security target narrower than Tier-1 support (§6) |
+| Affects | Constitution §3 (kernel doctrine) and the Language clause's "minimal assembly" (§17.7); RFC-0003 (a dated amendment adding one right; three new objects; `capability/src/rights.rs` and `object.rs`'s doc comment); RFC-0004 §9.1; the boot stub, `aarch64.ld` and the exception reporter; `kernel/src/mm/**`; a new host-tested `memory/` crate; threat model §7, §9, §10 and the text of O-7 and O-8 (proposals via `docs/CHANGELOG.md`); Constitution §6, as a reading: a security target narrower than Tier-1 support (§6) |
 | Depends on | RFC-0003 (capability table), RFC-0004 (IPC); interlocks with RFC-0006 (threads and scheduling) and RFC-0007 (system calls and process bootstrap), proposed the same day |
 | Discharges | O-7 for kernel allocation (reclaim across a transfer stays open), O-8 on parts immune to Meltdown, O-13 (the mapping half); O-5 for every path by which the kernel touches user memory; O-3's destruction case extended to memory; answers RFC-0003 §14.3 and RFC-0004 §9.1 (share) |
 
@@ -172,9 +172,10 @@ top 2 GiB, as `x86_64-unknown-none`'s default kernel code model expects (overrid
   reports that register; or a list of parts known immune, as Linux keeps, which is what the Cortex-A72 needs),
   treats any other part as affected, and says which on the console. **Isolation is not designed out, but it
   reopens other RFCs.** Kernel entries could no longer be global; each AddressSpace would need two tags and, on
-  x86_64, two roots; and x86_64 pushes to `TSS.RSP0` before any stub runs, so RFC-0006 §9's TCB frame would give
-  way to an entry stack mapped in user tables, beside the IDT, GDT, TSS and IST stacks, changing RFC-0007 §3's
-  entry sequences.
+  x86_64, two roots; and no entry could save into RFC-0006 §9's TCB frame, as AArch64's first stores land there and
+  x86_64 pushes to `TSS.RSP0` before any stub runs. An entry stack would be mapped in user tables, beside the stub
+  text and, on x86_64, the IDT, GDT, TSS, IST stacks and `syscall`'s per-core scratch, changing RFC-0007 §3's entry
+  sequences and RFC-0006 §9's switch.
 
 ## 7. The objects: Region, AddressSpace and Mapping
 
@@ -417,7 +418,8 @@ jumps high and drops the identity entry — the same "Rust runs only high" rule.
 
 ## 16. Costs — what this makes harder
 
-- **Capacities are ceilings** (a rebuild); **Regions are eager and bounded** (no lazy or sparse ones).
+- **Capacities are ceilings** (a rebuild), and the thread and deadline ones bound interrupt latency (RFC-0006 open
+  question 8); **Regions are eager and bounded** (no lazy or sparse ones).
 - **`map` needs the AddressSpace's own Pool**: a loader mapping into a child holds the child's Pool.
 - **47-bit halves on AArch64** give up half of what `T0SZ = 16` allows; **the 64 KiB floor is fixed**.
 - **User addresses are numbers only** (§11): every RFC-0007 syscall pays in ergonomics, for a bug class gone.
@@ -462,7 +464,8 @@ function gets a documented x86_64 stub — an empty `MemoryMap`, on which memory
    mint refuses off-type `EXECUTE`.
 8. **`pool_split`/`move`/`merge` and closure forwarding**, under random churn. Host-only; not demo.
 9. **[demo] MMU on (§13, stub)**, `SCTLR_EL1`, `VBAR_EL1` high, DFSC decode, and §6's immunity test:
-   `--expect "mm: running at 0xffffffff80"`, `--expect "mm: rdcl immune"`.
+   `--expect "mm: running at 0xffffffff80"`, `--expect "mm: rdcl immune"` (an affected part prints
+   `mm: rdcl affected`).
 10. **[demo] Final kernel map (§13, Rust)**, the object store behind its static: physmap with the image read-only,
     MMIO window with every kernel MMIO user repointed, core 0's stack moved behind a guard (`aarch64.ld`'s
     comment with it); `EPD0`, `WXN`. One `--expect` per self-test: `provoke-ro-text` and `provoke-ro-alias`
@@ -480,7 +483,7 @@ function gets a documented x86_64 stub — an empty `MemoryMap`, on which memory
     handler.
 18. **Stack overflow**, with RFC-0006's overflow path (its §9): `provoke-stack-overflow` reaches the reporter.
 19. **PAN, SMAP, SMEP** where reported, with a `provoke-user-deref` self-test under `-cpu max`.
-20. **x86_64** tables, `CR3` and PCID, after its boot path; **Device Regions** in Phase 2.
+20. **x86_64** tables, `CR3` and PCID, and §6's immunity test, after its boot path; **Device Regions** in Phase 2.
 
 **Programme order:** one merged order for all three RFCs lives in RFC-0007 (proposed) §18, for the maintainer to
 fix (§17.8). This RFC's constraints on it: 1–8, 11 and 12 need nothing else and leave the MMU off; the

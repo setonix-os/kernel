@@ -193,9 +193,9 @@ recorded is indistinguishable from law that was never agreed.
 
 - **Four design concerns from a read of the whole document set, 2026-11-06.** RFC-0005 §6 now states that a
   kernel mapped in every address space leaves Meltdown-affected CPUs outside the security target, what
-  page-table isolation would reopen, and an immunity test at each core's start; O-8's scope and a threat-model
-  residual risk are proposed for its acceptance. RFC-0003a's T2 proposes rewriting O-22's first sentence, which
-  its forwarders cannot meet. RFC-0006 and RFC-0003a name the interrupt latency a hostile process can impose
+  page-table isolation would reopen, and an immunity test at each core's start; O-8's scope, a threat-model
+  residual risk and §7's bring-in are proposed for its acceptance. RFC-0003a's T2 proposes rewriting O-22's first sentence, which
+  its forwarders cannot meet, leaving the inventory and the proof to the broker RFC. RFC-0006 and RFC-0003a name the interrupt latency a hostile process can impose
   through masked queue walks, making the thread and deadline capacities provisional security parameters.
   RFC-0006's A4 no longer closes RFC-0003 §14.2: the big lock stands for now, and open question 9 owes the
   threshold for replacing it. RFC-0007 §15 follows.
