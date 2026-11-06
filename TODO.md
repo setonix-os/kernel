@@ -10,11 +10,10 @@ truth for their own work; this file holds only what has no other home. Each item
 
 *2026-11-06.* Run `git fetch` first, then `/checkpoint` overwrites this block.
 
-- **Stands:** `main` holds the document fixes of PR #32. Phase 1: the kernel boots on QEMU aarch64
-  `virt`; the capability crate is built, with no consumers. RFC-0003a, 0005, 0006 and 0007 are
-  proposed; RFC-0003b is a draft on `claude/rfc-0003b-reclaim`.
-- **In flight, merge in this order:** PR #33 (boot grant rules), then the design-concerns branch
-  stacked on it, then this PR, then the constitution PR.
+- **Stands:** `main` holds the document fixes of PR #32 and the boot grant rules of PR #33. Phase 1:
+  the kernel boots on QEMU aarch64 `virt`; the capability crate is built, with no consumers. RFC-0003a,
+  0005, 0006 and 0007 are proposed; RFC-0003b is a draft on `claude/rfc-0003b-reclaim`.
+- **In flight, merge in this order:** the design-concerns PR, then this PR, then the constitution PR.
 - **Next:** the polish items below, one small PR each.
 - **Waits on the maintainer:** the verdicts under § Decisions, and the merges above.
 
