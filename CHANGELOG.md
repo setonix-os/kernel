@@ -11,6 +11,10 @@ Release codenames follow the six Noongar seasons — Birak, Bunuru, Djeran, Maku
 
 ### Added
 
+- **How the work is done is now written down where a session reads it.** Seven skills: `/checkpoint`,
+  `/pre-push`, `/review`, `/model-routing`, `/rfc-draft`, `/fact-check` and `/steward`. `TODO.md` holds
+  where the work stands and what is left, replacing separate handoff files. `CLAUDE.md` gains
+  § Never do these, including a rule against leaving anything behind.
 - **One command runs everything CI's checks job runs.** `.github/scripts/check-all.sh` holds the job's
   steps, in its order, and both workflows now call it instead of listing the steps themselves — so
   the command a contributor runs before pushing cannot drift from CI. It stops at the first failing
