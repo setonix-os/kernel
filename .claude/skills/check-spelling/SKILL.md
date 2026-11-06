@@ -1,3 +1,8 @@
+---
+name: check-spelling
+description: "Audit the repository for British English spelling and offer to fix every violation. Use when prose, comments or console output change."
+---
+
 Audit the repository for British English spelling and offer to fix every violation.
 
 ## How
@@ -29,3 +34,14 @@ grouped by which of the three categories above it falls into. Offer to fix categ
 propose the exact `ALLOWED_PATTERNS` additions for category 2 rather than applying them silently.
 
 If the script exits clean, say so in one line. Do not pad the result.
+
+## Lessons
+
+- **2026-11-06 — the script checks words, not typography.** Inline code spans broken across a line end
+  passed both the spelling script and markdownlint, and were found only by a separate scan (commit
+  `888a847`). `.github/scripts/check-code-spans.sh` now gates both in CI.
+- **2026-11-06 — a gate that can pass on an empty input is not a gate.** In CI the container's root
+  does not own the checkout, git refused it as "dubious ownership", and this script reported
+  "OK: no files to check" on every run since it was added: the spelling gate had never run in CI.
+  It now fails when git fails or lists nothing. When a check reports success, read its count, and
+  make any new gate refuse an empty input.

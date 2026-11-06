@@ -59,66 +59,14 @@ jobs:
                 env: |
                     CARGO_TERM_COLOR
                     RUSTFLAGS
+                # The list of checks exists once, in the script, so that the command a
+                # contributor runs before pushing is exactly this one. The guard runs
+                # first because check-all.sh supplies -Dwarnings itself when RUSTFLAGS
+                # is unset, which here would hide a name with.env failed to forward.
                 runCmd: |
                     set -euo pipefail
-                    # with.env forwards it; a name missing there arrives unset, and warnings pass again.
                     : "${RUSTFLAGS:?RUSTFLAGS was not forwarded into the container}"
-
-                    echo "::group::Environment"
-                    rustc --version
-                    cargo --version
-                    qemu-system-aarch64 --version | head -1
-                    markdownlint-cli2 --version
-                    echo "::endgroup::"
-
-                    echo "::group::Toolchain pins"
-                    bash .github/scripts/check-toolchain-pin.sh
-                    echo "::endgroup::"
-
-                    echo "::group::British spelling"
-                    bash .github/scripts/check-british-spelling.sh
-                    echo "::endgroup::"
-
-                    # The one cargo build or check here without --locked: cargo
-                    # fmt rejects the flag, and leaves the lockfile alone anyway.
-                    echo "::group::Formatting"
-                    cargo fmt --all --check
-                    echo "::endgroup::"
-
-                    echo "::group::Markdown"
-                    markdownlint-cli2 "**/*.md"
-                    echo "::endgroup::"
-
-                    # Both Tier-1 architectures on every pull request, so neither
-                    # becomes the one that only builds "usually" (§6). Scoped by
-                    # package: the workspace's crates have incompatible
-                    # targets, and an unscoped --target would try to build the
-                    # host tool for bare metal.
-                    for target in aarch64-unknown-none-softfloat x86_64-unknown-none; do
-                        echo "::group::$target"
-                        cargo clippy --locked --package setonix-kernel --all-features --target "$target" -- -D warnings
-                        cargo build --locked --verbose --package setonix-kernel --target "$target"
-                        cargo build --locked --release --verbose --package setonix-kernel --target "$target"
-                        # The capability crate is architecture-independent no_std
-                        # logic; building it for both Tier-1 targets proves it
-                        # stays no_std-clean.
-                        cargo clippy --locked --package setonix-capability --target "$target" -- -D warnings
-                        cargo build --locked --package setonix-capability --target "$target"
-                        echo "::endgroup::"
-                    done
-
-                    echo "::group::xtask (host)"
-                    cargo clippy --locked --package xtask --all-targets --all-features -- -D warnings
-                    cargo test --locked --verbose --package xtask
-                    echo "::endgroup::"
-
-                    # Host-testable kernel logic. The capability table's pure logic
-                    # lives in its own crate precisely so it can run a test harness
-                    # (a bare-metal target cannot).
-                    echo "::group::capability (host)"
-                    cargo clippy --locked --package setonix-capability --all-targets --all-features -- -D warnings
-                    cargo test --locked --verbose --package setonix-capability
-                    echo "::endgroup::"
+                    bash .github/scripts/check-all.sh --github
 
     boot:
         name: Boot (QEMU aarch64 virt)

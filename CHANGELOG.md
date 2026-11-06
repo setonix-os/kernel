@@ -11,6 +11,13 @@ Release codenames follow the six Noongar seasons — Birak, Bunuru, Djeran, Maku
 
 ### Added
 
+- **One command runs everything CI's checks job runs.** `.github/scripts/check-all.sh` holds the job's
+  steps, in its order, and both workflows now call it instead of listing the steps themselves — so
+  the command a contributor runs before pushing cannot drift from CI. It stops at the first failing
+  step and names it. Among those steps is a new gate, `.github/scripts/check-code-spans.sh`, which
+  fails on an inline code span broken across a line end (matched as CommonMark matches spans, so
+  double-backtick spans and stray backticks are handled) and on typographic quotes in our own
+  Markdown. Its first run found one broken span, in this changelog.
 - **The capability table itself — RFC-0003's second increment.** `setonix-capability` grows the owned
   `Capability` value and the flat per-process `CapabilityTable` (§4, Option B): the structure every
   future syscall resolves against.
@@ -170,13 +177,21 @@ Release codenames follow the six Noongar seasons — Birak, Bunuru, Djeran, Maku
   `GITHUB_*` file paths, so every build, test and boot accepted rustc warnings — run 42213389069's log
   shows `devcontainer exec` handed those four paths and nothing more. Every `devcontainers/ci` step
   now names `RUSTFLAGS` and `CARGO_TERM_COLOR`, and the tree builds clean with them; each `runCmd`
-  fails at once if `RUSTFLAGS` arrives unset, since the action drops a forwarded name silently. Every cargo
-  build, check and test runs `--locked` (`cargo fmt` takes no such flag), as does xtask's own build of the
+  fails at once if `RUSTFLAGS` arrives unset, since the action drops a forwarded name silently, and
+  `check-all.sh` supplies `-Dwarnings` when run locally without it. Every cargo build, check and
+  test runs `--locked` (`cargo fmt` takes no such flag), as does xtask's own build of the
   kernel, so a stale committed lockfile fails CI rather than being quietly rewritten. The main
   workflow is read-only by default and only its publishing `boot` job holds `packages: write`. Pull
   requests now boot the release build as main does, and run for every base branch, so a stacked pull
   request gets CI too; no pull-request job can publish the image. Checkouts no longer persist the
   job's token for later steps.
+- **The British-spelling gate had been checking nothing in CI.** Inside the devcontainer the
+  checkout belongs to the runner's user, not root, so git refused it as "dubious ownership"; the
+  script read its file list through a process substitution, whose failure `set -e` cannot see, and
+  reported "OK: no files to check". The spelling gate and the new code-span gate now trust exactly
+  the repository root for that one call, fail when git does, and refuse an empty file list. The pin
+  check now also scans `.github/scripts/`, since CI's commands live there, and `check-all.sh` runs
+  each step under its own `set -e`, so a step that is a shell function cannot pass a failure.
 - **The x86_64 docs no longer say `q35` has no bare-ELF `-kernel`.** `CLAUDE.md`, the README, the
   x86_64 module, `xtask`'s refusal and a CI comment all claimed it. QEMU's x86 loader does take a
   64-bit ELF through `-kernel` when it carries a Xen PVH note (`XEN_ELFNOTE_PHYS32_ENTRY`,
@@ -204,8 +219,8 @@ Release codenames follow the six Noongar seasons — Birak, Bunuru, Djeran, Maku
       first console line now says so instead of asserting a timeout that never elapsed. Argument
       parsing no longer lets a flag swallow the next flag as its value, silently default when a
       value is forgotten, or ignore an unrecognised token — `--arch=x86_64` used to build aarch64
-      without a word. Seven unit tests now cover the pure helpers, so CI's `cargo test --package
-      xtask` verifies something for the first time.
+      without a word. Seven unit tests now cover the pure helpers, so CI's
+      `cargo test --package xtask` verifies something for the first time.
     - **The forged-handle sweep now covers `remove` as well as `resolve`**, which is what this
       changelog already claimed of it. Every forged (index, generation) pair in the space is denied
       at both entry points, so a dangling handle can neither use nor steal a reused slot's occupant —
@@ -243,6 +258,14 @@ Release codenames follow the six Noongar seasons — Birak, Bunuru, Djeran, Maku
 
 ### Changed
 
+- **The five Claude Code commands are now skills.** `/audit-kernel`, `/check-coherence`,
+  `/check-primitive`, `/check-spelling` and `/check-style` move from `.claude/commands/` to
+  `.claude/skills/<name>/SKILL.md`, by `git mv` so their history follows them. The slash names still
+  invoke them, so the references in `CONTRIBUTING.md` and the pull-request template stand. Each
+  gains a description saying when to use it, which also lets a session reach for it unprompted, and
+  the two with real lessons behind them gain a dated **Lessons** section. `CLAUDE.md` § Claude Code
+  skills states the rule that keeps them current: a lesson lands in its skill in the same pull
+  request as the fix that taught it.
 - Contributor documents no longer assume a permanent team of one. `SECURITY.md`, `CONTRIBUTING.md` and
   `CLAUDE.md` now say "deliberately small team" — the project anticipates at least one more member, and
   a document that promises "one maintainer" would start lying the day they join. The constitution's §5
