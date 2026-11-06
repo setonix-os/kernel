@@ -172,6 +172,19 @@ Release codenames follow the six Noongar seasons — Birak, Bunuru, Djeran, Maku
 
 ### Fixed
 
+- **CI now enforces what it claimed to.** `RUSTFLAGS="-Dwarnings"` never reached cargo:
+  `devcontainers/ci` forwards into the container only the variables its `env` input names, plus the
+  `GITHUB_*` file paths, so every build, test and boot accepted rustc warnings — run 42213389069's log
+  shows `devcontainer exec` handed those four paths and nothing more. Every `devcontainers/ci` step
+  now names `RUSTFLAGS` and `CARGO_TERM_COLOR`, and the tree builds clean with them; each `runCmd`
+  fails at once if `RUSTFLAGS` arrives unset, since the action drops a forwarded name silently, and
+  `check-all.sh` supplies `-Dwarnings` when run locally without it. Every cargo build, check and
+  test runs `--locked` (`cargo fmt` takes no such flag), as does xtask's own build of the
+  kernel, so a stale committed lockfile fails CI rather than being quietly rewritten. The main
+  workflow is read-only by default and only its publishing `boot` job holds `packages: write`. Pull
+  requests now boot the release build as main does, and run for every base branch, so a stacked pull
+  request gets CI too; no pull-request job can publish the image. Checkouts no longer persist the
+  job's token for later steps.
 - **The British-spelling gate had been checking nothing in CI.** Inside the devcontainer the
   checkout belongs to the runner's user, not root, so git refused it as "dubious ownership"; the
   script read its file list through a process substitution, whose failure `set -e` cannot see, and

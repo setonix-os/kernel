@@ -75,10 +75,16 @@ environment() {
         markdownlint-cli2 --version
 }
 
+# CI's workflows forward RUSTFLAGS=-Dwarnings into the container; a local run
+# gets the same unless the caller chose otherwise, so warnings fail here too.
+export RUSTFLAGS="${RUSTFLAGS--Dwarnings}"
+
 step "Environment" environment
 step "Toolchain pins" bash .github/scripts/check-toolchain-pin.sh
 step "British spelling" bash .github/scripts/check-british-spelling.sh
 step "Code spans and quotes" bash .github/scripts/check-code-spans.sh
+# The one cargo build or check without --locked: cargo fmt rejects the flag,
+# and leaves the lockfile alone anyway.
 step "Formatting" cargo fmt --all --check
 step "Markdown" markdownlint-cli2 "**/*.md"
 
@@ -88,22 +94,22 @@ step "Markdown" markdownlint-cli2 "**/*.md"
 # tool for bare metal.
 for target in aarch64-unknown-none-softfloat x86_64-unknown-none; do
     step "kernel clippy (${target})" \
-        cargo clippy --package setonix-kernel --all-features --target "$target" -- -D warnings
-    step "kernel build (${target})" cargo build --verbose --package setonix-kernel --target "$target"
-    step "kernel release build (${target})" cargo build --release --verbose --package setonix-kernel --target "$target"
+        cargo clippy --locked --package setonix-kernel --all-features --target "$target" -- -D warnings
+    step "kernel build (${target})" cargo build --locked --verbose --package setonix-kernel --target "$target"
+    step "kernel release build (${target})" cargo build --locked --release --verbose --package setonix-kernel --target "$target"
     # The capability crate is architecture-independent no_std logic; building it
     # for both Tier-1 targets proves it stays no_std-clean.
-    step "capability clippy (${target})" cargo clippy --package setonix-capability --target "$target" -- -D warnings
-    step "capability build (${target})" cargo build --package setonix-capability --target "$target"
+    step "capability clippy (${target})" cargo clippy --locked --package setonix-capability --target "$target" -- -D warnings
+    step "capability build (${target})" cargo build --locked --package setonix-capability --target "$target"
 done
 
-step "xtask clippy (host)" cargo clippy --package xtask --all-targets --all-features -- -D warnings
-step "xtask tests (host)" cargo test --verbose --package xtask
+step "xtask clippy (host)" cargo clippy --locked --package xtask --all-targets --all-features -- -D warnings
+step "xtask tests (host)" cargo test --locked --verbose --package xtask
 
 # Host-testable kernel logic. The capability table's pure logic lives in its own
 # crate precisely so it can run a test harness (a bare-metal target cannot).
-step "capability clippy (host)" cargo clippy --package setonix-capability --all-targets --all-features -- -D warnings
-step "capability tests (host)" cargo test --verbose --package setonix-capability
+step "capability clippy (host)" cargo clippy --locked --package setonix-capability --all-targets --all-features -- -D warnings
+step "capability tests (host)" cargo test --locked --verbose --package setonix-capability
 
 echo
 echo "OK: all ${steps} checks passed"
