@@ -16,24 +16,20 @@ recorded is indistinguishable from law that was never agreed.
   2026-07-30 amendment said must be made, written before RFC-0007's handle-shaped verdicts are accepted
   so the ABI is not frozen around an open revocation design. It chooses option (a): revocable authority
   runs through kernel **forwarders**, objects that wrap an endpoint or notification (send side only, at
-  most four deep), so destroying one is a single generation advance and every copy made from it, moved
-  peer to peer included, fails `Revoked`. A queued sender re-resolves at rendezvous, must still reach the
+  most four deep), so revoking one is a single generation write and every copy made from it, moved peer
+  to peer included, fails `Revoked`. A queued sender re-resolves at rendezvous, must still reach the
   endpoint it waits on under a capability that holds `WRITE`, and has its frame words validated again.
   There is no derivation tree and no parent link; `TRANSFER` is unchanged, and a direct grant simply
   forgoes revocation, as does a capability a server returns through a forwarder, which stays the server's
   to revoke. Badges become live: one word set once at derive, never by a sender nor by an interrupt's
   binder, ORed into notifications and delivered on `recv` in a register this RFC assigns to RFC-0007
-  (`x9`, `r14`), restored from the frame on every return but a syscall's. Destruction is authorised by
-  `REVOKE` on the Pool that paid, and `pool_reclaim` destroys everything a Pool paid for wherever it went,
-  restartable from the list head and then the Pool itself, which closes RFC-0005's reclaim gap: balance
-  crosses one funding edge at a time and Pools nest at most eight deep. A payer's `destroy` faults a
-  Region's sharers, so servers depend only on objects they pay for; the exception is a context lent to a
-  passive server, which finishes its loan before it dies, so eviction never strands a shared server
-  mid-request. Eviction is the broker destroying an app's forwarders, telling servers and reclaiming its
-  Pool. The root itself is revocable by nothing, deliberately, which is sound only while it serves no
-  client, and it hands `SchedControl` and `IrqControl` to a resource server that serves the broker behind
-  a root-held forwarder. It proposes dated amendments to RFC-0003, RFC-0004 and O-3's text, and seven to
-  the proposed RFC-0005/0006/0007; the Phase-1 demo needs only the badge register reserved. 533 lines.
+  (`x9`, `r14`), restored from the frame on every return but a syscall's. `REVOKE` becomes a Pool right,
+  off Regions, and destroys the forwarders that Pool paid for. Eviction is the broker destroying an app's
+  forwarders and telling its servers; it ends authority, not memory. The root itself is revocable by
+  nothing, deliberately, which is sound only while it serves no client, and boot-minted objects are
+  irrevocable once handed on. Payer destruction of every other type and `pool_reclaim` are left to a
+  separate draft, RFC-0003b. It proposes dated amendments to RFC-0003, RFC-0004 and O-3's text, and six
+  to the proposed RFC-0005/0006/0007; the Phase-1 demo needs only the badge register reserved. 412 lines.
 - `docs/rfcs/0005-address-spaces-and-physical-memory.md` — **proposed**, the memory half of Phase 1 and
   the first of three interlocking kernel RFCs drafted together with RFC-0006 and RFC-0007. Physical
   memory comes from firmware tables into one bounded `MemoryMap` (the image moves to 0x4020_0000 because
