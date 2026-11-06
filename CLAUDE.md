@@ -125,6 +125,13 @@ that publish no upstream binary, and each is labelled in the Dockerfile as a
 gatekeeper not yet removed. Adding a tool means adding it there, with a pinned
 version and a verified download.
 
+## Claude Code skills
+
+Project skills live in `.claude/skills/<name>/SKILL.md` and are invoked as `/<name>`. A skill
+records how this project does a recurring job, and it ends with a dated **Lessons** list. When
+work goes wrong, or better than expected, the lesson goes into the skill it concerns in the same
+pull request as the fix, with the date and the cause, so the next session starts from it.
+
 ## Development environment
 
 Canonical setup is the devcontainer in [.devcontainer/](.devcontainer/) —
