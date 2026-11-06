@@ -17,7 +17,7 @@
 > 2. **[demo] Frames:** a colour-capable bitmap; fresh frames and table frames zeroed, boot data handed over read-only (§4, §7).
 > 3. **[demo] Who pays (O-7):** typed slot arrays reused by generation; every post-boot unit charged to a Pool named by capability, `map`'s too (§5).
 > 4. **[demo] One accounting domain:** the Pool, for every counted unit; time stays with RFC-0006's `SchedControl`, a stated split from research/0002 (§5).
-> 5. **[demo] Layout:** the same higher-half layout on both; the image read-only in the physmap; per-core stacks guarded, kept by the kernel; Meltdown-affected parts outside the target (§6).
+> 5. **[demo] Layout:** the same higher-half layout on both; the image read-only in the physmap; per-core stacks guarded; Meltdown-affected parts outside the target (§6).
 > 6. **[demo] Objects:** `Region` (eager and zeroed, or boot-minted read-only) and `AddressSpace` join RFC-0003's objects beside `Pool` (§7).
 > 7. **[demo] Operations:** `map` / `unmap` / `protect` and `region_copy` are capability-checked, bounded and atomic; the kernel never picks an address (§8).
 > 8. **[demo] Rights:** `EXECUTE` joins RFC-0003's set as bit 5 — on Regions and Pools only, refused at mint elsewhere — by dated amendment (§8).

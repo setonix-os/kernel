@@ -284,7 +284,8 @@ frame, so the entry stub's stores land there before it loads the per-core stack 
 `SP` lies inside a TCB. On x86_64 an interrupt from ring 3 loads `RSP` from `TSS.RSP0`, the TCB frame; **`syscall`
 does not switch `RSP`**, so its stub runs `swapgs`, parks the user `rsp` in per-core scratch, loads the frame
 pointer, saves, then loads the kernel stack. RFC-0007 (proposed) owns both entry sequences; this RFC owns the
-layout and §3's IRQ stub; page-table isolation, if built, reopens that layout (RFC-0005 §6). The address-space switch (`TTBR0_EL1` with ASID; `CR3` with PCID) is RFC-0005's, made
+layout and §3's IRQ stub; page-table isolation, if built, reopens that layout (RFC-0005 §6).
+The address-space switch (`TTBR0_EL1` with ASID; `CR3` with PCID) is RFC-0005's, made
 on exit when the process differs — where a time-protection flush would go (Ge et al., EuroSys 2019).
 
 | What | AArch64 | x86_64 |
