@@ -272,7 +272,8 @@ recorded is indistinguishable from law that was never agreed.
   Both documents now agree: *mediation* (the O-10 surface) starts in Phase 2; the *broker pillar* and
   its own obligations O-21..O-23 land in Phase 3. §8 gains a paragraph stating the split explicitly.
 - **Threat model amended (2026-08-01): seven obligations from the second prior-art review, and a
-  fast-forward clause on O-15.** The [virtualisation and containment review](research/0002-virtualisation-and-containment-prior-art.md)
+  fast-forward clause on O-15.** The
+  [virtualisation and containment review](research/0002-virtualisation-and-containment-prior-art.md)
   surfaced gaps that no existing obligation covered; per §11's "new surface, new obligation" rule they
   are appended with the next free numbers (never renumbered): **O-21** mediation auditability, **O-22**
   broker compromise containment, **O-23** fail-closed mediation (the three broker obligations that
@@ -296,10 +297,10 @@ recorded is indistinguishable from law that was never agreed.
   copying slow path, move-only capability transfer, `call` with single-use reply objects, bounded
   notifications — is accepted in the form the 2026-07-30 prior-art review revised it to. The §9 open
   questions remain expressly open and join their named RFCs (shared-memory establishment → MMU,
-  multi-core rendezvous → scheduler, register budget → syscall ABI). With both halves of the core mechanism now accepted on
-  paper — RFC-0003 already built and host-proven — the next design work is the initial kernel object
-  set and bootstrap (RFC-0003 §14.4), after which endpoints become the capability table's first real
-  consumer.
+  multi-core rendezvous → scheduler, register budget → syscall ABI). With both halves of the core
+  mechanism now accepted on paper — RFC-0003 already built and host-proven — the next design work is
+  the initial kernel object set and bootstrap (RFC-0003 §14.4), after which endpoints become the
+  capability table's first real consumer.
 - **Constitution §3 amended, on the maintainer's authorisation (2026-08-01): the compile-time claim
   is scoped.** The kernel-doctrine slogan "Rust's ownership and move semantics model capability
   transfer at compile time" now reads "…model the kernel's own capability handling at compile time —

@@ -316,8 +316,8 @@ halts; RFC-0005's increment 18 proves it.
 - **Loaded on first use, saved lazily.** Each core records an FP *owner* as an `(index, generation)` pair; every
   other thread runs trapped — `CPACR_EL1.FPEN = 0b00` (EC `0x07`) or `CR0.TS = 1` (`#NM`). Since `0b00` traps EL1
   too and `XSAVE` raises `#NM` under `TS`, the handler first grants itself access (`FPEN = 0b01`, EL0 still
-  trapped, and `isb`; or `clts`), saves a live owner, loads the new owner's registers or zeros, sets `FPEN =
-  0b11`, `isb`, and returns. A `call` to an FP-off server saves nothing.
+  trapped, and `isb`; or `clts`), saves a live owner, loads the new owner's registers or zeros, sets
+  `FPEN = 0b11`, `isb`, and returns. A `call` to an FP-off server saves nothing.
 - **The owner is cleared,** unsaved, when it is destroyed or `set_fp(off)`; a thread reusing its slot fails the
   generation check and loads zeros, never a dead thread's registers (O-8, O-9).
 - **The kernel's only FP instructions** are those stubs in `kernel/src/arch/**`, run with access granted; the
