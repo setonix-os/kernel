@@ -192,8 +192,8 @@ Release codenames follow the six Noongar seasons — Birak, Bunuru, Djeran, Maku
       first console line now says so instead of asserting a timeout that never elapsed. Argument
       parsing no longer lets a flag swallow the next flag as its value, silently default when a
       value is forgotten, or ignore an unrecognised token — `--arch=x86_64` used to build aarch64
-      without a word. Seven unit tests now cover the pure helpers, so CI's `cargo test --package
-      xtask` verifies something for the first time.
+      without a word. Seven unit tests now cover the pure helpers, so CI's
+      `cargo test --package xtask` verifies something for the first time.
     - **The forged-handle sweep now covers `remove` as well as `resolve`**, which is what this
       changelog already claimed of it. Every forged (index, generation) pair in the space is denied
       at both entry points, so a dangling handle can neither use nor steal a reused slot's occupant —
@@ -236,8 +236,9 @@ Release codenames follow the six Noongar seasons — Birak, Bunuru, Djeran, Maku
   `.claude/skills/<name>/SKILL.md`, by `git mv` so their history follows them. The slash names still
   invoke them, so the references in `CONTRIBUTING.md` and the pull-request template stand. Each
   gains a description saying when to use it, which also lets a session reach for it unprompted, and
-  the two with real lessons behind them gain a dated **Lessons** section: skills are to be updated
-  as the project learns, in the same pull request as the fix that taught the lesson.
+  the two with real lessons behind them gain a dated **Lessons** section. `CLAUDE.md` § Claude Code
+  skills states the rule that keeps them current: a lesson lands in its skill in the same pull
+  request as the fix that taught it.
 - Contributor documents no longer assume a permanent team of one. `SECURITY.md`, `CONTRIBUTING.md` and
   `CLAUDE.md` now say "deliberately small team" — the project anticipates at least one more member, and
   a document that promises "one maintainer" would start lying the day they join. The constitution's §5

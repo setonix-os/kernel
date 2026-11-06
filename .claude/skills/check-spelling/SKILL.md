@@ -37,6 +37,6 @@ If the script exits clean, say so in one line. Do not pad the result.
 
 ## Lessons
 
-- **2026-10-02 — the script checks words, not typography.** A typographic apostrophe and inline code spans
-  broken across a line end both passed the spelling script and markdownlint. Scan for them separately when
-  prose has been rewrapped.
+- **2026-11-06 — the script checks words, not typography.** Inline code spans broken across a line end
+  passed both the spelling script and markdownlint, and were found only by a separate scan (commit
+  `888a847`). Scan for them, and for typographic quotes, whenever prose has been rewrapped.

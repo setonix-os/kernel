@@ -5,7 +5,7 @@ description: "Audit a proposed or recent change against the constitution: the pr
 
 Audit a proposed or recent change against the project's constitution before it is allowed to land.
 
-This command has no counterpart in the maintainer's other projects — it exists because Setonix has a
+This skill has no counterpart in the maintainer's other projects — it exists because Setonix has a
 written constitution that most projects do not, and because CONSTITUTION.md §1 and §5.4 are the two rules
 most easily lost during a productive afternoon.
 

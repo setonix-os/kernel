@@ -3,7 +3,7 @@ name: check-coherence
 description: "Audit the project's documents for internal coherence: contradictions, orphaned claims, undocumented decisions, ledger and single-source-of-truth breaches. Use before any constitutional amendment lands, after editing several RFCs at once, and periodically regardless."
 ---
 
-Audit the project's documents for internal coherence. Run this before any constitutional amendment lands, and periodically regardless.
+Audit the project's documents for internal coherence.
 
 If `$ARGUMENTS` names documents, audit those. Otherwise audit `CONSTITUTION.md`, `CLAUDE.md`,
 `README.md` and everything under `docs/`.
@@ -76,5 +76,6 @@ to look thorough is worse than useless, because it trains the reader to ignore t
 ## Lessons
 
 - **2026-10-02 — a reference that resolves is not a reference that is right.** Three sibling RFCs revised in
-  parallel drifted at eleven seams while every `RFC-000N §M` pointer still resolved. Check what each cited
+  parallel drifted apart at their seams while every `RFC-000N §M` pointer still resolved (`docs/CHANGELOG.md`,
+  the reconciliation entry of that date). Check what each cited
   section actually says, and keep one canonical copy of anything shared (an implementation order, a name).
