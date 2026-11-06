@@ -22,7 +22,7 @@
 > 7. **Handle word:** 20-bit index, 44-bit slot generation; word `0` is null; recorded as a dated RFC-0003 amendment (§6).
 > 8. **Errors in two layers:** numbered transport status in a register, method result in the reply label; faults are not errors (§7).
 > 9. **Process object:** table, one AddressSpace for life, threads; born empty; `GRANT` only until the first `resume`; then `WRITE` means `KILL` (§8).
-> 10. **One root task,** built once from a load descriptor, every boot capability listed in BootInfo, no "is root" branch; every capability traces to that one, complete grant (§9).
+> 10. **One root task,** built once from a load descriptor, every boot capability listed in BootInfo; all authority traces to it, and it must be complete (§9).
 > 11. **Boot images:** `arch::boot_modules()` yields descriptors a host-side ELF reader made; the kernel parses no ELF; AArch64 embeds, as an interim (§10).
 > 12. **Console as a capability:** one `WRITE` of at most 24 bytes that never waits; deleted when the Phase-2 UART driver lands (§11).
 > 13. **`user/abi`** is the microkernel-core row; its `src/arch/**` — trap instructions, a register read and entry stubs — is the third `unsafe` tree (§12).
