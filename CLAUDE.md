@@ -115,6 +115,13 @@ commit, then run `.github/scripts/check-toolchain-pin.sh` — which also fails i
 any workflow starts installing a toolchain of its own, since CI runs the
 devcontainer image and must have no second source of truth.
 
+Workflows and composite actions use only actions owned by GitHub (`actions/`,
+`github/`) or by `setonix-os/`, pinned as
+[STYLE.md § Action Pinning](STYLE.md#action-pinning) requires. The repository's
+Actions settings allow no other owner, and the same script fails any `uses:` that
+breaks either rule. Anything else a job needs is a `run:` step: the devcontainer,
+for one, is built and entered by `.github/scripts/devcontainer.sh`.
+
 `Cargo.lock` **is** committed — this is a binary, and the project's
 reproducibility ethos applies to its own build before it applies to anyone
 else's.

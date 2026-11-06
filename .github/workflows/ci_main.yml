@@ -4,7 +4,6 @@ name: CI - Main Branch
 # so the checks job never holds write access to the registry.
 permissions:
     contents: read
-    packages: read
 
 on:
     push:
@@ -14,19 +13,22 @@ concurrency:
     group: ${{ github.workflow }}-${{ github.ref }}
     cancel-in-progress: true
 
-# devcontainers/ci does not, by default (inheritEnv), carry the runner's
-# environment into the container: it forwards only the variables its `env` input
-# names, plus the GITHUB_* file paths. Every devcontainers/ci step therefore
-# names CARGO_TERM_COLOR and RUSTFLAGS there; a bare name takes its value from
-# this block, which stays the single source.
+# The single source of these values. devcontainer.sh forwards CARGO_TERM_COLOR
+# and RUSTFLAGS into the container by name, and reads DEVCONTAINER_IMAGE.
 env:
     CARGO_TERM_COLOR: always
     RUSTFLAGS: "-Dwarnings"
     DEVCONTAINER_IMAGE: ghcr.io/setonix-os/kernel-devcontainer
 
+# bash with pipefail, rather than the runner's default of plain `bash -e`.
+defaults:
+    run:
+        shell: bash
+
 # Identical to ci_pr.yml except that this workflow *publishes* the devcontainer
 # image after the checks pass, so pull requests never build from an image that
-# has not itself been proven to build and boot the kernel.
+# has not itself been proven to build and boot the kernel. Every docker flag is
+# in .github/scripts/devcontainer.sh.
 jobs:
     checks:
         name: Checks (pins, spelling, fmt, clippy, markdown)
@@ -40,30 +42,29 @@ jobs:
                 # Nothing after checkout uses git credentials, so none are persisted.
                 persist-credentials: false
 
+            # This job never publishes, so it may build from the cache.
+            - name: Build the devcontainer image
+              run: bash .github/scripts/devcontainer.sh build
+
+            # The list of checks exists once, in the script, so that the command a
+            # contributor runs before pushing is exactly this one. The guard runs
+            # first because check-all.sh supplies -Dwarnings itself when RUSTFLAGS
+            # is unset, which here would hide a name devcontainer.sh failed to forward.
             - name: Run checks in the devcontainer
-              uses: devcontainers/ci@513af61f4de4f75d37e4438f184ba4358f0fc1ca # v0.3.1900000450
-              with:
-                imageName: ${{ env.DEVCONTAINER_IMAGE }}
-                cacheFrom: ${{ env.DEVCONTAINER_IMAGE }}
-                # Published only after the boot job below has also passed, so
-                # this step builds and runs without pushing.
-                push: never
-                env: |
-                    CARGO_TERM_COLOR
-                    RUSTFLAGS
-                # The list of checks exists once, in the script, so that the command a
-                # contributor runs before pushing is exactly this one. The guard runs
-                # first because check-all.sh supplies -Dwarnings itself when RUSTFLAGS
-                # is unset, which here would hide a name with.env failed to forward.
-                runCmd: |
+              run: |
+                bash .github/scripts/devcontainer.sh run -- bash -c '
                     set -euo pipefail
                     : "${RUSTFLAGS:?RUSTFLAGS was not forwarded into the container}"
                     bash .github/scripts/check-all.sh --github
+                '
 
     boot:
         name: Boot (QEMU aarch64 virt)
         needs: checks
         runs-on: ubuntu-latest
+        # The build below starts from nothing, QEMU's compile included. The
+        # last such build (run 30209367728, the commit that pinned QEMU 11.0.3)
+        # took this whole job 8 minutes.
         timeout-minutes: 30
         # Main is the only branch that publishes the devcontainer image, which
         # then serves as the layer cache every pull request pulls from. Same
@@ -80,36 +81,59 @@ jobs:
                 # Nothing after checkout uses git credentials, so none are persisted.
                 persist-credentials: false
 
-            - name: Log in to GitHub Container Registry
-              uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
-              with:
-                registry: ghcr.io
-                username: ${{ github.actor }}
-                password: ${{ secrets.GITHUB_TOKEN }}
+            # The image the last steps publish, so it is built without the cache.
+            - name: Build the devcontainer image from nothing
+              run: bash .github/scripts/devcontainer.sh build --publish
 
-            # Debug and release are both booted here. They differ enough in
-            # layout and inlining that a debug-only boot test has let real faults
-            # through in other kernels.
-            #
-            # This step also publishes the image, and does so last on purpose: an
-            # image only becomes the cache for every pull request after it has
-            # been shown to build the kernel *and* boot it.
-            - name: Boot in the devcontainer, then publish the image
-              uses: devcontainers/ci@513af61f4de4f75d37e4438f184ba4358f0fc1ca # v0.3.1900000450
-              with:
-                imageName: ${{ env.DEVCONTAINER_IMAGE }}
-                cacheFrom: ${{ env.DEVCONTAINER_IMAGE }}
-                push: always
-                env: |
-                    CARGO_TERM_COLOR
-                    RUSTFLAGS
-                runCmd: |
+            # The same three boots as on pull requests; ci_pr.yml says why each.
+            - name: Boot in the devcontainer and expect the greeting
+              run: |
+                bash .github/scripts/devcontainer.sh run -- bash -c '
                     set -euo pipefail
-                    # with.env forwards it; a name missing there arrives unset, and warnings pass again.
+                    # devcontainer.sh forwards it; a name missing there arrives unset, and warnings pass again.
                     : "${RUSTFLAGS:?RUSTFLAGS was not forwarded into the container}"
                     cargo --locked xtask boot-test --arch aarch64 --expect "Kaya!"
                     cargo --locked xtask boot-test --arch aarch64 --release --expect "Kaya!"
                     cargo --locked xtask boot-test --arch aarch64 --features provoke-exception --expect "BRK instruction"
+                '
+
+            # Publishing comes last on purpose, and each step runs only if every
+            # step before it succeeded: an image becomes the cache for every pull
+            # request only after it has been shown to build the kernel *and* boot
+            # it. Only this repository publishes; a fork's main builds and boots,
+            # and stops here. The cache pull is anonymous, so the package must stay
+            # public, and the token is needed only from here on.
+            - name: Log in to GitHub Container Registry
+              if: github.repository == 'setonix-os/kernel'
+              env:
+                GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+              run: echo "$GITHUB_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+
+            # The commit's own tag goes first, so whatever `latest` names can
+            # always be traced to the commit that built it. A registry hiccup gets
+            # three tries per tag, with a growing pause between them.
+            - name: Publish the devcontainer image
+              if: github.repository == 'setonix-os/kernel'
+              run: |
+                docker tag "${DEVCONTAINER_IMAGE}:latest" "${DEVCONTAINER_IMAGE}:${GITHUB_SHA}"
+                for tag in "${GITHUB_SHA}" latest; do
+                    for attempt in 1 2 3; do
+                        if docker push "${DEVCONTAINER_IMAGE}:${tag}"; then
+                            break
+                        fi
+                        if [[ $attempt -eq 3 ]]; then
+                            echo "::error::docker push of ${tag} failed three times"
+                            exit 1
+                        fi
+                        sleep $((attempt * 15))
+                    done
+                done
+
+            # docker login stores the token in ~/.docker/config.json; remove it
+            # whatever happened above.
+            - name: Log out of GitHub Container Registry
+              if: ${{ always() && github.repository == 'setonix-os/kernel' }}
+              run: docker logout ghcr.io
 
     ci-success:
         name: CI Success
@@ -120,9 +144,12 @@ jobs:
 
         steps:
             - name: Check if all jobs succeeded
+              env:
+                CHECKS_RESULT: ${{ needs.checks.result }}
+                BOOT_RESULT: ${{ needs.boot.result }}
               run: |
-                if [[ "${{ needs.checks.result }}" != "success" ]] ||
-                   [[ "${{ needs.boot.result }}" != "success" ]]; then
+                if [[ "$CHECKS_RESULT" != "success" ]] ||
+                   [[ "$BOOT_RESULT" != "success" ]]; then
                     echo "One or more jobs failed"
                     exit 1
                 fi

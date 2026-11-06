@@ -258,6 +258,50 @@ Release codenames follow the six Noongar seasons — Birak, Bunuru, Djeran, Maku
 
 ### Changed
 
+- **CI uses only GitHub's actions and our own.** `devcontainers/ci` and `docker/login-action` leave
+  both workflows ahead of the repository's Actions policy being restricted to actions owned by GitHub
+  and by `setonix-os`. They are replaced by the plain `docker` commands the action ran for this
+  repository, as read from its source at the pinned SHA and from run 42219570760's log, held once in
+  a new `.github/scripts/devcontainer.sh` that both workflows call and that documents every flag.
+    - `devcontainer.sh build` is `docker buildx build --load` with `BUILDKIT_INLINE_CACHE=1` and
+      main's image as `--cache-from`, so the image still carries the cache metadata the next run
+      reads; it first prints the docker and buildx versions and the builder, so a change in GitHub's
+      runner image shows in the log. This pull request's own run pulled that cache anonymously and
+      rebuilt nothing.
+    - `devcontainer.sh build --publish`, used only by main's boot job, builds with `--no-cache`
+      instead. Any branch in this repository can push to the registry by editing a workflow, so the
+      image main publishes must not inherit a layer from it. The price is a full build, QEMU's
+      compile included, on every push to main: the last one took the whole boot job eight minutes,
+      well inside its thirty.
+    - `devcontainer.sh run` is `docker run --pull never`, so it can only use the image just built,
+      with the checkout bind-mounted at `/root/kernel`, the folder `devcontainer.json` names, as the
+      image's own root, and with `RUSTFLAGS` and `CARGO_TERM_COLOR` passed by `-e` as the action's
+      `env` input passed them. Ownership is unchanged: the checkout still belongs to the runner's
+      uid, because the action's UID-matching pass was a no-op for this image.
+    - Main's boot job alone publishes, only in `setonix-os/kernel`, and only after every boot has
+      passed: `docker login` from standard input, then `docker push` of a tag naming the commit
+      followed by `latest`, each tried three times, then a `docker logout` that runs whatever
+      happened. Login, push and logout stay in the workflow, so the token never reaches the script.
+      The login now comes just before the push rather than before the build, because the cache pull
+      needs no credentials; the package must therefore stay public.
+    - Four things the action did are deliberately not reproduced, because CI used none of them:
+      `devcontainer.json`'s mounts and `containerEnv`, which serve interactive sessions; its
+      `postCreateCommand` and the CLI's login-shell environment probe, since the probe yields the
+      image's own `PATH` and `check-all.sh` already prints the versions; the `GITHUB_*` file-command
+      mounts, which nothing in the container writes to; and the `devcontainer.metadata` label, which
+      nothing reads, because "Reopen in Container" builds the Dockerfile.
+    - `check-toolchain-pin.sh` now reads every `uses:` in the workflows and in any composite action
+      under `.github/actions/`. It fails an action owned by anyone but GitHub or `setonix-os`, one
+      not pinned to a full commit SHA, and the toolchain installers it already banned, now however
+      their value is quoted. Because a grep cannot parse YAML, it accepts `uses:` in one plain form
+      and fails every other spelling of the key, such as a flow mapping, a quoted, escaped or
+      aliased key or a space before the colon, each of which a narrower pattern would have waved
+      through; a local action path containing `..` fails too. `CLAUDE.md`
+      § Toolchain states the owner rule and defers to `STYLE.md` § Action Pinning for the pin.
+    - Neither workflow grants `packages: read` any longer, since nothing reads the registry with
+      the token; main's boot job keeps `packages: write`. Every `run:` step runs under bash with
+      `pipefail`, and `CI Success` reads the job results from `env` rather than interpolating them
+      into its script.
 - **The five Claude Code commands are now skills.** `/audit-kernel`, `/check-coherence`,
   `/check-primitive`, `/check-spelling` and `/check-style` move from `.claude/commands/` to
   `.claude/skills/<name>/SKILL.md`, by `git mv` so their history follows them. The slash names still

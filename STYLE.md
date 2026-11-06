@@ -37,6 +37,7 @@ location.
 | Repo-local rules, `unsafe` policy, HAL boundary | `CLAUDE.md` |
 | Build commands | `CONTRIBUTING.md` § Development Setup |
 | The checks CI runs, and their exact invocations | `.github/scripts/check-all.sh` |
+| How CI builds and enters the devcontainer | `.github/scripts/devcontainer.sh` |
 | Coding standards | `CONTRIBUTING.md` § Coding Standards |
 | Commit conventions | `CONTRIBUTING.md` § Commit Messages |
 | British spelling word list | `.github/scripts/check-british-spelling.sh` |
