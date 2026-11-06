@@ -11,6 +11,13 @@ Release codenames follow the six Noongar seasons — Birak, Bunuru, Djeran, Maku
 
 ### Added
 
+- **One command runs everything CI's checks job runs.** `.github/scripts/check-all.sh` holds the job's
+  steps, in its order, and both workflows now call it instead of listing the steps themselves — so
+  the command a contributor runs before pushing cannot drift from CI. It stops at the first failing
+  step and names it. Among those steps is a new gate, `.github/scripts/check-code-spans.sh`, which
+  fails on an inline code span broken across a line end (matched as CommonMark matches spans, so
+  double-backtick spans and stray backticks are handled) and on typographic quotes in our own
+  Markdown. Its first run found one broken span, in this changelog.
 - **The capability table itself — RFC-0003's second increment.** `setonix-capability` grows the owned
   `Capability` value and the flat per-process `CapabilityTable` (§4, Option B): the structure every
   future syscall resolves against.
@@ -192,8 +199,8 @@ Release codenames follow the six Noongar seasons — Birak, Bunuru, Djeran, Maku
       first console line now says so instead of asserting a timeout that never elapsed. Argument
       parsing no longer lets a flag swallow the next flag as its value, silently default when a
       value is forgotten, or ignore an unrecognised token — `--arch=x86_64` used to build aarch64
-      without a word. Seven unit tests now cover the pure helpers, so CI's `cargo test --package
-      xtask` verifies something for the first time.
+      without a word. Seven unit tests now cover the pure helpers, so CI's
+      `cargo test --package xtask` verifies something for the first time.
     - **The forged-handle sweep now covers `remove` as well as `resolve`**, which is what this
       changelog already claimed of it. Every forged (index, generation) pair in the space is denied
       at both entry points, so a dangling handle can neither use nor steal a reused slot's occupant —

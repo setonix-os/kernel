@@ -59,12 +59,7 @@ delete this section, its emptiness is itself the useful signal.
 
 ## Checklist
 
-- [ ] Builds for both Tier-1 targets (`aarch64-unknown-none-softfloat` and `x86_64-unknown-none`)
-- [ ] Clippy passes for every package, exactly as CI runs it (see `CONTRIBUTING.md` § Development Setup)
-- [ ] Formatted (`cargo fmt --all --check`)
-- [ ] Toolchain pins agree (`bash .github/scripts/check-toolchain-pin.sh`)
-- [ ] British spelling (`bash .github/scripts/check-british-spelling.sh`)
-- [ ] Markdown is lint-clean (`markdownlint-cli2 "**/*.md"`)
+- [ ] The pre-push checks pass (see `CONTRIBUTING.md` § Before pushing)
 - [ ] Boots in QEMU where applicable
 - [ ] `CHANGELOG.md` updated under `[Unreleased]`
 - [ ] Commit messages follow Conventional Commits (see `CONTRIBUTING.md`)

@@ -70,12 +70,7 @@ whether it belongs at all.
 
 #### PR Requirements
 
-- [ ] Builds for both Tier-1 targets (`aarch64-unknown-none-softfloat`, `x86_64-unknown-none`)
-- [ ] Clippy passes for every package, exactly as CI runs it (see [Development Setup](#development-setup))
-- [ ] Formatted (`cargo fmt --all --check`)
-- [ ] Toolchain pins agree (`bash .github/scripts/check-toolchain-pin.sh`)
-- [ ] British spelling (`bash .github/scripts/check-british-spelling.sh`)
-- [ ] Markdown lint-clean (`markdownlint-cli2 "**/*.md"`)
+- [ ] The pre-push checks pass (see [Before pushing](#before-pushing))
 - [ ] Boots in QEMU where applicable
 - [ ] Every new `unsafe` block is inside a designated module, carries a `// SAFETY:` comment, and is
       listed in the PR
@@ -144,6 +139,16 @@ container gives you, and any difference is yours to debug.
 
 The Dockerfile is the specification; read it rather than guessing, since it names an exact version and
 a verified download for each of these.
+
+### Before pushing
+
+```bash
+bash .github/scripts/check-all.sh
+```
+
+This is CI's checks job, run locally: every step, in CI's order. The script is the only list of
+those steps, and CI's workflows call it and nothing else, so the two cannot drift. It stops at the
+first failing step and names it. Run it inside the devcontainer, which is where CI runs it.
 
 ### Commands
 
