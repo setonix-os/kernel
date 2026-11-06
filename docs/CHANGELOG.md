@@ -191,6 +191,12 @@ recorded is indistinguishable from law that was never agreed.
 
 ### Changed
 
+- **Four design concerns from a read of the whole document set, 2026-11-06.** RFC-0005 §6 and threat model
+  §9 state that a kernel mapped in every address space puts Meltdown-class CPUs outside the security target,
+  and keep the door open for page-table isolation. RFC-0003a proposes amending O-22, whose "only capabilities
+  for pending requests" its forwarders cannot meet. RFC-0006 and RFC-0003a name the interrupt latency a hostile
+  process can impose through masked queue walks, making the thread capacity a security parameter. RFC-0006's
+  A4 no longer closes RFC-0003 §14.2: the big lock stands for now, with a written trigger for replacing it.
 - **RFC-0007 §9 gains what an unmerged bootstrap draft held and no RFC did, 2026-11-06.** That draft of
   2026-08-05 was never proposed, and most of its design went into RFC-0007. Three rules did not: every
   capability has a finite chain back to the boot grant, a precondition of O-22 and not a bound; the root

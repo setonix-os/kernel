@@ -164,6 +164,15 @@ top 2 GiB, as `x86_64-unknown-none`'s default kernel code model expects (overrid
   boot — one filled later would be missing from earlier copies (Linux's vmalloc-sync bugs); lower kernel
   tables may change, invalidated on every core (§12). *Rejected:* an identity-mapped kernel, where user
   addresses go; no physmap, an invalidation per IPC-buffer touch.
+- **The kernel stays mapped in every address space, physmap included, which assumes a CPU immune to
+  Meltdown-class speculation (CVE-2017-5754).** On an affected part, any process could read the physmap, all of
+  RAM, and O-8 falls. Such parts are outside the security target until page-table isolation exists (threat model
+  §9), and many x86_64 machines of the constitution's §6 decade are among them. Boot tests for immunity
+  (`IA32_ARCH_CAPABILITIES.RDCL_NO`, bit 0; `ID_AA64PFR0_EL1.CSV3`; a list of parts known immune that report
+  neither, as Linux keeps) and says so on the console. **The door stays open:** isolation would map only a
+  trampoline in user tables, needing two tags per AddressSpace and an entry stub that switches tables before
+  it touches a TCB frame (RFC-0006 (proposed) §9), so nothing here may assume the kernel is reachable at entry
+  beyond those stubs (§17.9).
 
 ## 7. The objects: Region, AddressSpace and Mapping
 
@@ -426,6 +435,7 @@ jumps high and drops the identity entry — the same "Rust runs only high" rule.
 7. **"Minimal assembly"** (the Constitution's Language clause): are runtime one-instruction
    `TLBI`/`DC`/`IC`/`TTBR` intrinsics within it (§9)?
 8. **One programme order** across RFC-0005/0006/0007 — RFC-0007 (proposed) §18 holds it, for the maintainer to fix.
+9. **Page-table isolation** for Meltdown-class parts (§6): built, or those parts left outside the target for good?
 
 ## 18. Implementation increments
 

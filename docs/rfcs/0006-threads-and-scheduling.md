@@ -362,9 +362,12 @@ Phase 1 runs `-smp 1`; the shape is fixed now so multicore is not bolted on.
   server between cores; **the kernel never load-balances.** Cross-core wake-ups (RFC-0004 §9.2) enqueue *W* on
   its core and send an IPI (`ICC_SGI1R_EL1`; the LAPIC ICR). Direct switch is same-core only.
 - **One big kernel lock when SMP lands**, on every entry, the fast path included *(Peters, Danis, Elphinstone &
-  Heiser, "For a Microkernel, a Big Lock Is Fine", APSys 2015)*. This **rejects the premise** of RFC-0003
-  §14.2, sharing without a global lock on the fast path; resolve→check→act holds within an entry, and §3 covers
-  restarts (A4).
+  Heiser, "For a Microkernel, a Big Lock Is Fine", APSys 2015)*. This **sets aside for now** RFC-0003
+  §14.2's aim, sharing without a global lock on the fast path: resolve→check→act holds within an entry, and §3
+  covers restarts (A4). It does not close the question. Constitution §6 targets server workloads, which run on
+  many cores, and every structure here stays per core so that a finer scheme can replace the lock. **The
+  trigger:** IPC throughput is measured at the core counts of the target machines, and if the lock limits it, an
+  RFC replaces the lock.
 - **A core waiting for the lock services IPIs while it spins** *(as seL4's CLH lock does)*: two operations need
   a synchronous answer from another core — RFC-0005's x86_64 TLB shootdown, lacking a broadcast, and **FP state
   live elsewhere**: a thread whose registers core X owns lazily, run next on core Y, has Y ask X by IPI to save
@@ -393,7 +396,7 @@ so C1 only names the question A1 raises, and A1 cannot be accepted without an an
 | A1 | RFC-0004 §4, §8 | `call` donates only to a **passive** receiver; an active one runs on its own context | a thread holds one context; seL4 MCS `reply_push`; cost in §7 |
 | A2 | RFC-0004 amendment 2026-08-01 | a caller short *now* waits `Throttled`; only a context that can *never* pass is refused | refusal makes clients spin; nothing is donated below the bar either way |
 | A3 | the same, and research/0002 Part 6 | seL4's timeout faults ship in MCS (`seL4_Fault_Timeout`); what is unmerged is RFC-14's threshold | a factual correction to "have remained future work" |
-| A4 | RFC-0003 §14.2 | the big lock covers the fast path by design; the question is closed by rejecting its premise | §12; Peters et al. 2015 |
+| A4 | RFC-0003 §14.2 | the big lock covers the fast path for now; the question stays open, with §12's trigger | §12; Peters et al. 2015 |
 | A5 | research/0002 Part 6 | budgets are caps, not minima: the kernel enforces a sporadic cap, and a guaranteed minimum is the `SchedControl` holder's admission policy | verdict 4; a cap is what makes fixed-priority admission sound, and a kernel-guaranteed minimum would be policy (§5) |
 | A6 | RFC-0003 §6 | a capability may also rest in a kernel-held slot of a thread (`fault_ep`, `timeout_ep`), moved in and out with `TRANSFER` and generation-checked when used | RFC-0003's invariant names only "one table, or in flight in exactly one message"; the thread slots are a third place (§4) |
 | C1 | Constitution §3, "with priority inheritance" | for the maintainer: under A1, inheritance holds through donation to passive servers, and an active server runs on its own priority, a ceiling bounding the inversion (§7) | A1 narrows a constitutional clause, which no RFC can do on its own authority |
@@ -438,7 +441,7 @@ so C1 only names the question A1 raises, and A1 cannot be accepted without an an
 | **Every server needs someone to think about time** | a passive server cannot run until called; an active one needs a configured context and inherits nothing (A1); "spawn a thread and it runs" is gone |
 | **A stranded server is userspace's problem** | `min_budget` 0 lets one client strand it for all; a supervisor is required before any passive server on partial contexts is trusted |
 | **Caps, not minima** | a spent partial context idles its core even when nothing else would run |
-| **Priority-ordered endpoint queues** | an O(n) walk with interrupts masked, *n* up to the thread capacity |
+| **Priority-ordered endpoint queues** | an O(n) walk with interrupts masked, *n* up to the thread capacity, which a hostile process can approach with threads from its own Pool, lengthening interrupt latency for all; the thread capacity is therefore a security parameter (Open question 8) |
 | **Interrupt time is billed to whoever runs** | a driver `ack`ing a level line in a loop charges other processes, one interrupt per `ack` — seL4's choice; passive drivers (Open question 4) could bill the driver |
 | **No userspace timer yet** | RFC-0004 §8's load-bearing watchdog lacks a source until increment 15 — an unmet RFC-0004 dependency |
 | **Exclusivity is checkable, not revocable** | `ctl_info` shows whether a grantor kept a copy; if one did, it can still configure onto the core |
@@ -460,6 +463,9 @@ so C1 only names the question A1 raises, and A1 cannot be accepted without an an
    included, lend its MCP, as seL4 does; but the crate documents `Rights::NONE` as a capability that "permits
    nothing, though it still names its object" (`capability/src/rights.rs`). Keep seL4's rule, with RFC-0003
    noting that naming alone confers MCP, or require a right on `auth`?
+8. **Masked walks under attack.** The thread capacity bounds §6's walk and RFC-0003a's dead-wait pops, so it
+   bounds the interrupt latency a hostile process can impose. Measure both with a queue at capacity before that
+   constant is fixed; if the bound is too long, per-level queues on an endpoint trade memory for O(1) insertion.
 
 ## 19. Implementation increments
 
