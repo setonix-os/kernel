@@ -81,6 +81,9 @@ cargo xtask run-qemu  --arch aarch64 [--debug]        # --debug: gdb stub on :12
 cargo xtask boot-test --arch aarch64 --expect "Kaya!"
 ```
 
+Before pushing, run everything CI's checks job runs with the one command in
+[CONTRIBUTING.md § Before pushing](CONTRIBUTING.md#before-pushing).
+
 Always name the package when invoking cargo directly. The workspace's crates
 have incompatible targets — the kernel only cross-compiles, `xtask` only builds
 for the host, and `capability` builds for both — so an unscoped `--target` will

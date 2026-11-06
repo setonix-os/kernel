@@ -11,6 +11,13 @@ Release codenames follow the six Noongar seasons — Birak, Bunuru, Djeran, Maku
 
 ### Added
 
+- **One command runs everything CI's checks job runs.** `.github/scripts/check-all.sh` holds the job's
+  steps, in its order, and both workflows now call it instead of listing the steps themselves — so
+  the command a contributor runs before pushing cannot drift from CI. It stops at the first failing
+  step and names it. Among those steps is a new gate, `.github/scripts/check-code-spans.sh`, which
+  fails on an inline code span broken across a line end (matched as CommonMark matches spans, so
+  double-backtick spans and stray backticks are handled) and on typographic quotes in our own
+  Markdown. Its first run found one broken span, in this changelog.
 - **The capability table itself — RFC-0003's second increment.** `setonix-capability` grows the owned
   `Capability` value and the flat per-process `CapabilityTable` (§4, Option B): the structure every
   future syscall resolves against.
@@ -165,6 +172,13 @@ Release codenames follow the six Noongar seasons — Birak, Bunuru, Djeran, Maku
 
 ### Fixed
 
+- **The British-spelling gate had been checking nothing in CI.** Inside the devcontainer the
+  checkout belongs to the runner's user, not root, so git refused it as "dubious ownership"; the
+  script read its file list through a process substitution, whose failure `set -e` cannot see, and
+  reported "OK: no files to check". The spelling gate and the new code-span gate now trust exactly
+  the repository root for that one call, fail when git does, and refuse an empty file list. The pin
+  check now also scans `.github/scripts/`, since CI's commands live there, and `check-all.sh` runs
+  each step under its own `set -e`, so a step that is a shell function cannot pass a failure.
 - **The x86_64 docs no longer say `q35` has no bare-ELF `-kernel`.** `CLAUDE.md`, the README, the
   x86_64 module, `xtask`'s refusal and a CI comment all claimed it. QEMU's x86 loader does take a
   64-bit ELF through `-kernel` when it carries a Xen PVH note (`XEN_ELFNOTE_PHYS32_ENTRY`,
