@@ -258,6 +258,30 @@ Release codenames follow the six Noongar seasons — Birak, Bunuru, Djeran, Maku
 
 ### Changed
 
+- **CI uses only GitHub's actions and our own.** `devcontainers/ci` and `docker/login-action` leave
+  both workflows ahead of the repository's Actions policy being restricted to actions owned by GitHub
+  and by `setonix-os`. Each is replaced by the plain `docker` commands it ran for this repository, as
+  read from its source at the pinned SHA and from run 42219570760's log. The build is
+  `docker buildx build --load` with `BUILDKIT_INLINE_CACHE=1` and main's image as `--cache-from`, so
+  the published image still carries the cache metadata the next run reads. The run is
+  `docker run --pull never`, so it can only use the image just built, with the checkout
+  bind-mounted at `/root/kernel`, the folder `devcontainer.json` names, as the
+  image's own root, with `RUSTFLAGS` and `CARGO_TERM_COLOR` passed by `-e` as the action's `env` input
+  passed them. Ownership is unchanged: the checkout still belongs to the runner's uid, because the
+  action's UID-matching pass was a no-op for this image. Main's boot job alone publishes, and only
+  after every boot has passed: `docker login` from standard input, `docker push` of the one `latest`
+  tag, then a `docker logout` that runs whatever happened. The login now comes just before the push
+  rather than before the build, since the cache pull needs no credentials, as every pull request
+  already shows. Three things the action did are deliberately not reproduced, because CI used none of
+  them. The first is the `devcontainer.metadata` label on the published image: "Reopen in Container"
+  builds the Dockerfile and never this image. The second is the login-shell environment probe and
+  `postCreateCommand`: the probe yields the image's own `PATH`, and the checks job's first step
+  already prints the versions. The third is the `GITHUB_*` file-command mounts, which nothing inside
+  the container writes to. `check-toolchain-pin.sh` now also fails any workflow that `uses:` an
+  action outside `actions/`, `github/` and `setonix-os/`, so a breach fails before the push rather
+  than when CI refuses the action; `CLAUDE.md` § Toolchain states the rule. Every `run:` step now
+  runs under bash with `pipefail`, and `CI Success` reads the job results from `env` rather than
+  interpolating them into its script.
 - **The five Claude Code commands are now skills.** `/audit-kernel`, `/check-coherence`,
   `/check-primitive`, `/check-spelling` and `/check-style` move from `.claude/commands/` to
   `.claude/skills/<name>/SKILL.md`, by `git mv` so their history follows them. The slash names still

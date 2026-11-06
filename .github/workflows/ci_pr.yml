@@ -5,7 +5,7 @@ permissions:
     # Read-only on pull requests: the image is pulled as a layer cache, never
     # pushed. Only main publishes (see ci_main.yml), so a pull request cannot
     # poison the image every other branch builds from. No job here raises this
-    # scope, and every devcontainers/ci step below is `push: never`.
+    # scope, and no step here logs in to the registry or pushes to it.
     packages: read
 
 on:
@@ -18,15 +18,19 @@ concurrency:
     group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
     cancel-in-progress: true
 
-# devcontainers/ci does not, by default (inheritEnv), carry the runner's
-# environment into the container: it forwards only the variables its `env` input
-# names, plus the GITHUB_* file paths. Every devcontainers/ci step therefore
-# names CARGO_TERM_COLOR and RUSTFLAGS there; a bare name takes its value from
-# this block, which stays the single source.
+# A container inherits none of the runner's environment, only the image's own
+# and what `docker run` names with -e. Every step that runs in the devcontainer
+# therefore names CARGO_TERM_COLOR and RUSTFLAGS there; a bare `-e NAME` copies
+# its value from this block, which stays the single source.
 env:
     CARGO_TERM_COLOR: always
     RUSTFLAGS: "-Dwarnings"
     DEVCONTAINER_IMAGE: ghcr.io/setonix-os/kernel-devcontainer
+
+# bash with pipefail, rather than the runner's default of plain `bash -e`.
+defaults:
+    run:
+        shell: bash
 
 # Every job runs inside the devcontainer built from .devcontainer/Dockerfile —
 # the same image contributors get from "Reopen in Container" (constitution §7).
@@ -37,6 +41,18 @@ env:
 # a change to the environment is tested by the same run that proposes it. Layers
 # come from the cache published by main, so an unchanged Dockerfile costs a pull
 # rather than a build.
+#
+# Plain docker, not a third-party action: workflows use only actions owned by
+# GitHub or by setonix-os (CLAUDE.md § Toolchain). Each job's build and run
+# steps below are what devcontainers/ci ran for this repository's
+# devcontainer.json:
+#
+#   build  `docker buildx build --load` with BUILDKIT_INLINE_CACHE=1, so the
+#          image carries its own cache metadata, and main's image as
+#          --cache-from. Docker and buildx come with the runner.
+#   run    the checkout bind-mounted at the workspaceFolder, /root/kernel, as
+#          the image's own user, root. The checkout stays owned by the runner's
+#          uid, which is why the git-listing scripts pass safe.directory.
 jobs:
     checks:
         name: Checks (pins, spelling, fmt, clippy, markdown)
@@ -50,23 +66,33 @@ jobs:
                 # Nothing after checkout uses git credentials, so none are persisted.
                 persist-credentials: false
 
+            - name: Build the devcontainer image
+              run: |
+                docker buildx build \
+                    --load \
+                    --build-arg BUILDKIT_INLINE_CACHE=1 \
+                    --cache-from "type=registry,ref=${DEVCONTAINER_IMAGE}:latest" \
+                    --tag "${DEVCONTAINER_IMAGE}:latest" \
+                    --file .devcontainer/Dockerfile \
+                    .devcontainer
+
+            # The list of checks exists once, in the script, so that the command a
+            # contributor runs before pushing is exactly this one. The guard runs
+            # first because check-all.sh supplies -Dwarnings itself when RUSTFLAGS
+            # is unset, which here would hide a name the -e list failed to forward.
             - name: Run checks in the devcontainer
-              uses: devcontainers/ci@513af61f4de4f75d37e4438f184ba4358f0fc1ca # v0.3.1900000450
-              with:
-                imageName: ${{ env.DEVCONTAINER_IMAGE }}
-                cacheFrom: ${{ env.DEVCONTAINER_IMAGE }}
-                push: never
-                env: |
-                    CARGO_TERM_COLOR
-                    RUSTFLAGS
-                # The list of checks exists once, in the script, so that the command a
-                # contributor runs before pushing is exactly this one. The guard runs
-                # first because check-all.sh supplies -Dwarnings itself when RUSTFLAGS
-                # is unset, which here would hide a name with.env failed to forward.
-                runCmd: |
-                    set -euo pipefail
-                    : "${RUSTFLAGS:?RUSTFLAGS was not forwarded into the container}"
-                    bash .github/scripts/check-all.sh --github
+              run: |
+                # --pull never: the image just built, never a registry fallback.
+                docker run --rm --pull never \
+                    --mount "type=bind,source=${GITHUB_WORKSPACE},target=/root/kernel" \
+                    --workdir /root/kernel \
+                    -e RUSTFLAGS -e CARGO_TERM_COLOR \
+                    "${DEVCONTAINER_IMAGE}:latest" \
+                    bash -c '
+                        set -euo pipefail
+                        : "${RUSTFLAGS:?RUSTFLAGS was not forwarded into the container}"
+                        bash .github/scripts/check-all.sh --github
+                    '
 
     boot:
         name: Boot (QEMU aarch64 virt)
@@ -80,6 +106,16 @@ jobs:
               with:
                 # Nothing after checkout uses git credentials, so none are persisted.
                 persist-credentials: false
+
+            - name: Build the devcontainer image
+              run: |
+                docker buildx build \
+                    --load \
+                    --build-arg BUILDKIT_INLINE_CACHE=1 \
+                    --cache-from "type=registry,ref=${DEVCONTAINER_IMAGE}:latest" \
+                    --tag "${DEVCONTAINER_IMAGE}:latest" \
+                    --file .devcontainer/Dockerfile \
+                    .devcontainer
 
             # The smoke test that matters. One assertion, but it exercises the
             # link script, the boot stub, the stack, .bss zeroing, the
@@ -98,21 +134,21 @@ jobs:
             # exception reporter and decode the BRK — so the vector table is
             # proven on every pull request, not trusted.
             - name: Boot in the devcontainer and expect the greeting
-              uses: devcontainers/ci@513af61f4de4f75d37e4438f184ba4358f0fc1ca # v0.3.1900000450
-              with:
-                imageName: ${{ env.DEVCONTAINER_IMAGE }}
-                cacheFrom: ${{ env.DEVCONTAINER_IMAGE }}
-                push: never
-                env: |
-                    CARGO_TERM_COLOR
-                    RUSTFLAGS
-                runCmd: |
-                    set -euo pipefail
-                    # with.env forwards it; a name missing there arrives unset, and warnings pass again.
-                    : "${RUSTFLAGS:?RUSTFLAGS was not forwarded into the container}"
-                    cargo --locked xtask boot-test --arch aarch64 --expect "Kaya!"
-                    cargo --locked xtask boot-test --arch aarch64 --release --expect "Kaya!"
-                    cargo --locked xtask boot-test --arch aarch64 --features provoke-exception --expect "BRK instruction"
+              run: |
+                # --pull never: the image just built, never a registry fallback.
+                docker run --rm --pull never \
+                    --mount "type=bind,source=${GITHUB_WORKSPACE},target=/root/kernel" \
+                    --workdir /root/kernel \
+                    -e RUSTFLAGS -e CARGO_TERM_COLOR \
+                    "${DEVCONTAINER_IMAGE}:latest" \
+                    bash -c '
+                        set -euo pipefail
+                        # -e forwards it; a name missing there arrives unset, and warnings pass again.
+                        : "${RUSTFLAGS:?RUSTFLAGS was not forwarded into the container}"
+                        cargo --locked xtask boot-test --arch aarch64 --expect "Kaya!"
+                        cargo --locked xtask boot-test --arch aarch64 --release --expect "Kaya!"
+                        cargo --locked xtask boot-test --arch aarch64 --features provoke-exception --expect "BRK instruction"
+                    '
 
     ci-success:
         name: CI Success
@@ -123,9 +159,12 @@ jobs:
 
         steps:
             - name: Check if all jobs succeeded
+              env:
+                CHECKS_RESULT: ${{ needs.checks.result }}
+                BOOT_RESULT: ${{ needs.boot.result }}
               run: |
-                if [[ "${{ needs.checks.result }}" != "success" ]] ||
-                   [[ "${{ needs.boot.result }}" != "success" ]]; then
+                if [[ "$CHECKS_RESULT" != "success" ]] ||
+                   [[ "$BOOT_RESULT" != "success" ]]; then
                     echo "One or more jobs failed"
                     exit 1
                 fi

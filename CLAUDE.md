@@ -115,6 +115,12 @@ commit, then run `.github/scripts/check-toolchain-pin.sh` — which also fails i
 any workflow starts installing a toolchain of its own, since CI runs the
 devcontainer image and must have no second source of truth.
 
+Workflows use only actions owned by GitHub (`actions/`, `github/`) or by
+`setonix-os/`, each pinned to a commit SHA with its version in a comment. The
+repository's Actions settings allow nothing else, and the same script fails any
+workflow that `uses:` another. Anything else a job needs is a `run:` step: the
+devcontainer, for one, is built and entered with plain `docker`.
+
 `Cargo.lock` **is** committed — this is a binary, and the project's
 reproducibility ethos applies to its own build before it applies to anyone
 else's.

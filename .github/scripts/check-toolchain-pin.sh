@@ -17,6 +17,11 @@
 #      or a `rustup toolchain install` in .github/scripts/, CI has a second source of
 #      truth for a version and §7's guarantee is gone — silently, because
 #      everything would still build.
+#   4. Every action a workflow `uses:` is owned by GitHub (`actions/`, `github/`)
+#      or by this organisation (`setonix-os/`). The repository's Actions policy
+#      allows nothing else, so a third-party action would fail only once CI ran
+#      it; this check fails it before the push. Anything else a workflow needs is
+#      a `run:` step, in the open, where its review is the review of the diff.
 #
 # Resolves paths relative to the repository root regardless of the caller's CWD.
 
@@ -109,6 +114,37 @@ if grep -rnE --exclude=check-toolchain-pin.sh '(sh\.rustup\.rs|rustup (default|t
     fail=1
 fi
 
+# --- 4. Only GitHub's and our own actions ----------------------------------
+# Every `uses:` value, in any of YAML's three quotings, with a trailing comment
+# stripped. A list item (`- uses:`) and a mapping key (`uses:`) are both
+# matched, which is every form a step or a reusable-workflow call can take.
+# A `./` path is an action in this repository, and so ours by definition.
+
+uses_lines=$(grep -rnE '^[[:space:]]*(-[[:space:]]+)?uses:' .github/workflows/ || true)
+
+if [[ -z "$uses_lines" ]]; then
+    echo "ERROR: found no \`uses:\` in .github/workflows/; the action-owner check" >&2
+    echo "       would pass by checking nothing. Has the layout changed?" >&2
+    fail=1
+fi
+
+while IFS= read -r line; do
+    [[ -z "$line" ]] && continue
+    value=${line#*uses:}
+    value=${value%%#*}
+    value=$(sed -E "s/^[[:space:]]*['\"]?//; s/['\"]?[[:space:]]*$//" <<<"$value")
+    case "$value" in
+        actions/* | github/* | setonix-os/* | ./*) ;;
+        *)
+            echo "ERROR: a workflow uses an action owned by neither GitHub nor setonix-os:" >&2
+            echo "       ${line}" >&2
+            echo "       The repository allows no other, so CI would refuse '${value}'." >&2
+            echo "       Write the step as \`run:\` instead (CLAUDE.md § Toolchain)." >&2
+            fail=1
+            ;;
+    esac
+done <<<"$uses_lines"
+
 if [[ $fail -ne 0 ]]; then
     exit 1
 fi
@@ -116,3 +152,4 @@ fi
 echo "OK: Rust pinned to $toml_channel in rust-toolchain.toml and $dockerfile"
 echo "OK: both Tier-1 bare-metal targets present"
 echo "OK: no workflow or CI script installs a toolchain outside the devcontainer"
+echo "OK: every action a workflow uses is GitHub's or setonix-os's"
