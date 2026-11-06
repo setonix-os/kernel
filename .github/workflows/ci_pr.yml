@@ -46,6 +46,8 @@ jobs:
         steps:
             - name: Checkout repository
               uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+              with:
+                persist-credentials: false # nothing after checkout uses git credentials
 
             - name: Run checks in the devcontainer
               uses: devcontainers/ci@513af61f4de4f75d37e4438f184ba4358f0fc1ca # v0.3.1900000450
@@ -58,6 +60,8 @@ jobs:
                     RUSTFLAGS
                 runCmd: |
                     set -euo pipefail
+                    # with.env forwards it; a name missing there arrives unset, and warnings pass again.
+                    : "${RUSTFLAGS:?RUSTFLAGS was not forwarded into the container}"
 
                     echo "::group::Environment"
                     rustc --version
@@ -124,6 +128,8 @@ jobs:
         steps:
             - name: Checkout repository
               uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+              with:
+                persist-credentials: false # nothing after checkout uses git credentials
 
             # The smoke test that matters. One assertion, but it exercises the
             # link script, the boot stub, the stack, .bss zeroing, the
@@ -152,6 +158,8 @@ jobs:
                     RUSTFLAGS
                 runCmd: |
                     set -euo pipefail
+                    # with.env forwards it; a name missing there arrives unset, and warnings pass again.
+                    : "${RUSTFLAGS:?RUSTFLAGS was not forwarded into the container}"
                     cargo --locked xtask boot-test --arch aarch64 --expect "Kaya!"
                     cargo --locked xtask boot-test --arch aarch64 --release --expect "Kaya!"
                     cargo --locked xtask boot-test --arch aarch64 --features provoke-exception --expect "BRK instruction"

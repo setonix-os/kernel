@@ -169,12 +169,14 @@ Release codenames follow the six Noongar seasons — Birak, Bunuru, Djeran, Maku
   `devcontainers/ci` forwards into the container only the variables its `env` input names, plus the
   `GITHUB_*` file paths, so every build, test and boot accepted rustc warnings — run 42213389069's log
   shows `devcontainer exec` handed those four paths and nothing more. Every `devcontainers/ci` step
-  now names `RUSTFLAGS` and `CARGO_TERM_COLOR`, and the tree builds clean with them. Every cargo
+  now names `RUSTFLAGS` and `CARGO_TERM_COLOR`, and the tree builds clean with them; each `runCmd`
+  fails at once if `RUSTFLAGS` arrives unset, since the action drops a forwarded name silently. Every cargo
   command but `cargo fmt`, which takes no such flag, runs `--locked`, as does xtask's own build of the
   kernel, so a stale committed lockfile fails CI rather than being quietly rewritten. The main
   workflow is read-only by default and only its publishing `boot` job holds `packages: write`. Pull
   requests now boot the release build as main does, and run for every base branch, so a stacked pull
-  request gets CI too; no pull-request job can publish the image.
+  request gets CI too; no pull-request job can publish the image. Checkouts no longer leave the
+  job's token in the workspace's git configuration.
 - **The x86_64 docs no longer say `q35` has no bare-ELF `-kernel`.** `CLAUDE.md`, the README, the
   x86_64 module, `xtask`'s refusal and a CI comment all claimed it. QEMU's x86 loader does take a
   64-bit ELF through `-kernel` when it carries a Xen PVH note (`XEN_ELFNOTE_PHYS32_ENTRY`,
