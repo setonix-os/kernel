@@ -343,8 +343,8 @@ waits:** the kernel stores bytes while the PL011's transmit-full flag is clear a
 accepted, and `abi` yields and retries the rest, so any waiting happens at EL0, preemptibly. The hold is at
 most 24 flag reads and 24 stores, inside RFC-0006 (proposed)'s measured worst path, so the console sets no
 floor under `MIN_BUDGET` and needs no preemption point. The root receives it with `DUPLICATE | TRANSFER | WRITE`
-(no input path, so no `READ`) and derives `WRITE`-only copies for chosen children; a program not
-handed one cannot print, but for §7's interim. **Rejected:** seL4's `DebugPutChar`, any thread's in a
+(no input path, so no `READ`) and derives `TRANSFER | WRITE` copies for chosen children, `TRANSFER` because
+`GRANT` moves them (§8); a program not handed one cannot print, but for §7's interim. **Rejected:** seL4's `DebugPutChar`, any thread's in a
 `CONFIG_PRINTING` build; a console at a well-known handle. **Adopted in spirit:** Zircon's write-only
 debuglog. Once a userspace UART driver exists the root hands out an endpoint speaking `WRITE`, no client
 changes, and the Console object is **deleted** (increment 13).
@@ -466,7 +466,7 @@ prefixed strings, since bare `Kaya!` matches the kernel's greeting; every demo l
 9. **[demo] The root spawns the client,** in three PRs:
     - **a.** A host-tested `no_std` `user/loader` crate: descriptor in, method calls out, W^X and overlaps
       refused; a host test that the spawner ends holding only the Process capability.
-    - **b.** The root runs the plan, granting a `WRITE`-only Console and a send-only endpoint:
+    - **b.** The root runs the plan, granting a Console and a send-side endpoint capability, each `TRANSFER | WRITE`:
       `--expect "[root] up" --expect "[client] up"`.
     - **c.** O-27 evidence: the client probes indices 0–63 at generation 1 with `cap_rights` (exhaustive
       while no slot has been vacated), printing `[client] 2 handles`, and the root prints `INFO`'s count,

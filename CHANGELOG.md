@@ -172,6 +172,11 @@ Release codenames follow the six Noongar seasons — Birak, Bunuru, Djeran, Maku
 
 ### Fixed
 
+- **Contributor documents reconciled with the tree.** `README.md`'s Status no longer denies the
+  capability table; `CONTRIBUTING.md` drops the `tests/` row for a directory that does not exist, no
+  longer presumes a UEFI boot path, says "signed" rather than "GPG-signed", and lists the threat model
+  and research notes; `SECURITY.md` points at the threat model instead of restating its seed.
+
 - **CI now enforces what it claimed to.** `RUSTFLAGS="-Dwarnings"` never reached cargo:
   `devcontainers/ci` forwards into the container only the variables its `env` input names, plus the
   `GITHUB_*` file paths, so every build, test and boot accepted rustc warnings — run 42213389069's log

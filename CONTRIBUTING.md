@@ -76,7 +76,7 @@ whether it belongs at all.
       listed in the PR
 - [ ] `CHANGELOG.md` updated under `[Unreleased]`
 - [ ] Commit messages follow [Conventional Commits](#commit-messages)
-- [ ] Every commit is GPG-signed and shows **Verified** on GitHub (see [Signed Commits](#signed-commits))
+- [ ] Every commit is signed and shows **Verified** on GitHub (see [Signed Commits](#signed-commits))
 
 ### Writing an RFC
 
@@ -264,7 +264,7 @@ chore(toolchain): bump Rust to 1.95.0 in both pinned locations
 
 ### Signed Commits
 
-Every commit is GPG-signed. The project's third pillar is author-signed artefacts, and its own history
+Every commit is signed, with GPG or SSH. The project's third pillar is author-signed artefacts, and its own history
 holds itself to the standard it asks of app authors: all of `main` shows **Verified** on GitHub, from
 the root commit onwards. Set it up once —
 
@@ -273,7 +273,8 @@ git config user.signingkey <your-key-id>
 git config commit.gpgsign true
 ```
 
-— and add the public key to your GitHub account so the badge reads Verified. To re-sign an existing
+— for SSH, also `git config gpg.format ssh` — and add the public key to your GitHub account as a
+signing key so the badge reads Verified. To re-sign an existing
 branch: `git rebase --exec "git commit --amend --no-edit -S" main`.
 
 ---
@@ -285,8 +286,7 @@ A kernel cannot run a normal test harness on its target, so tests are split by w
 | Kind | Where | Runs on |
 |------|-------|---------|
 | Unit tests of architecture-independent logic | `#[cfg(test)]` beside the code | Host |
-| Integration tests | `tests/` | Host |
-| Boot and hardware behaviour | `cargo xtask boot-test` | QEMU (aarch64 today; x86_64 once its UEFI boot path lands) |
+| Boot and hardware behaviour | `cargo xtask boot-test` | QEMU (aarch64 today; x86_64 once its boot path lands) |
 
 The boot smoke test is the one that matters most and the cheapest to keep honest: the kernel must
 reach its console and print its greeting. If that breaks, nothing above it can be trusted.
@@ -302,6 +302,8 @@ is worse than no test.
 |----------|--------|
 | `CONSTITUTION.md` | The constitution — binding project law |
 | `docs/rfcs/` | One document per design decision, with rationale and rejected alternatives |
+| `docs/threat-model.md` | What Setonix defends, and the numbered obligations its design must discharge |
+| `docs/research/` | Prior-art reviews the RFCs cite |
 | `docs/CHANGELOG.md` | Amendment log for the constitution and the design documents |
 | `CLAUDE.md` | Repo-local rules: build, `unsafe` policy, HAL boundary |
 | `README.md` | User-facing overview |

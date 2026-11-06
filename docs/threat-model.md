@@ -4,7 +4,7 @@
 
 | Field | Value |
 |-------|-------|
-| Status | **Authoritative** once merged — this document completes Phase 0 |
+| Status | **Authoritative** — this document completed Phase 0 |
 | Expands | [Constitution §9](../CONSTITUTION.md), which remains the seed and the summary |
 | Cited by | RFCs argue their designs against the numbered obligations below |
 | Maintained | Amendments are logged in [docs/CHANGELOG.md](CHANGELOG.md); flaws in this model are security reports — see [SECURITY.md](../SECURITY.md) |
@@ -225,7 +225,7 @@ and a mechanism that cannot name the obligation it discharges has not justified 
   version; tools are fetched from their authors and verified by hash or signature, not taken on trust
   from a distribution. CI runs the same image it pins, so drift is a build failure. **Built** —
   §7 of the constitution, the devcontainer, and `check-toolchain-pin.sh`.
-- **O-20 — Signed project artefacts.** Every commit is GPG-signed and verified; the paper trail is
+- **O-20 — Signed project artefacts.** Every commit is signed and verified; the paper trail is
   author-signed from the root commit. **Built** for commits; release-artefact signing is **Designed**,
   landing with the first release.
 
