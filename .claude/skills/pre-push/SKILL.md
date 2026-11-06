@@ -39,6 +39,8 @@ every merge stale the others.
   time. Read an action's source and its real logs, not its README.
 - **2026-11-06 — never filter push output.** Compare `HEAD` with `git ls-remote` instead.
 - **2026-11-06 — `awk length` counts bytes.** Measure line lengths in characters, with Python.
+- **2026-11-06 — never chain a commit past a linter.** A chained command committed and pushed a known
+  failure. Make the push conditional on the gate's clean result, and lint on the host when Docker is off.
 - **2026-11-06 — a key can be configured and absent.** A repository's `user.signingkey` named a key
   this machine lacked, while the global one worked. Read `git config --show-origin` before anything
   else, and never bypass signing to get past it.
