@@ -30,7 +30,7 @@ recorded is indistinguishable from law that was never agreed.
   nothing, deliberately, which is sound only while it serves no client, and boot-minted objects are
   irrevocable once handed on. Payer destruction of every other type and `pool_reclaim` are left to a
   separate draft, RFC-0003b. It proposes dated amendments to RFC-0003, RFC-0004 and O-3's text, and six
-  to the proposed RFC-0005/0006/0007; the Phase-1 demo needs only the badge register reserved. 460 lines.
+  to the proposed RFC-0005/0006/0007; the Phase-1 demo needs only the badge register reserved. 473 lines.
 - `docs/rfcs/0005-address-spaces-and-physical-memory.md` — **proposed**, the memory half of Phase 1 and
   the first of three interlocking kernel RFCs drafted together with RFC-0006 and RFC-0007. Physical
   memory comes from firmware tables into one bounded `MemoryMap` (the image moves to 0x4020_0000 because

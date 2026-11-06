@@ -83,7 +83,7 @@ scheme served over an endpoint, so revoking endpoint capabilities precisely is m
 | Cost | (a) kernel forwarders | (b) derivation tree |
 |------|-----------------------|---------------------|
 | Kernel memory | one object slot per *revocable grant*, charged to the grantor; one badge word per capability (§6) | two link words in *every* capability slot, revoked or not, plus the badge |
-| Revoke latency | O(1) at revoke; a dead wait cleared when it reaches the head of its queue, O(1) per pop, counted in the worst path (§4) | O(descendants), made restartable by preemption points |
+| Revoke latency | O(1) at revoke; a dead wait cleared when it reaches the head of its queue, O(1) per pop but a short caller's release-queue insertion, counted in the worst path (§4) | O(descendants), made restartable by preemption points |
 | O-7 exposure | bounded by the depth limit and the thread capacity; the grantor pays for its own forwarders | revoke work grows with descendants other processes created, in tables the revoker cannot see |
 | Multi-core | under RFC-0006's big lock both are serialised; (a) holds it for one generation write and RFC-0005 §5's refund | the same lock, held for O(descendants) between preemption points |
 | Review (§5.3) | one object type, one resolve loop, one refusal rule | every move, derive and process death maintains cross-table links |
@@ -108,13 +108,15 @@ row:** (b) protects a grantor who forgot to interpose; (a) only one who did, a d
   presented, not moved, carries `DUPLICATE` (wrapping is a derivation) and names an endpoint, a notification,
   or a forwarder of depth under four. The reply is a forwarder capability with `rights ⊆ rights(cap)` and
   `cap`'s badge.
-- **Use resolves; wrapping and moving do not.** `send`, `call`, a signal, and fault or timeout delivery resolve
-  the chain to the leaf, checking each link's generation, and act with the invoked capability's rights and badge;
-  a dead link answers `Revoked`. The loop takes at most the invoked forwarder's stored depth in hops and fails
-  closed short of a leaf, so a cycle is stopped by that bound as well as by the generations. `forwarder_create`,
-  `cap_derive`, `set_fault_ep`, `set_timeout_ep`, `GRANT` and every transfer act on the forwarder itself:
-  wrapping a depth-2 forwarder yields depth 3, never a forwarder of the leaf (§5). A forwarded `call` stays on
-  RFC-0004 §5's fast path, one more slot read and compare per hop.
+- **Use resolves; wrapping and moving do not.** `send`, `call`, a signal, and fault or timeout delivery first
+  check the invoked capability's right, then resolve the chain to the leaf, checking each link's generation, and
+  act with the invoked capability's rights and badge; a dead link answers `Revoked`. Checking the right first
+  means a holder without it learns nothing about whether the grant is still live, at entry and at rendezvous
+  alike. The loop takes at most the invoked forwarder's stored depth in hops and fails closed short of a leaf, so
+  a cycle is stopped by that bound as well as by the generations. `forwarder_create`, `cap_derive`,
+  `set_fault_ep`, `set_timeout_ep`, `GRANT` and every transfer act on the forwarder itself: wrapping a depth-2
+  forwarder yields depth 3, never a forwarder of the leaf (§5). A forwarded `call` stays on RFC-0004 §5's fast
+  path, one more slot read and compare per hop.
 - **Send side only.** `recv`, `nb_recv`, `reply_recv`, `bind_notification` and an `IrqHandler`'s binding answer
   `WrongType` for a forwarder. The last two leave a link that works without the capability (RFC-0006 §4, §11),
   which destroying a forwarder could not reach; the others serve no step of §8, and refusing them keeps every
@@ -150,13 +152,13 @@ handle is re-resolved and which checks apply. At the head of an endpoint's send 
 | # | Check | Kinds | On failure | Effect |
 |---|-------|-------|------------|--------|
 | 1 | the handle resolves: frame `x0` for send and call, the `fault_ep` or `timeout_ep` slot for a fault | all | send, call: `InvalidHandle`; fault: the thread goes `Inactive`, as a fault with no handler does (RFC-0006 §4); timeout fault: it is left `Unfunded`, as with no live `timeout_ep` (RFC-0006 §7) | nothing delivered; pop; next |
-| 2 | every link in its chain is live, within the stored depth | all | `Revoked`; a fault or timeout fault as in row 1 | the same |
-| 3 | the leaf is the thread's `blocked_on` | all | `Revoked`; a fault or timeout fault as in row 1 | the same |
-| 4 | the capability holds `WRITE` | all | `InsufficientRights`; a fault or timeout fault as in row 1 | the same |
+| 2 | the capability holds `WRITE`, checked before its chain is walked, as at entry | all | `InsufficientRights`; a fault or timeout fault as in row 1 | the same |
+| 3 | every link in its chain is live, within the stored depth | all | `Revoked`; a fault or timeout fault as in row 1 | the same |
+| 4 | the leaf is the thread's `blocked_on` | all | `Revoked`; a fault or timeout fault as in row 1 | the same |
 | 5 | the frame's tag is valid as at entry: bits 9–15 zero, a length of at most 64, at most three capabilities | send, call | `InvalidArgument` | the same |
 | 6 | a tag needing the IPC buffer (a length over four, or any capability) has one | send, call | `NoBuffer` | the same |
 | 7 | a context is held, and it can ever meet the endpoint's `min_budget` | call | `BudgetRefused` | the same |
-| 8 | that context meets `min_budget` now | call | none: the caller leaves the queue `Throttled` and restarts its `call` when the head refill suffices, as RFC-0006 §7's A2 has a short caller do | nothing delivered; pop; next |
+| 8 | that context meets `min_budget` now | call | none, as RFC-0006 §7's A2 has a short caller do: with a partial context the caller leaves the queue `Throttled`, its refills merged and deferred, and restarts its `call` when the head refill suffices; with a full context, which is never throttled (RFC-0006 §5), it goes `Ready` at the tail of its level and restarts on its next timeslice | nothing delivered; pop; next. The partial case costs A2's merge, O(refills) ≤ 8, and an insertion into RFC-0006 §6's sorted release queue, O(n) in contexts and deadline objects |
 | 9 | `caps[]` are fetched and checked as RFC-0007 §5 says | send, call | RFC-0007 §5's status | the same |
 | — | every check passes | | | deliver under the badge of the capability resolved in row 1; a send or call carries its frame's tag and MR0–MR3, a fault or timeout fault the kernel's fault message, whose tag the kernel builds (P5) |
 
@@ -173,9 +175,18 @@ reaches the head. When a sender arrives and finds receivers queued, the head rec
 | R3 | for a sender awaiting a reply, a call or a fault, the receiver's reply-object handle (`x6`, `r12`) resolves and is checked as at entry | that check's status | the same |
 | — | every check passes | | the rendezvous proceeds, its reply object bound |
 
-**The pops take no preemption point.** Each is O(1): at most four hops, a few compares, a status write and a
-run-queue insert. A rendezvous pops at most the thread capacity, with interrupts masked, counted in the worst
-path exactly as RFC-0006 §6 counts its priority-ordered queue insertion, and each pop clears a wait for good.
+A thread waiting on a notification by handle, `BlockedOnNotification` after a `recv` on it, is checked by R1 and
+R2 when a signal would wake it: one whose handle no longer names that notification with `READ` completes with
+that row's status, and the signal wakes the next waiter or stays pending in the word, each such pop O(1) and
+counted like the others. A **bound** notification is exempt: `bind_notification` checked `READ` when it bound,
+and the binding is a link that works without the capability by design (RFC-0006 §4), ended only by
+`unbind_notification`, which is why a forwarder cannot be bound (above).
+
+**The pops take no preemption point.** A pop is O(1), at most four hops, a few compares, a status write and a
+run-queue insert, except a row-8 pop of a partial context, which costs a release-queue insertion, O(*C*) in the
+release queue's length *C*. A rendezvous pops at most the thread capacity *N*, so its worst case is O(*N*·*C*)
+with interrupts masked, counted in the worst path as RFC-0006 §6 counts its own queue walks. Each pop ends the
+wait it pops: a caller popped at row 8 restarts and may queue again, as a new wait.
 
 **Rejected:** forwarders over other types: a Region or Pool reached through one creates objects and mappings that
 answer to no forwarder, so revoking it would promise more than it delivers; ending memory is its payer's, which
@@ -344,10 +355,10 @@ verdict. Each change is logged in `docs/CHANGELOG.md`. RFC-0003b proposes its ow
 | R3 | RFC-0004 §8, §10 | a signal ORs the capability's badge, or bit 0 if unbadged; `recv` delivers the sender's badge | §6 |
 | T1 | threat-model O-3 | "reaches capabilities transitively derived from the revoked one" becomes "reaches every capability derived, moved or chained from a grant made through a revocable indirection; a capability a server returns in answer is that server's to revoke" | (a) does not reach direct derivation (§3), nor what servers return (§4, §8) |
 | P1 | RFC-0005 §5, §7, §8, §10, §14, §16, §17.2–17.3 and verdict 10 | `Forwarder` joins the arrays, and §5's list of live references gains a forwarder's link to a forwarder; Pool rights gain `REVOKE`, refused at mint off Pools, and Region rights lose it, so §10's "without `EXECUTE`, `DUPLICATE` or `REVOKE`" drops `REVOKE`; the root Pool and `pool_split`'s returned capability carry it; §17.3's right of explicit destruction is answered for forwarders, and the pointers that hand donation, reclaim and the rest of §17.3 to RFC-0003a (verdict 10, §10, §14's O-7 row, §16, §17.2–17.3) point at RFC-0003b (draft) instead | §4, §7 |
-| P2 | RFC-0006 §4, §7, §11, A6 | `set_fault_ep` and `set_timeout_ep` accept a forwarder capability, moved with `WRITE` and `TRANSFER`, to rest in `fault_ep`/`timeout_ep`; fault and timeout messages carry its badge, replacing §7's "badges are reserved zero"; `BlockedOnSend` records the sender's kind, send, call, fault or timeout fault, and a queued sender or receiver is checked again at rendezvous by RFC-0003a §4's tables, with no preemption point between pops; a timeout fault that cannot be delivered leaves its thread `Unfunded`; `bind` loses `bits` and ORs the presented notification capability's badge, or bit 0; open question 7 untouched | §4, §6 |
+| P2 | RFC-0006 §4, §7, §11, A6 | `set_fault_ep` and `set_timeout_ep` accept a forwarder capability, moved with `WRITE` and `TRANSFER`, to rest in `fault_ep`/`timeout_ep`; fault and timeout messages carry its badge, replacing §7's "badges are reserved zero"; `BlockedOnSend` records the sender's kind, send, call, fault or timeout fault, and a queued sender or receiver, or a thread `BlockedOnNotification` by handle at a signal, is checked again by RFC-0003a §4's tables, the right before the chain, with no preemption point between pops, a short caller deferred by A2 as at entry; a timeout fault that cannot be delivered leaves its thread `Unfunded`; `bind` loses `bits` and ORs the presented notification capability's badge, or bit 0; open question 7 untouched | §4, §6 |
 | P3 | RFC-0007 §3 | **badge (out): AArch64 `x9`, x86_64 `r14`**, written by `recv`, `nb_recv` and `reply_recv`, a fault or timeout message included, and zero on every other syscall's return; a return from an interrupt or exception, a resumption after a fault reply and a PC-rewind restart restore it from the frame, under §3's rule; `abi` marks it clobbered by every syscall | open question 2; neither register is in use or reserved by Rust inline assembly; `r14` is callee-saved under SysV, so a live value is saved around the call |
-| P4 | RFC-0007 §4, §5 | "A signal sets bit 0 … until badges exist" becomes "a signal ORs the capability's badge, or bit 0 if unbadged"; `cap_derive`'s MR1 goes live; an `IrqHandler` ORs its bound capability's badge, not its bound bits; `send`, `nb_send` and `call` accept a forwarder, the `recv` rows and `bind_notification` refuse one, and the `set_fault_ep` and `set_timeout_ep` rows accept one; Pool rows, labelled in `abi`'s table of record: `WRITE` gains `forwarder_create` (MR0 the capability, presented `DUPLICATE`; MR1 the rights), `REVOKE` gains `destroy` (MR0 the forwarder, presented, no right checked); §5's blocked sender has its tag checked again at rendezvous, and a blocked receiver its endpoint and reply-object handles | §4, §6, §7 |
-| P5 | RFC-0007 §7 | `Revoked`: "the invoked capability no longer reaches its object: one in its chain was destroyed or, for a queued sender or receiver, it now leads elsewhere; a completed wait included"; `PeerGone` narrows to "a party (caller, reply binding) went away"; `BudgetRefused` adds "or a queued `call` that, at rendezvous, holds no context"; a fault message's tag is the kernel's, never a frame word | one status per event, however indirect; §4's tables |
+| P4 | RFC-0007 §4, §5 | "A signal sets bit 0 … until badges exist" becomes "a signal ORs the capability's badge, or bit 0 if unbadged"; `cap_derive`'s MR1 goes live; an `IrqHandler` ORs its bound capability's badge, not its bound bits; `send`, `nb_send` and `call` accept a forwarder, the `recv` rows and `bind_notification` refuse one, and the `set_fault_ep` and `set_timeout_ep` rows accept one; Pool rows, labelled in `abi`'s table of record: `WRITE` gains `forwarder_create` (MR0 the capability, presented `DUPLICATE`; MR1 the rights), `REVOKE` gains `destroy` (MR0 the forwarder, presented, no right checked); §5's blocked sender has its tag checked again at rendezvous, and a blocked receiver its endpoint and reply-object handles, or its notification handle | §4, §6, §7 |
+| P5 | RFC-0007 §7 | `Revoked`: "the invoked capability no longer reaches its object: one in its chain was destroyed or, for a queued sender or receiver, it now leads elsewhere; a completed wait included"; `PeerGone` narrows to "a party (caller, reply binding) went away"; `BudgetRefused` adds "or a queued `call` that, at rendezvous, holds no context"; a fault message's tag is the kernel's, never a frame word; a forwarder's right is checked before its chain, so `InsufficientRights` precedes `Revoked` | one status per event, however indirect; §4's tables |
 | P6 | RFC-0007 §9, §16, §18, §19 | §9's "not revocable until RFC-0003a" becomes "what the root hands on through a forwarder is revocable; boot-minted objects are not (RFC-0003a §9)"; §16's root bullet drops the same clause; §16's "a forwarder for a method" becomes "a stand-in server", whose partial interposition is off the revocation path; §18's root-as-server interim gains a cost: the root's irrevocability assumes it serves no client; §19's sovereignty check goes to RFC-0003b (draft) as input, not to RFC-0003a | §9; one meaning per word |
 
 **RFC-0007's verdicts 2, 7 and 9 need nothing further.** Presented handles gain only P4's refusals and rows, the
@@ -359,7 +370,7 @@ spawner that wants revocable grants simply `GRANT`s forwarder capabilities insid
 | Obligation | This RFC | Status after implementation |
 |-----------|----------|-----------------------------|
 | O-3 revocability | per-grant forwarders, one generation write, reaching derived, moved and chained copies; destruction by the forwarder's payer (§4, §7) | **discharged for grants made through forwarders** under T1's text, not for what servers return through them, which they revoke (§8 step 5); under today's text, partial |
-| O-7 no unprivileged exhaustion | forwarders charged to their creator; depth ≤ 4; dead waits cleared at the queue head, O(1) per pop and counted in the worst path; a revocation is one generation write, its refund RFC-0005 §5's | **maintained**; RFC-0005's reclaim gap stays open, for RFC-0003b |
+| O-7 no unprivileged exhaustion | forwarders charged to their creator; depth ≤ 4; dead waits cleared at the queue head, O(1) per pop but a short caller's release-queue insertion, at worst O(threads × contexts) per rendezvous, counted in the worst path; a revocation is one generation write, its refund RFC-0005 §5's | **maintained**; RFC-0005's reclaim gap stays open, for RFC-0003b |
 | O-1, O-2, O-4, O-5 | forwarder rights ⊆ the wrapped capability's; no unwrap; badges never sender-set, not even by an `IrqHandler`'s binder; a queued send reaches only its own endpoint, under a capability that still holds `WRITE`, its frame words validated again at rendezvous | **maintained** |
 | O-10 no confused deputy | a request presents the app's own forwarder capability, whose badge the server sees | **contributes**; the broker RFC's |
 | O-21 mediation auditability | the kernel delivers the grant's badge on every message (§6) | **partial:** the badge names the grant; delegation collapses actor identity unless the grant lacks `TRANSFER` |
@@ -391,9 +402,10 @@ spawner that wants revocable grants simply `GRANT`s forwarder capabilities insid
 - **Boot-minted objects are irrevocable once handed on** (§9), and so are `IrqHandler`s unless RFC-0003b's draft
   is accepted; the root's rule is all that guards them, and the root's own irrevocability is sound only while it
   serves no client, which the demo's root does not meet.
-- **The queue clears dead waits:** a receiver's entry pays for each it pops, O(1) apiece, at most the thread
-  capacity per rendezvous with interrupts masked, so the published worst path grows as RFC-0006 §6's queue
-  insertion does; a dead wait behind live senders lingers until it reaches the head.
+- **The queue clears dead waits:** a receiver's entry pays for each it pops, O(1) apiece except a short partial
+  caller's release-queue insertion, so one rendezvous is O(threads × contexts) at worst, with interrupts masked,
+  and the published worst path grows by that much; a dead wait behind live senders lingers until it reaches the
+  head.
 - **Revocation needs the payer's capabilities to outlive the broker.** `destroy` needs `REVOKE` on the paying
   Pool and a capability naming the forwarder. If the broker crashes or is `KILL`ed, its table drops both, and
   every forwarder it paid for becomes irrevocable short of the root's switch, which cuts off every app at once.
@@ -439,10 +451,11 @@ Each increment below is one reviewable PR.
    `InvalidArgument`; to a tag needing a buffer it lacks, `NoBuffer`. A receiver whose handle is rewritten
    completes `Revoked` and the sender meets the next receiver.
 4. **Kernel: the budget and fault rows of §4's tables**, with RFC-0006's increments 8 and 10 and RFC-0007's
-   increment 11. A queued `call` whose context is swapped for one that can never pass completes
-   `BudgetRefused`, for one short only now waits `Throttled` and restarts; a fault whose slot was replaced
-   leaves its thread `Inactive`, a timeout fault its server `Unfunded`; a fault whose `x1` has bit 9 set is
-   delivered, not refused; a passive server whose `reply_recv` pops many dead senders is still receiving.
+   increment 11. A queued `call` whose context is swapped for one that can never pass completes `BudgetRefused`,
+   for a partial one short only now waits `Throttled` and restarts, for a full one short only now goes `Ready` at
+   the tail of its level and restarts; a fault whose slot was replaced leaves its thread `Inactive`, a timeout
+   fault its server `Unfunded`; a fault whose `x1` has bit 9 set is delivered, not refused; a passive server
+   whose `reply_recv` pops many dead senders is still receiving.
 5. **Kernel: `destroy` of a forwarder**, with RFC-0005's destruction increment and RFC-0007's increment 14
    (`Revoked`); any other type answers `WrongType`, a forwarder another Pool paid for `InsufficientRights`.
    Boot-test: a client prints `[client] revoked` after the root destroys its forwarder.
