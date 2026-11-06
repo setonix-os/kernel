@@ -17,8 +17,9 @@ recorded is indistinguishable from law that was never agreed.
   so the ABI is not frozen around an open revocation design. It chooses option (a): revocable authority
   runs through kernel **forwarders**, objects that wrap an endpoint or notification (send side only, at
   most four deep), so revoking one is a single generation write and every copy made from it, moved peer
-  to peer included, fails `Revoked`. A queued sender re-resolves at rendezvous, must still reach the
-  endpoint it waits on under a capability that holds `WRITE`, and has its frame words validated again.
+  to peer included, fails `Revoked`. Queued senders and receivers are checked again at rendezvous, in an
+  ordered table per sender kind (send, call, fault, timeout fault), so a queued send reaches only the
+  endpoint it waits on, under a capability that still holds `WRITE`, with no preemption point between pops.
   There is no derivation tree and no parent link; `TRANSFER` is unchanged, and a direct grant simply
   forgoes revocation, as does a capability a server returns through a forwarder, which stays the server's
   to revoke. Badges become live: one word set once at derive, never by a sender nor by an interrupt's
@@ -29,7 +30,7 @@ recorded is indistinguishable from law that was never agreed.
   nothing, deliberately, which is sound only while it serves no client, and boot-minted objects are
   irrevocable once handed on. Payer destruction of every other type and `pool_reclaim` are left to a
   separate draft, RFC-0003b. It proposes dated amendments to RFC-0003, RFC-0004 and O-3's text, and six
-  to the proposed RFC-0005/0006/0007; the Phase-1 demo needs only the badge register reserved. 412 lines.
+  to the proposed RFC-0005/0006/0007; the Phase-1 demo needs only the badge register reserved. 460 lines.
 - `docs/rfcs/0005-address-spaces-and-physical-memory.md` — **proposed**, the memory half of Phase 1 and
   the first of three interlocking kernel RFCs drafted together with RFC-0006 and RFC-0007. Physical
   memory comes from firmware tables into one bounded `MemoryMap` (the image moves to 0x4020_0000 because
