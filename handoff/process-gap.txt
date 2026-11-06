@@ -1,0 +1,856 @@
+# Process gap analysis: altium-designer-mcp → Setonix kernel
+
+**Reference:** `/home/user/embedded-society/altium-designer-mcp` (HEAD `88bdb6e`).
+**Target:** `/home/user/kernel` (HEAD `888a847`, clean tree).
+Neither repository was modified. Line numbers are file-relative and were read, not inferred.
+
+Facts checked against live GitHub state (read-only `gh api`) as well as against files:
+
+- The target already has two active **rulesets** (`main`, `tags`). They are not documented anywhere in
+  the repository (see §6.3).
+- An open PR, **#27** "chore(claude): migrate the five commands to skills", moves
+  `.claude/commands/*.md` to `.claude/skills/*/SKILL.md`. Anything below that touches those files
+  should be rebased onto it.
+- **A real CI defect, verified in the log of run 42213389069:** the workflow-level
+  `env: RUSTFLAGS: "-Dwarnings"` never reaches cargo inside the container. `devcontainers/ci` runs
+  `devcontainer exec … --remote-env GITHUB_OUTPUT=… --remote-env GITHUB_ENV=… --remote-env GITHUB_PATH=…
+  --remote-env GITHUB_STEP_SUMMARY=… bash -c …`, and forwards only the `GITHUB_*` file-command
+  variables. See §2.4.
+
+Verdict key: **ADOPT** (take as is), **ADAPT** (take with the stated changes), **SKIP** (with the
+reason), **KEEP** (the target is already equal or better; do not regress), **DECIDE** (only the
+maintainer can decide).
+
+---
+
+## 1. Summary table
+
+| # | Artefact / practice | Verdict | Effort | Maintainer decision? |
+|---|---|---|---|---|
+| 2.1 | Workflow-level read-only permissions; elevated scope per job | ADAPT | small | no |
+| 2.2 | `workflow_dispatch` on CI | ADAPT | small | no |
+| 2.3 | PR CI on every base branch; `merge_group` | ADAPT / SKIP | small | merge queue: yes |
+| 2.4 | `RUSTFLAGS=-Dwarnings` actually applied | ADAPT (bug fix) | small | no |
+| 2.5 | `--locked` on every cargo invocation | ADOPT | small | no |
+| 2.6 | `cargo doc` with `RUSTDOCFLAGS=-Dwarnings` | ADAPT | small–medium | no |
+| 2.7 | Offline internal-link and anchor check (lychee) | ADAPT | medium | no |
+| 2.8 | Scheduled external-link check (`links.yml`) | ADAPT | small | no |
+| 2.9 | Build cache, cache save on main only | KEEP | — | — |
+| 2.10 | Actions-cache cleanup (`cleanup_caches.yml`, script, inline step) | SKIP; GHCR analogue optional | small | yes (new action) |
+| 2.11 | OS build matrix, release-mode tests, perf tests | SKIP; one parity fix | small | no |
+| 2.12 | MSRV job | SKIP | — | — |
+| 2.13 | Coverage (cargo-llvm-cov, Codecov, `codecov.yml`) | ADAPT (no upload) | medium | Codecov: yes |
+| 2.14 | `ci-success` aggregator | KEEP | — | — |
+| 2.15 | Timeouts and their rationale comments | KEEP | — | — |
+| 2.16 | Concurrency groups | KEEP; adjust with 2.2/2.3 | small | no |
+| 2.17 | Step summaries | ADAPT (optional) | small | no |
+| 2.18 | Release workflow, RELEASING runbook, review/publish scripts | SKIP now; defer | large later | yes (when) |
+| 2.19 | Registry publish, release assets, MCPB, glama | SKIP | — | — |
+| 2.20 | Scheduled image rebuild (derived from 2.8's rationale) | ADAPT (optional) | small | no |
+| 3.1 | Dependabot: grouping, weekly cadence, labels, docker ecosystem | ADAPT | small | yes (cadence) |
+| 3.2 | Toolchain-pin script | KEEP (target stronger) | — | — |
+| 4.1 | PR template | ADAPT | small | no |
+| 4.2 | Issue templates and config | ADOPT one item; KEEP rest | small | no |
+| 4.3 | CODEOWNERS | KEEP | — | — |
+| 5.1 | CONTRIBUTING | ADAPT | small–medium | partly |
+| 5.2 | STYLE and Single Source of Truth registry | ADAPT | small | no |
+| 5.3 | SECURITY.md split from the design document | ADAPT | small | no |
+| 5.4 | CODE_OF_CONDUCT and its off-limits rule | KEEP; ADAPT the rule's location | small | no |
+| 5.5 | CHANGELOG format | KEEP; one optional convention | small | no |
+| 5.6 | TODO.md working notebook | ADAPT | small | yes |
+| 5.7 | README process parts (badges, docs table) | ADAPT | small | no |
+| 5.8 | Versioning | SKIP now | — | yes (when) |
+| 6.1 | `.claude/CLAUDE.md` NEVER/ALWAYS rules | ADAPT | small | yes (some items) |
+| 6.2 | AI_WORKFLOW, AGENT_GUIDE, CLAUDE_CODE_GUIDE, ANTIGRAVITY | SKIP (one convention noted) | — | — |
+| 6.3 | Documented rulesets and review rules | ADAPT | small | yes |
+| 6.4 | CODE_SIGNING_POLICY | SKIP now | — | — |
+| 6.5 | ARCHITECTURE, VISION, errors.md, docs/SECURITY.md | SKIP / defer | — | — |
+| 7.x | Editor and config files | mostly KEEP; two small ADAPTs | small | one |
+
+---
+
+## 2. CI workflows
+
+The reference has six workflows: `ci_main.yml`, `ci_pr.yml`, `links.yml`, `cleanup_caches.yml`,
+`release.yml` and `registry-publish.yml`. The target has two: `ci_main.yml` and `ci_pr.yml`. Every
+target job runs inside the devcontainer through `devcontainers/ci`, and
+`.github/scripts/check-toolchain-pin.sh:73-108` forbids `dtolnay/rust-toolchain`,
+`actions-rs/toolchain`, `actions/setup-{node,python,go,java}`, `sh.rustup.rs`, `rustup default` and
+`rustup toolchain install` anywhere under `.github/workflows/`. So **any tool the reference installs
+inside a workflow step must instead go into `.devcontainer/Dockerfile`, pinned and verified.** That
+rule shapes every ADAPT below.
+
+### 2.1 Least-privilege permissions
+
+- **Reference:** read-only at workflow level, with a comment stating the policy
+  (`ci_main.yml:3-7`). Elevated scope is granted per job: `ci-success` gets `actions: write` for cache
+  cleanup (`ci_main.yml:335-338`), and in `release.yml:6-7` only the `release` job gets
+  `contents: write`, `id-token: write` and `attestations: write` (`release.yml:521-524`). Every other
+  job restates `contents: read` (`release.yml:41-42, 209-210, 416-417`).
+- **Target:** `ci_pr.yml:3-8` is read-only plus `packages: read`, which is good. But `ci_main.yml:3-8`
+  grants `packages: write` at **workflow** level, so the `checks` job holds write scope to GHCR even
+  though it runs `push: never` (`ci_main.yml:43`). Only `boot` pushes (`ci_main.yml:125`).
+- **Recommendation: ADAPT.** In `ci_main.yml`, set the workflow level to `contents: read` and
+  `packages: read`, and give the `boot` job its own `permissions: { contents: read, packages: write }`
+  with the existing "write on main" comment moved beside it. Small; changes `ci_main.yml`. No decision
+  needed.
+
+### 2.2 `workflow_dispatch`
+
+- **Reference:** `ci_main.yml:13` and `ci_pr.yml:13` let the maintainer re-run CI by hand.
+- **Target:** neither CI workflow has it (`ci_main.yml:10-12`, `ci_pr.yml:157-159`).
+- **Recommendation: ADAPT.** Add it to `ci_main.yml`, but **guard the publish**. `ci_main.yml:125`
+  pushes with `push: always`, so a dispatch on a feature branch would publish that branch's image as
+  the cache every pull request trusts, which is exactly what `ci_pr.yml:3-7` exists to prevent.
+  Either use `push: ${{ github.ref == 'refs/heads/main' && 'always' || 'never' }}` or add a job-level
+  `if:`. The main use is republishing the image after a GHCR incident. Small; changes `ci_main.yml`.
+
+### 2.3 PR trigger breadth and `merge_group`
+
+- **Reference:** `ci_pr.yml:7-11` uses `pull_request: branches: ["**"]` plus `merge_group`.
+- **Target:** `ci_pr.yml:158-159` uses `branches: [main]` only. A **stacked** pull request (one whose
+  base is another feature branch) gets **no CI at all**. Stacked PRs are the natural way to deliver
+  the "small, separately reviewable increments" that §5.3 asks for.
+- **Recommendation: ADAPT** `branches: ["**"]`. The concurrency group keyed on
+  `github.event.pull_request.number` (`ci_pr.yml:161-163`) stays correct for `pull_request`.
+  **SKIP `merge_group`** unless the maintainer turns on a merge queue. The `main` ruleset's
+  `allowed_merge_methods: ["merge"]` and the sole-merger rule (§5.1) suggest he will not, so that is a
+  **DECIDE**. If either 2.2 or `merge_group` is added to `ci_pr.yml`, change the concurrency group to
+  `${{ github.workflow }}-${{ github.ref }}` as the reference does (`ci_pr.yml:15-19`): the PR number
+  is empty for those events.
+
+### 2.4 `RUSTFLAGS` is not reaching cargo (target defect)
+
+- **Reference:** `RUSTFLAGS: "-Dwarnings"` in workflow `env` (`ci_main.yml:19-21`). It works there
+  because the steps run on the runner.
+- **Target:** copied the same block (`ci_main.yml:18-21`, `ci_pr.yml:165-168`). Inside
+  `devcontainers/ci` it is **dead**: the CI log shows only `GITHUB_*` variables passed through
+  `--remote-env`. Clippy is unaffected, because every clippy call passes `-- -D warnings` explicitly.
+  But every `cargo build` and `cargo test` in `runCmd` (`ci_pr.yml:229-230, 235, 241, 249`), and
+  `cargo xtask boot-test`, accept rustc warnings silently. `CARGO_TERM_COLOR` is equally dead.
+- **Recommendation: ADAPT (bug fix).** Pass the variables through the action's `env:` input, which
+  `devcontainers/ci` turns into `--remote-env`, keeping the workflow `env` as the single source:
+  `env: | RUSTFLAGS=${{ env.RUSTFLAGS }}` and `CARGO_TERM_COLOR=…`. Do this in all four
+  `devcontainers/ci` steps, or set them at the top of each `runCmd`. **Expect it to surface warnings
+  that are currently ignored.** Small; changes `ci_main.yml` and `ci_pr.yml`. Land it first, on its
+  own.
+
+### 2.5 `--locked`
+
+- **Reference:** every build, test, clippy and check runs with `--locked` (`ci_main.yml:163-181`,
+  `ci_main.yml:249`, `release.yml:249-260`). The reason is written down in `RELEASING.md:219-225`: a
+  `Cargo.toml` change with a stale lockfile fails on its PR, not later.
+- **Target:** `Cargo.lock` is committed on reproducibility grounds (`CLAUDE.md` § Toolchain;
+  `.gitignore:5-6`), yet no CI invocation uses `--locked` (`ci_pr.yml:228-249`). Nor does `xtask`'s
+  own build (`xtask/src/main.rs:232-245`). Today the lockfile holds only workspace members, so the
+  exposure is a member's version or name changing without a lockfile update. The rule should be in
+  place before the first external dependency arrives (vendored Redox crates, per `CLAUDE.md`).
+- **Recommendation: ADOPT.** Add `--locked` to every cargo command in both workflows. Give
+  `cargo xtask` a way to pass it through (or have `build()` always pass it), so the boot tests are
+  locked too. Small; changes `ci_main.yml`, `ci_pr.yml`, `xtask/src/main.rs` and the
+  `CONTRIBUTING.md` § Development Setup command block. No decision needed.
+
+### 2.6 Rustdoc check
+
+- **Reference:** `cargo doc --no-deps --document-private-items` with `RUSTDOCFLAGS: "-Dwarnings"`
+  (`ci_main.yml:98-101`, `ci_pr.yml:93-96`).
+- **Target:** `missing_docs = "warn"` (`Cargo.toml:47`) and a rule that every public item carries a
+  doc comment (`STYLE.md:105`). But nothing builds the docs, so broken intra-doc links, malformed doc
+  tests outside the test run, and `rustdoc::` lints never fail CI. The capability crate leans heavily
+  on doc tests, including a `compile_fail` (`CHANGELOG.md:18-21`); those run under `cargo test`, but
+  the documentation build itself does not.
+- **Recommendation: ADAPT.** Add a "Documentation" group inside the `checks` `runCmd`, scoped by
+  package (CLAUDE.md requires it):
+  `cargo doc --locked --no-deps --document-private-items --package setonix-kernel --target <each Tier-1>`,
+  then the same for `--package setonix-capability` and `--package xtask`, with `RUSTDOCFLAGS=-Dwarnings`
+  forwarded as in 2.4. Add the command to `CONTRIBUTING.md` § Development Setup and to the PR
+  requirements. Small to medium (it may surface doc warnings). Changes both workflows and
+  `CONTRIBUTING.md`.
+
+### 2.7 Internal link and anchor checking (lychee, offline)
+
+- **Reference:** gates every PR and main push on
+  `lychee --offline --include-fragments … "./**/*.md"` (`ci_pr.yml:77-91`, `ci_main.yml:67-89`).
+  lychee comes from a pinned release archive with a SHA-256 check rather than an action, so the
+  allow-listed set of actions does not grow (comment at `ci_pr.yml:77-83`). It is also in the PR
+  requirements (`CONTRIBUTING.md:102`).
+- **Target:** has no link checking. The target's documents are dense with relative links and
+  anchors: 38 relative Markdown links and 12 with `#fragment` across the tree, and the constitution,
+  RFCs and research notes cite one another constantly. `CONTRIBUTING.md:113-116` warns that
+  "citations break silently". `/check-coherence` catches orphaned claims, but only when someone runs
+  it.
+- **Recommendation: ADAPT.** Under the devcontainer rule, lychee cannot be installed by a workflow
+  step. Add a `lychee` stage to `.devcontainer/Dockerfile` in the file's own idiom: an
+  `ARG LYCHEE_VERSION`/`ARG LYCHEE_SHA256` pair, a download from the GitHub release, a
+  `sha256sum --check`, then `COPY` into the final image and a `lychee --version` line in the
+  verification block (`Dockerfile:306-329`). Then:
+    - add a "Links" group to both workflows' `checks` `runCmd`;
+    - add a PR-requirements line in `CONTRIBUTING.md` and the PR template;
+    - add the command to `/check-style`;
+    - add `"**/node_modules/**"` to `.markdownlint-cli2.jsonc` while there (the reference ignores it;
+      the target ignores it only in `.gitignore`).
+
+  § `x.y` prose citations are not links and stay `/check-coherence`'s job; say so in the PR. Medium
+  (Dockerfile stage plus fixing whatever it finds). Changes `.devcontainer/Dockerfile`, both
+  workflows, `CONTRIBUTING.md`, `.github/PULL_REQUEST_TEMPLATE.md` and the check-style command or
+  skill. No decision needed: it follows §7's "the image must be able to run every check a contributor
+  is asked to run".
+
+### 2.8 Scheduled external-link check
+
+- **Reference:** `links.yml:1-56`. Weekly cron off the hour (`"17 6 * * 1"`, `links.yml:12-13`),
+  `workflow_dispatch`, read-only permissions, timeout, `--max-retries 3`, `--accept 200..=299,403,429`,
+  and per-host exclusions each justified in a comment (`links.yml:43-56`). It is kept off the PR path
+  because third-party sites fail on their own schedule (`links.yml:3-6`).
+- **Target:** none. The research and RFC documents cite external papers (cs.fsu.edu, usenix.org,
+  acm.org, sel4.systems and others: 65 external URLs in Markdown). Under §5.5 that is citation
+  integrity, not cosmetics.
+- **Recommendation: ADAPT.** Add a new `.github/workflows/links.yml` that runs lychee **inside the
+  devcontainer image**: `devcontainers/ci` with `cacheFrom` the GHCR image and `push: never`, so it
+  uses the lychee from 2.7 and installs nothing. Keep the reference's cron style, retries, accept list
+  and comment-per-exclusion rule. Small, after 2.7. Adds `.github/workflows/links.yml`. Note that it
+  needs `packages: read` like `ci_pr.yml:8`.
+
+### 2.9 Build cache: restore/save split, write on main only
+
+- **Reference:** `actions/cache/restore` everywhere, `actions/cache/save` only on main and only on a
+  cache miss, with `continue-on-error` for save races (`ci_main.yml:139-161, 194-217`). PR runs are
+  restore-only (`ci_pr.yml:131-152`, comment "Restore cache from main branch (read-only)").
+- **Target:** the same discipline, applied to the **image**: `cacheFrom` GHCR everywhere, with
+  `push: always` only in `ci_main` `boot` after the checks and boots pass (`ci_main.yml:113-125`;
+  rationale at `ci_pr.yml:3-7, 175-178`). There is no `target/` cache, which is reasonable: the
+  workspace has zero external dependencies (`xtask/Cargo.toml:11-15`, `capability/Cargo.toml:11-14`).
+- **Recommendation: KEEP.** The target's "publish only after proving it builds and boots" is
+  stricter than the reference. Revisit a `target/` cache only when vendored crates make cold builds
+  slow.
+
+### 2.10 Cache cleanup
+
+- **Reference:** a manual `cleanup_caches.yml` (dry-run by default, `cleanup_caches.yml:5-14`;
+  non-cancelling concurrency group, `:18-20`; job-level `actions: write`, `:28-30`) that `require`s
+  `.github/scripts/cleanup-caches.js:1-189`, plus an automatic copy of the same logic inline in
+  `ci_main.yml:360-437`.
+- **Target:** uses no Actions cache, so there is nothing to clean. **SKIP.** The analogue is GHCR:
+  each main push tags `ghcr.io/setonix-os/kernel-devcontainer:latest` and leaves the previous
+  manifest untagged, so untagged versions accumulate. (The org packages API is not reachable from
+  this session, so the count was not verified.) **Optional ADAPT:** a manual, dry-run-by-default
+  workflow that prunes untagged versions older than N. It needs either a new third-party action or
+  `gh api` calls with `packages: write`. **DECIDE:** it adds an action to the allow-list (or bespoke
+  API code) for a storage cost that may be irrelevant to a public package.
+
+### 2.11 OS matrix, release-mode tests, performance bounds, readability oracle
+
+- **Reference:** a three-OS matrix with `fail-fast: false` (`ci_main.yml:111-116`), debug and release
+  builds, a release-only performance suite (`:177-181`) and a Python oracle (`ci_pr.yml:174-188`).
+- **Target:** a single image; both Tier-1 targets in a loop (`ci_pr.yml:226-237`); debug and release
+  builds; debug **and release** boots on main (`ci_main.yml:128-130`) but **only debug** boots on PRs
+  (`ci_pr.yml:283-284`). That contradicts `ci_main.yml:23-25`, "Identical to ci_pr.yml except that
+  this workflow *publishes*". It also leaves a release-only boot regression to be found after merge,
+  even though `ci_main.yml:113-115` says debug-only boot tests "let real faults through in other
+  kernels".
+- **Recommendation:** **SKIP** the OS matrix, perf suite and oracle (product-specific). **ADAPT** one
+  parity fix: add `cargo xtask boot-test --arch aarch64 --release --expect "Kaya!"` to
+  `ci_pr.yml:281-284`, or correct the comment at `ci_main.yml:23-25`. The first is preferable. Small;
+  changes `ci_pr.yml`.
+
+### 2.12 MSRV job
+
+- **Reference:** `msrv` job reads `rust-version` and runs `rustup toolchain install` then
+  `cargo +X check` (`ci_main.yml:219-249`).
+- **Recommendation: SKIP.** The target has no `rust-version` and no consumers. It pins one exact
+  toolchain (`rust-toolchain.toml:11`). And `rustup toolchain install` inside a workflow is
+  **explicitly forbidden** by `check-toolchain-pin.sh:101-108`. Adopting it would conflict with §7.
+
+### 2.13 Coverage
+
+- **Reference:** a `coverage` job with `cargo-llvm-cov` (installed by `taiki-e/install-action`),
+  lcov plus summary, a documented exclusion of `main.rs` (`ci_main.yml:251-326`), and a Codecov upload
+  with a mandatory token, skipped for Dependabot (`:315-326`, `ci_pr.yml:274-283`). Configured by
+  `codecov.yml:1-50` (project threshold 1 %, patch target 80 %) and documented as a 99 % line-coverage
+  claim with honest caveats (`CONTRIBUTING.md:257-266`).
+- **Target:** none. But the security-critical logic was split into `setonix-capability` precisely to
+  be host-tested (`CLAUDE.md` § Layout; `capability/Cargo.toml:11-14`), and `llvm-tools` is already
+  in the toolchain (`rust-toolchain.toml:13`). The CHANGELOG reports mutation testing done by hand
+  (`CHANGELOG.md:42-43`); nothing keeps it honest afterwards.
+- **Recommendation: ADAPT, without upload first.**
+    1. Add `cargo-llvm-cov` to the Dockerfile, pinned and verified. It cannot come from
+       `taiki-e/install-action`.
+    2. Add a "Coverage (capability, host)" group running
+       `cargo llvm-cov --locked --package setonix-capability --summary-only`, printed to the log and
+       the step summary (2.17).
+    3. Optionally, a `--fail-under-lines` gate once the baseline is known.
+    4. Add `lcov.info` to `.gitignore`.
+
+  **DECIDE:** Codecov (third-party service, `CODECOV_TOKEN` secret, `codecov/codecov-action` added to
+  the allow-list, a badge, `codecov.yml`) is a trust and supply-chain decision. The target's SECURITY
+  posture (`SECURITY.md:321-323`) suggests keeping it in-image. Medium. Changes
+  `.devcontainer/Dockerfile`, both workflows, `.gitignore` and `CONTRIBUTING.md` § Testing.
+
+### 2.14 `ci-success` aggregator
+
+- **Reference:** `if: always()` and a status check over every `needs` result (`ci_pr.yml:285-305`).
+- **Target:** the same shape with `if: ${{ !cancelled() }}` (`ci_pr.yml:286-301`). It is the
+  `main` ruleset's single required status check ("CI Success").
+- **Recommendation: KEEP.** When new jobs are added (`links` is scheduled, not here), add them to
+  `needs` **and** to the shell condition. Forgetting the second part silently weakens the required
+  check.
+
+### 2.15 Timeouts
+
+- **Reference:** a `timeout-minutes` on every job, with the reason for an unusual one written down
+  (`ci_main.yml:106-109`).
+- **Target:** a timeout on every job (`ci_pr.yml:183, 256, 290`). **KEEP.** Add a one-line rationale
+  for the 45-minute `checks` timeout: it is presumably the cold image build, QEMU from source.
+
+### 2.16 Concurrency
+
+- **Reference:** `${{ github.workflow }}-${{ github.ref }}`, cancel-in-progress for CI
+  (`ci_pr.yml:15-19`). `cancel-in-progress: false` for release, registry and cache cleanup, each with
+  its reason (`release.yml:22-28`, `registry-publish.yml:29-31`, `cleanup_caches.yml:16-20`).
+- **Target:** equivalent for CI (`ci_main.yml:14-16`, `ci_pr.yml:161-163`). **KEEP**, with the 2.3
+  caveat. **ADAPT** one point: on `ci_main`, `cancel-in-progress: true` can cancel a run in the
+  middle of `push: always`. Consider giving the publishing `boot` job its own job-level `concurrency`
+  with `cancel-in-progress: false`, which is the reference's reasoning that "half-uploaded is worse
+  than a queued duplicate" (`release.yml:24-25`). Small.
+
+### 2.17 Step summaries
+
+- **Reference:** writes a human-readable outcome to `$GITHUB_STEP_SUMMARY` (`release.yml:739-747`).
+- **Target:** `GITHUB_STEP_SUMMARY` **is** forwarded into the container (CI log, `--remote-env
+  GITHUB_STEP_SUMMARY=/mnt/github/step-summary`) but is unused.
+- **Recommendation: ADAPT (optional).** Have `cargo xtask boot-test` (or the `runCmd`) append the
+  captured serial console and the matched string to the step summary, so a reviewer sees the greeting
+  and the decoded `BRK` report without opening the log. Coverage (2.13) can go there too. Small.
+
+### 2.18 Release automation
+
+- **Reference:** `release.yml:1-747` has four jobs. `validate` checks the tag format, the
+  `Cargo.toml` version, that the tag is on main, that a CHANGELOG entry exists and that the release
+  does not already exist (`:35-200`). `build` packages, unpacks and runs the packaged binary
+  (`:202-406`). `bundle` (`:408-507`) builds the MCPB extension. `release` (`:509-747`) checks every
+  artefact is present, generates and re-verifies `SHA256SUMS`, attests SLSA provenance, extracts notes
+  from the CHANGELOG with verification instructions appended, creates a **draft** with retries, and
+  never publishes. A dry run via `workflow_dispatch` (`:15-20`) completes the set.
+  `docs/RELEASING.md:1-238` is the runbook: dry run first, stamp the changelog, signed tags, review
+  and publish scripts, rollback, "after publishing never move the tag". `scripts/release/
+  review-draft.sh` and `publish-draft.sh` are guarded, digest-pinned publish steps.
+- **Target:** no releases, no artefacts, no users. `SECURITY.md:273-274` says "pre-release … no
+  supported versions". Publication is Phase 4 (`CONSTITUTION.md:295-296`), with season codenames
+  (`CONSTITUTION.md:259-266`, `CHANGELOG.md:8`). The `tags` ruleset (signed, admin-only create,
+  update and delete) **already exists**.
+- **Recommendation: SKIP now; defer to Phase 4. DECIDE when.** The principles transfer directly to
+  pillar 3 (author-signed distribution) and should be recorded so they are not reinvented:
+    - every irreversible step last and after a human look;
+    - draft, then a reviewed publish;
+    - the tag on main;
+    - a CHANGELOG gate;
+    - checksums that are re-verified;
+    - provenance attestation;
+    - retries with a reusable draft.
+
+  Record them as a TODO entry (5.6) or as the seed of a future release RFC, not as a workflow. Large
+  when it is done.
+
+### 2.19 Registry publish, release assets, MCPB, glama, Dockerfile, `.dockerignore`, `build.rs`, `.env.local.example`
+
+- **Reference:** `registry-publish.yml:1-113` (MCP Registry via OIDC);
+  `.github/release-assets/{README.md, mcpb-manifest.json, server.json, icon.png}`; `glama.json:1-4`;
+  the root `Dockerfile:1-50` (runtime image) with `.dockerignore:1-13`; `build.rs:1-30` (Windows
+  version resource for SignPath); `.env.local.example:1-5` (Altium path).
+- **Recommendation: SKIP**, all of them: specific to an MCP server, Windows or Altium. Two
+  sub-patterns are worth noting:
+    - `registry-publish.yml:65-79` installs a publishing binary from a pinned archive with a checksum.
+      The target already does this, more thoroughly, in its Dockerfile.
+    - `.dockerignore` as an allow-list. Not needed: the devcontainer build context is
+      `.devcontainer/` (`devcontainer.json:7`, the context defaults to the folder holding
+      `devcontainer.json`).
+
+### 2.20 Scheduled image rebuild (derived)
+
+- The reference's reasoning for `links.yml` (`links.yml:3-6`: external things rot on their own
+  schedule) applies even more strongly to the target's Dockerfile. It downloads from nodejs.org,
+  static.rust-lang.org and download.qemu.org, and fetches a GPG key from `keyserver.ubuntu.com`
+  (`Dockerfile:177`). If one of those disappears, the next unrelated PR that misses the layer cache
+  fails, which is the wrong time to find out.
+- **Recommendation: ADAPT (optional).** Add a weekly `schedule:` job that builds the image with
+  `noCache` and `push: never` and runs the verification block. Small. It could share `links.yml`
+  (then name it e.g. `scheduled.yml`) or stand alone.
+
+---
+
+## 3. Dependency automation and pins
+
+### 3.1 Dependabot
+
+- **Reference (`.github/dependabot.yml:1-85`):**
+    - every ecosystem is **grouped** into one PR;
+    - every ecosystem is **weekly**, on a fixed day, time and timezone (`timezone: "Europe/Ljubljana"`);
+    - each ecosystem gets **labels** (`:23, 38, 59, 85`);
+    - a written rationale for cadence and grouping ("daily ungrouped updates produced a steady drip of
+      near-identical PRs", `:3-11`), and a note that security updates bypass the cadence (`:10-11`);
+    - a `docker` ecosystem with the toolchain image ignored, because the pin script owns it
+      (`:40-59`);
+    - an `npm` ecosystem for markdownlint (`:25-38`);
+    - a version ceiling tied to the MSRV (`:79-84`).
+- **Target (`.github/dependabot.yml:1-35`):** `github-actions` is **daily, ungrouped, unlabelled**,
+  with the comment "easy to review individually — keep daily" (`:2-10`). The git log shows the
+  consequence: individual merges such as `7fe1aef` (docker/login-action 4.6.0 → 4.7.0). Cargo is
+  weekly and grouped, with a `redox*` ignore (`:12-35`). It is good, and the ignore is better
+  reasoned than the reference's. There is **no `docker` ecosystem**, although both `FROM` lines are
+  digest-pinned (`Dockerfile:49, 201`), and the Dockerfile itself says to "Re-pin the digest when
+  Debian fixes it" (`:45-46`) with nothing to prompt that re-pin.
+- **Recommendation: ADAPT.**
+    1. Add a `docker` ecosystem with `directory: "/.devcontainer"`, weekly. Dependabot updates
+       digest-pinned `FROM` lines, which automates the Perl-CVE re-pin. Note: it cannot see the
+       `ARG`-driven downloads (Node, rustup, Rust, QEMU, markdownlint-cli2, and lychee and
+       cargo-llvm-cov if added). Those stay manual. Say so in a comment, and consider a TODO item for
+       a small script that reports the latest upstream versions.
+    2. Group `github-actions` into one PR.
+    3. Add a `timezone`.
+    4. Add labels, which must exist in the repository first.
+
+  **DECIDE:** the cadence. The target's current comment is a deliberate opposite choice ("keep
+  daily"), so moving to weekly reverses a recorded rationale. Present both arguments; do not change
+  it silently. Small. Changes `.github/dependabot.yml`. **SKIP** the npm ecosystem: the target has no
+  `package.json`, and markdownlint's version lives in the Dockerfile `ARG`
+  (`Dockerfile:86`), which is the single source of truth.
+
+### 3.2 Toolchain-pin script
+
+- **Reference:** `.github/scripts/check-toolchain-pin.sh:1-67` checks three places (the toolchain
+  file, the `dtolnay` pins, the Dockerfile `FROM rust:`).
+- **Target:** `.github/scripts/check-toolchain-pin.sh:1-116` checks two places plus both Tier-1
+  targets, and **forbids** any workflow toolchain install. It carries an SPDX header (`:2`).
+- **Recommendation: KEEP.** The target is strictly stronger. If lychee and cargo-llvm-cov are added
+  (2.7, 2.13), extend the "forbidden actions" list with `lycheeverse/lychee-action`,
+  `taiki-e/install-action` and `codecov/codecov-action`, so the in-image rule is mechanical rather
+  than remembered. Small. (The last of those only if Codecov is declined.)
+
+---
+
+## 4. GitHub templates and ownership
+
+### 4.1 PR template
+
+- **Reference (`.github/PULL_REQUEST_TEMPLATE.md:1-45`):** Description; Related Issue; **Type of
+  Change** checkboxes (`:9-17`); domain "Standards Checklist"; **Testing** section (`:25-29`: tested
+  locally, *added tests that prove the fix*, tests pass); Code Quality, which **points to
+  `CONTRIBUTING.md` § Pull Requests instead of repeating it** (`:33`); Screenshots / Logs; Additional
+  Notes.
+- **Target (`.github/PULL_REQUEST_TEMPLATE.md:1-74`):** it is far stronger on governance: an
+  "Explanation for the maintainer" (§5.2 and §11.4, `:7-16`), the pillar (`:18-24`), a
+  document-change checklist (`:26-40`), the Borrow Ledger (`:42-46`), and an `unsafe` register whose
+  emptiness is the signal (`:48-58`). **KEEP all of that.** The gaps:
+    1. **No testing items.** The checklist (`:60-70`) has no "host tests pass"
+       (`cargo test --package setonix-capability`, `--package xtask`) and no "added tests that fail
+       for the right reason" (the target's own rule, `CONTRIBUTING.md:288-289`).
+    2. **The checklist duplicates `CONTRIBUTING.md:73-84` and has already drifted from it.**
+       CONTRIBUTING requires that "Every commit is GPG-signed and shows **Verified**" (`:84`); the
+       template omits it. `STYLE.md:50` allows a PR-template copy only if it is "minimal".
+    3. No place for console output. A "Console output / logs" fenced block is the kernel equivalent of
+       the reference's Screenshots / Logs (`:39-41`).
+- **Recommendation: ADAPT.** Make `CONTRIBUTING.md` § PR Requirements the single list. Reduce the
+  template's Checklist to a pointer line, as in the reference (`:33`), plus the few items worth
+  ticking by hand: tests, boots, signed. Or, if the maintainer prefers ticking everything, make the
+  two lists identical and add a `/check-coherence` note. Add a "Testing" block and a "Console output"
+  block. Optional: a "Type of change" section. Conventional-commit types already carry this
+  (`CONTRIBUTING.md:228-239`), so it would be a second source; recommend skipping it. Small. Changes
+  `.github/PULL_REQUEST_TEMPLATE.md` and `CONTRIBUTING.md`.
+
+### 4.2 Issue templates
+
+- **Reference:** `bug_report.md:13-21` has a **"Checked existing issues to avoid duplicates"**
+  checkbox. `feature_request.md` has a compatibility checklist. `config.yml:1-8` disables blank
+  issues and offers security and discussions links.
+- **Target:**
+    - `bug_report.md:1-78` is richer (environment table, console output, the cross-architecture
+      question);
+    - `documentation_issue.md:1-38` has no counterpart in the reference;
+    - `config.yml:1-11` adds a "Constitution" link;
+    - the bug template lacks the duplicate-search checkbox (`:13-16` has only redaction items);
+    - `feature_request.md:37-41` has it.
+- **Recommendation: ADOPT** the one checkbox ("I have searched existing issues") in `bug_report.md`.
+  **KEEP** the rest. Small.
+
+### 4.3 CODEOWNERS
+
+- **Reference:** `* @MatejGomboc` (`.github/CODEOWNERS:1-3`). **Target:** the same, plus a
+  rationale tied to §5.1–§5.2 (`.github/CODEOWNERS:1-6`); the `main` ruleset enforces
+  `require_code_owner_review`. **KEEP.**
+
+---
+
+## 5. Contributor documents
+
+### 5.1 CONTRIBUTING.md
+
+- **Reference (`CONTRIBUTING.md:1-356`):** TOC; Code of Conduct; **Security Considerations for
+  contributors** (`:29-45`: concrete do and don't rules plus "add path-traversal tests when adding a
+  tool that touches files"); bug, feature and PR flow; PR requirements including lychee (`:95-106`);
+  Development Setup; Coding Standards with a British spelling table; Commit Messages; Testing,
+  including a **Coverage** paragraph with an honest reading of the number (`:257-266`); Documentation
+  table (`:272-295`); **Single Source of Truth registry** (`:304-337`); Areas Needing Help; Questions.
+- **Target (`CONTRIBUTING.md:1-317`):** the constitution first (`:19-35`); Ledger-aware PR flow
+  (`:61-69`); an **RFC-writing guide** (`:86-108`); amendment rules (`:110-116`); devcontainer setup
+  (`:120-171`); `unsafe`, HAL and mechanism rules (`:175-201`); **signed commits** (`:259-271`); a
+  test-kind table (`:277-289`); a Documentation table (`:293-309`). Already stricter than the
+  reference in most places.
+- **Gaps and recommendations:**
+    1. **PR requirements lack tests** (`:73-84`): no "host tests pass", no rustdoc, no links.
+       **ADAPT:** add "`cargo test --package setonix-capability` and `--package xtask` pass", plus the
+       rustdoc (2.6) and link (2.7) items as they land.
+    2. **No contributor-facing security rules.** The reference's `CONTRIBUTING.md:29-45` and
+       `docs/SECURITY.md:179-205` turn the threat model into gate rules with a test obligation.
+       **ADAPT:** a short "Security Considerations" section that cites
+       `docs/threat-model.md` obligations by number rather than restating them. For example: a change
+       to capability resolution or derivation adds a forged or stale-handle test (O-1, O-2, O-3); a
+       new `unsafe` block names its invariant; nothing widens rights. Medium, because the rules must
+       be derived from the threat model without paraphrase drift. **DECIDE** whether test
+       obligations per obligation number become project rule, since that adds contributor
+       requirements.
+    3. **The Documentation table is incomplete** (`:295-306`): it is missing `docs/threat-model.md`,
+       `docs/research/`, `.claude/` (commands or skills) and `.devcontainer/`. **ADAPT:** add the rows.
+       Small.
+    4. **Orphaned claim:** the Testing table lists "Integration tests | `tests/` | Host" (`:282`), but
+       the repository has no `tests/` directory. **ADAPT:** reword to "(none yet)" or delete the row.
+       Small.
+    5. **Coverage paragraph:** add one when 2.13 lands, in the reference's honest register
+       (`:257-266`). Small.
+    6. **SKIP** "Areas Needing Help" until Phase 4 opens the project to contributors.
+
+### 5.2 STYLE.md and the Single Source of Truth registry
+
+- **Reference:** the registry lives in `CONTRIBUTING.md:304-337`; `STYLE.md:5` points to it.
+  `STYLE.md:212-214` defers commit rules. Its YAML example uses a **tag** (`actions/checkout@v4`,
+  `STYLE.md:96`), against its own SHA practice.
+- **Target:** the registry lives in `STYLE.md:28-56` and is stricter in spirit (`:54-56`). It has an
+  explicit Action Pinning rule (`:151-155`) and a SHA-pinned example (`:136`). **KEEP the location.**
+- **Gaps in the registry (`STYLE.md:33-45`). ADAPT, adding the rows below.** Small. Changes
+  `STYLE.md` only.
+    - **Tool versions other than Rust** (Node, markdownlint-cli2, QEMU, rustup, lychee) →
+      `.devcontainer/Dockerfile` `ARG`s. "Rust version → `rust-toolchain.toml`" is also slightly
+      misleading, since §7 names two places; say "`rust-toolchain.toml`, mirrored by the Dockerfile's
+      `ARG RUST_VERSION` and checked by `check-toolchain-pin.sh`".
+    - **PR requirements** → `CONTRIBUTING.md` § PR Requirements (the reference has this row,
+      `CONTRIBUTING.md:314`).
+    - **Threat model and obligations** → `docs/threat-model.md`.
+    - **Source tree layout** → `CLAUDE.md` § Layout. The reference makes this explicit
+      (`.claude/CLAUDE.md:38-41`, "it is the single source of truth; do not duplicate it here").
+    - **Code changelog** → `CHANGELOG.md`; **document amendment log** → `docs/CHANGELOG.md`.
+    - **The CI check list.** Today it appears in five places: `ci_main.yml`, `ci_pr.yml`,
+      `CONTRIBUTING.md:150-171`, the PR template and `check-style.md:9-20`. They have already drifted
+      once (2.11).
+    - **Recommended editor extensions** → `.devcontainer/devcontainer.json` or
+      `.vscode/extensions.json`, whichever is chosen (see 7.3).
+- **Optional ADAPT (medium; DECIDE):** collapse the duplicated check list into one script, e.g.
+  `.github/scripts/ci-checks.sh` or a `cargo xtask ci` subcommand. Both workflows' `runCmd`s, the
+  `/check-style` command and CONTRIBUTING would call it. The reference has the precedent of a script
+  file under `.github/scripts/` that a workflow `require`s (`cleanup_caches.yml:41-43`). It would
+  remove the drift class entirely, but it moves the check list out of the YAML a reviewer reads, so it
+  is a taste call.
+
+### 5.3 SECURITY.md
+
+- **Reference:** a **scope note** separating the reporting policy from the design document
+  (`SECURITY.md:3-6`); supported-versions table; severity table (`:47-55`); **response timeline**
+  (`:57-64`: 48 h acknowledgement, 1 week assessment); user best practice; dated footer (`:108`).
+- **Target (`SECURITY.md:1-78`):** reporting, supported versions ("pre-release"), a domain-specific
+  "What counts as a vulnerability" list (`:51-64`), better than the reference's generic severity
+  table; "design flaws are in scope" (`:44-49`); secure development practice.
+- **Gaps:**
+    1. **A Single Source of Truth violation.** `SECURITY.md:32-40` restates the constitution's §9 seed
+       (Assets, Adversaries, Trust boundaries, Out of scope) almost word for word
+       (`CONSTITUTION.md:273-279`), and the expanded version lives in `docs/threat-model.md`.
+       **ADAPT:** replace the restatement with the reference-style scope note: "the threat model is
+       `docs/threat-model.md`, expanding constitution §9". Keep only the "out of scope" sentence,
+       cited, since `:42` relies on it.
+    2. **ADAPT (optional):** a dated "last updated" footer as in the reference (`SECURITY.md:108`),
+       matching the target's own STYLE footer habit (`STYLE.md:250`).
+    3. **KEEP** the target's one-week acknowledgement. The reference's 48 hours suits a released
+       product, and shortening it is a promise only the maintainer can make (**DECIDE**, if raised at
+       all).
+
+  Small. Changes `SECURITY.md`.
+
+### 5.4 CODE_OF_CONDUCT.md and its off-limits rule
+
+- **Reference:** `CODE_OF_CONDUCT.md` is Contributor Covenant 3.0 with "colour" substituted on line 8
+  (upstream says "color"). It is declared off limits in `.claude/CLAUDE.md:61-63` and excluded from
+  markdownlint (`.markdownlint-cli2.jsonc:2-5`).
+- **Target:** keeps upstream "color" (line 8). It is excluded from the spelling check
+  (`check-british-spelling.sh:16, 201`) and from markdownlint (`.markdownlint-cli2.jsonc:6`), and
+  `STYLE.md:244-245` explains why ("legal and upstream text"). **KEEP.** Upstream text verbatim is
+  the target's own rule, and the reference's edit of quoted legal text contradicts its own exception
+  list (`STYLE.md:38`). The only place the target says CoC is **off limits** is a comment in the
+  spelling script (`check-british-spelling.sh:16`, "Off limits by house rule"). **ADAPT:** state it
+  in `CLAUDE.md` (6.1). Small.
+
+### 5.5 CHANGELOG format
+
+- **Reference (`CHANGELOG.md:1-929`):** Keep a Changelog and SemVer (`:5-6`); an empty
+  `## [Unreleased]` kept on top (`:10`); each release starts with a **summary paragraph** (`:14-17`);
+  entries **cite issues and PRs and credit reporters** (e.g. `:28-29`, "(discussion #597)", "#594",
+  "Reported by @RSO-KME"). There are no link references at the foot.
+- **Target:** two changelogs: code (`CHANGELOG.md`) and documents (`docs/CHANGELOG.md`, which also
+  records every constitutional amendment, `docs/CHANGELOG.md:8-9`). Keep a Changelog. `[Unreleased]`
+  link references at the foot (`CHANGELOG.md:304`, `docs/CHANGELOG.md:446`), which the reference
+  lacks. Season codenames (`CHANGELOG.md:8`).
+- **Recommendation: KEEP.** **ADAPT (optional):** cite the PR or issue number in each entry, as the
+  reference does. With line-by-line review it lets a reader jump from an entry to the review thread.
+  Small, as a convention line in `CONTRIBUTING.md` § Documentation. A release-time CHANGELOG gate
+  (`release.yml:144-173`) waits for 2.18.
+
+### 5.6 TODO.md working notebook
+
+- **Reference (`TODO.md:1-76`):** "Outstanding work only — shipped items are deleted, not struck
+  through (git log is the record)" (`:3-4`); a table pointing to specialised worklists as their single
+  source of truth (`:6-8`); sections by horizon; each item states **who must decide** and **what is
+  parked and why**, with dates (e.g. `:18-19, 46-53`).
+- **Target:** has no TODO. Outstanding work is scattered:
+    - RFC increment lists;
+    - `CHANGELOG.md` notes such as "an explicit CurrentEL check and EL2 descent are owed before real
+      hardware" (`CHANGELOG.md:91-93`);
+    - CLAUDE.md's "promote out once the ABI stops moving";
+    - `docs/CHANGELOG.md:437-444` "Outstanding Phase 0 deliverables", kept with strike-through, which
+      is the reference's anti-pattern.
+- **Recommendation: ADAPT.** A root `TODO.md` holding **only** cross-cutting debts and parked
+  decisions that have no other home. It points to the RFCs' increment lists (single source of truth)
+  rather than copying them, keeps the delete-not-strike rule, and dates each item with who decides.
+  Seed items: the EL2 descent; the deferred release pipeline principles (2.18); un-automated
+  Dockerfile `ARG` bumps (3.1); the ledger promotion trigger. Add a registry row (5.2). Optional:
+  delete the struck-through block at `docs/CHANGELOG.md:437-444`. **DECIDE:** `TODO.md` versus GitHub
+  issues and milestones. The reference's choice of a file suits AI sessions that read the repository.
+  Small.
+
+### 5.7 README process parts
+
+- **Reference:** CI and coverage badges (`README.md:3-6`); a "For… / Read" documentation table
+  including security and releasing (`:567-578`); short Contributing and Development sections that
+  defer to CONTRIBUTING (`:582-604`).
+- **Target:** a Documents list (`README.md:40-52`); Building defers to CONTRIBUTING (`:66-79`). It
+  lacks a link to `SECURITY.md` and `STYLE.md`, and has no CI badge. The **Status section is stale**:
+  "there is no scheduler, no IPC, no capability table and no MMU yet" (`README.md:56-60`), while
+  `CHANGELOG.md:14-72` records the capability table landing. (`/check-coherence` should have caught
+  this.)
+- **Recommendation: ADAPT.** Add a CI-status badge for `ci_main.yml` (no third-party service needed),
+  and `SECURITY.md` and `CONTRIBUTING.md` lines to Documents. Fix the Status paragraph. Small. **SKIP**
+  Glama, mcprush and Codecov badges (Codecov follows 2.13's decision).
+
+### 5.8 Versioning
+
+- **Reference:** SemVer with tags `vX.Y.Z[-suffix]` (`release.yml:9-13`); the version kept in
+  `Cargo.toml`, `Cargo.lock` and `package.json` together (`RELEASING.md:86-90`); the
+  supported-versions table updated on major releases.
+- **Target:** all crates `0.0.0`, `publish = false` (`kernel/Cargo.toml:3, 9`); `CHANGELOG.md:5-6`
+  already claims SemVer adherence.
+- **Recommendation: SKIP now. DECIDE** when versioning starts, and how SemVer interacts with season
+  codenames: a codename per minor? per major? That is constitutional territory (§8 names releases
+  after seasons). Until then, consider softening `CHANGELOG.md:5-6` to "will adhere … from the first
+  release", so the document does not assert a practice that cannot yet exist. Small; the wording
+  change is optional.
+
+---
+
+## 6. AI-assistance and review rules
+
+### 6.1 `.claude/CLAUDE.md` versus the root `CLAUDE.md`
+
+- **Reference (`.claude/CLAUDE.md:1-63`):** a Quick Reference table; **NEVER** rules (`:26-30`,
+  including "**NEVER push to main**"); **ALWAYS** rules (`:32-36`); the project structure deferred to
+  `ARCHITECTURE.md` as its single source of truth (`:38-41`); **Off Limits: `CODE_OF_CONDUCT.md`**
+  (`:61-63`).
+- **Target:** the root `CLAUDE.md` (bound by `CONSTITUTION.md:6-8`) plus constitution §11 and five
+  commands, soon skills (PR #27). It is much richer: the `unsafe` register, HAL rule, licence
+  provenance rules and package scoping. But **nothing tells a session the git and merge workflow**:
+  never push to `main`, never merge, always work on a branch and open a PR, never amend
+  `CONSTITUTION.md`. §5.1 and §4 imply all of these, but they are not stated where a session reads
+  its operating rules. CoC being off limits is stated only in a script comment (5.4). The `main`
+  ruleset blocks direct pushes in practice, but the reference states the rule anyway, which is
+  right: a rule written down is one a session will not try to work around.
+- **Recommendation: ADAPT.** Add a short "Never" section to `CLAUDE.md` that **cites rather than
+  restates** the constitution:
+    - never push to `main` or merge (§5.1; the ruleset enforces it);
+    - never amend `CONSTITUTION.md` or the Borrow Ledger (§4, §11.1–§11.2); raise it instead;
+    - never edit `CODE_OF_CONDUCT.md` or vendored text (§11.5);
+    - never add a workflow-installed toolchain (§7).
+
+  Optional: a three-row Quick Reference (constitution, RFCs, threat model). Small. Changes `CLAUDE.md`.
+  **DECIDE** the wording of anything that touches merge authority, even as restatement; the maintainer
+  may prefer `CLAUDE.md` to stay purely operational, as its own preamble says.
+
+### 6.2 AI_WORKFLOW.md, AGENT_GUIDE.md, CLAUDE_CODE_GUIDE.md, ANTIGRAVITY_GUIDE.md
+
+- **Reference:** `AI_WORKFLOW.md:1-423` and `AGENT_GUIDE.md:1-83` are **product** documents: how an
+  AI uses the MCP tools (IPC-7351, pin geometry). `CLAUDE_CODE_GUIDE.md:1-8` and
+  `ANTIGRAVITY_GUIDE.md:1-8` are **redirect stubs** ("This page stays only so that links to the old
+  address keep working").
+- **Recommendation: SKIP** (product-specific). Note one convention: **when a document moves, leave a
+  stub at the old path.** The target merged its docs repository and RFC-0002 contemplates publication
+  with mdBook, so moves will happen. A one-line rule in `CONTRIBUTING.md` § Documentation would carry
+  it. Small, optional.
+
+### 6.3 Documented review and merge enforcement (rulesets)
+
+- **Reference:** writes its enforcement down. "Every change reaches `main` through a pull request
+  that a repository ruleset requires to be reviewed and to pass CI; release tags must be signed and
+  can be created only by organisation administrators" (`CODE_SIGNING_POLICY.md:128-131`). The tag
+  ruleset and its consequences are in `RELEASING.md:152-162`. The PR process ends "Once approved, a
+  maintainer will merge" (`CONTRIBUTING.md:108-114`).
+- **Target:** has **stronger** enforcement live on GitHub, read via the API:
+    - the `main` ruleset requires signatures, a PR with code-owner review, last-push approval and
+      thread resolution, the "CI Success" check with strict status, CodeQL alerts at threshold
+      `all`, Copilot code review on push, and merge commits only;
+    - it blocks deletion and non-fast-forward, with OrganizationAdmin bypass in `pull_request` mode;
+    - the `tags` ruleset requires signatures and allows creation, update and deletion only by admins.
+
+  **None of this is written in the repository.** CodeQL and Copilot review are not mentioned in any
+  tracked file; CodeQL appears only once, in passing, at `CHANGELOG.md:175`.
+- **Recommendation: ADAPT.** Add a short "How `main` is protected" subsection under
+  `CONTRIBUTING.md` § Pull Requests that lists the ruleset rules as facts and ties each to its clause
+  (§5.1 sole merger, §5.2 understanding, pillar 3 signatures). The reason is §5.2: a contributor
+  cannot understand a gate they cannot see. Small. **DECIDE:** whether Copilot's automated review is
+  part of the documented process. It is an AI reviewer in a project whose constitution makes review
+  the maintainer's personal act (§5.3), so its role, advisory only, should be stated by the
+  maintainer.
+
+### 6.4 CODE_SIGNING_POLICY.md
+
+- **Reference (`docs/CODE_SIGNING_POLICY.md:1-39`):** the SignPath attribution, roles, privacy.
+  **SKIP:** it is Windows and SignPath specific. The target's equivalent concern is pillar 3 author
+  signing of apps, which is a Phase 3 RFC, not a process file.
+
+### 6.5 ARCHITECTURE.md, VISION.md, errors.md, docs/SECURITY.md
+
+- **Reference:** `ARCHITECTURE.md` (source tree as single source of truth), `VISION.md` (principle),
+  `errors.md` (an error catalogue sourced from the code's enums), and `docs/SECURITY.md` (threat
+  model, controls, accepted defaults, contributor checklist).
+- **Target equivalents:** `CLAUDE.md` § Layout, `CONSTITUTION.md`, nothing yet, and
+  `docs/threat-model.md`.
+- **Recommendation: SKIP**, with one deferral. When RFC-0007's syscalls land, an **error catalogue**
+  (`docs/errors.md` in the reference's style, generated from or checked against the error enum) will
+  be the userspace ABI's single source of truth for error codes. Add it as a TODO item, not now.
+
+---
+
+## 7. Editor and configuration files
+
+| File | Reference | Target | Verdict |
+|---|---|---|---|
+| `.editorconfig` | `:1-18` | `:1-18`, identical | KEEP |
+| `.gitattributes` | `text=auto`; binaries; `*.sh eol=lf` (`:1-14`) | `text=auto eol=lf` everywhere, plus asm, ld, sh and binary types (`:1-22`) | KEEP (target stronger) |
+| `.gitignore` | ignores `.claude/settings.json`, `lcov.info`, `.tmp/` (`:1-23`) | shares `settings.json`, ignores only `settings.local.json` (`:27-30`) | KEEP; add `lcov.info` with 2.13 |
+| `.markdownlint.json` | `:1-21` | identical | KEEP |
+| `.markdownlint-cli2.jsonc` | ignores `node_modules`, `.venv`, `target`, `.pytest_cache` | ignores CoC, templates, `vendor`, `target` | ADAPT: add `"**/node_modules/**"` (2.7) |
+| `rustfmt.toml` | edition 2021 | edition 2024, otherwise the same | KEEP |
+| `rust-toolchain.toml` | exact pin and rationale | exact pin, targets, soft-float rationale | KEEP |
+| `Cargo.toml` lints and profile | `unsafe_code = "forbid"`; clippy all, pedantic, nursery, cargo; `strip = true` | `deny` with visible opt-in; kernel denials; `strip = false`, `debug = true` with reasons | KEEP (target stronger) |
+| `clippy.toml` | none | `doc-valid-idents` | KEEP |
+| `codecov.yml` | `:1-50` | none | follows 2.13's decision |
+| `package.json` and lockfile | markdownlint pin, `overrides` for advisories | none; Dockerfile `ARG` is the source; `.gitignore:34` ignores `package-lock.json` | SKIP: it would be a second source of truth |
+| `glama.json` | MCP directory | — | SKIP |
+| `.vscode/launch.json` | host binary launches | QEMU gdb-stub attach (`:12-33`) and xtask | KEEP. Check `:49-63` "Debug host tests": `cargo test --no-run --lib` is **unscoped**, against CLAUDE.md's "always name the package" (not executed here, to avoid a build) |
+| `.vscode/settings.json` | `:1-42` | identical | KEEP |
+| `.vscode/extensions.json` | includes `ms-vscode.powershell`, `alefragnani.pascal` | includes `github.copilot` (`:16`) but **not** `anthropic.claude-code`; the devcontainer list (`devcontainer.json:18-31`) is a **different** set: it has Claude Code and lacks Copilot, `dependi`, `markdown-mermaid` and `vscode-pull-request-github` | ADAPT (7.3) |
+| `Dockerfile` (runtime), `.dockerignore`, `build.rs`, `.env.local.example` | product | — | SKIP (2.19) |
+
+**7.3 Extension lists.** There are two lists that drift. **ADAPT:** decide which list is canonical,
+make the other a strict subset or delete it, and add the registry row (5.2). **DECIDE** whether
+`github.copilot` belongs in a project whose sessions are Claude Code (`CONSTITUTION.md:199-201`) and
+whose ruleset already runs Copilot review. Small.
+
+---
+
+## (a) Ranked PRs: small and separately reviewable
+
+Ordered by value over risk. Each PR is independent unless marked "after".
+
+1. **`ci: forward RUSTFLAGS and CARGO_TERM_COLOR into the devcontainer`** (2.4). Fixes a verified
+   defect: rustc warnings in `cargo build` and `cargo test` do not fail CI today. Touches only
+   `ci_main.yml` and `ci_pr.yml`, plus any warnings it exposes.
+2. **`ci: build and test with --locked`** (2.5). Makes the committed `Cargo.lock` binding, as
+   CLAUDE.md already promises; covers both workflows, xtask and the CONTRIBUTING commands.
+3. **`ci: scope packages: write to the publishing job`** (2.1, plus 2.16's non-cancelling publish).
+   Least privilege, so the checks job cannot push to the image every PR trusts.
+4. **`ci: boot the release build on pull requests too`** (2.11). Removes the main/PR drift that
+   `ci_main.yml:23-25` denies exists, and catches release-only boot faults before merge.
+5. **`ci: run PR CI for every base branch; allow guarded manual runs`** (2.2, 2.3). Stacked PRs,
+   which small increments need, currently get no CI. Dispatch is only safe with the publish guard.
+6. **`docs(contributing): one PR checklist, with tests`** (4.1, 4.2, 5.1.1). The PR template points to
+   CONTRIBUTING; adds host tests and signed commits; adds the bug-template duplicate check. Closes a
+   drift that already exists.
+7. **`docs: single source of truth sweep`** (5.2 registry rows, 5.3 SECURITY restatement, 5.1.3
+   and 5.1.4, 5.7 stale Status, badge and links). Fixes facts stated twice or orphaned; touches only
+   prose.
+8. **`docs(claude): state the never-do rules`** (6.1, 5.4). Never push or merge, never amend the
+   constitution, CoC off limits. Today they are implied, or live in a script comment.
+9. **`docs(contributing): document how main and tags are protected`** (6.3). Makes the live rulesets,
+   CodeQL and Copilot review visible, as §5.2 requires for any gate.
+10. **`ci: check rustdoc with -D warnings`** (2.6). Enforces the documentation rule STYLE.md already
+    asserts.
+11. **`build(devcontainer): add lychee; ci: gate internal links and anchors`** (2.7). Catches the
+    silently broken citations CONTRIBUTING warns about. Dockerfile stage plus CI group. May split
+    into two PRs (image first, then the gate).
+12. **`ci: weekly external-link check in the devcontainer`** (2.8, after 11). Citation integrity for
+    the research and RFC sources, off the PR path.
+13. **`chore(deps): dependabot docker digests, grouping, labels`** (3.1). Automates the Debian digest
+    re-pin the Dockerfile asks for; cadence pending decision.
+14. **`build(devcontainer): add cargo-llvm-cov; ci: report capability coverage`** (2.13, 3.2
+    forbidden-actions extension). Puts a number on the security-critical crate's tests, in-image, no
+    upload.
+15. **`docs: add TODO.md for cross-cutting debts and deferred decisions`** (5.6, seeded with 2.18,
+    3.1, 6.5 and the EL2 item). Pending decision.
+16. **`chore(vscode): reconcile the two extension lists`** (7.3). Pending decision.
+17. Optional, later: scheduled no-cache image rebuild (2.20); step-summary console output (2.17); a
+    single CI-checks script (5.2 optional); GHCR pruning (2.10); a document-move stub rule (6.2); PR
+    numbers in CHANGELOG entries (5.5).
+
+Explicitly **not** recommended: an MSRV job (forbidden by the pin script), an OS matrix, the release,
+registry and MCPB workflows, `package.json`, `codecov.yml` before the Codecov decision, the runtime
+Dockerfile and `.dockerignore`, and `build.rs` Windows resources.
+
+## (b) Decisions only the maintainer can make
+
+1. **Dependabot cadence for Actions:** keep daily and individual (the current recorded rationale) or
+   move to weekly and grouped (the reference's recorded rationale) (3.1).
+2. **Codecov:** a third-party service, a secret and a new allow-listed action, versus in-image
+   coverage only; and whether to set a coverage gate (2.13).
+3. **Merge queue and `merge_group`:** whether to enable them at all, given sole-merger authority and
+   the merge-commit-only ruleset (2.3).
+4. **Copilot's role:** the `main` ruleset runs Copilot code review and `extensions.json` recommends
+   Copilot. Whether that is part of the documented process, and with what standing beside §5.3's
+   personal review (6.3, 7.3).
+5. **Wording of any never-do rule touching merge authority or amendments** in `CLAUDE.md`, even as
+   restatement of §4, §5.1 and §11 (6.1).
+6. **Security test obligations as project rule:** for example, forged and stale-handle tests mandatory
+   for capability changes, keyed to threat-model obligations (5.1.2).
+7. **`TODO.md` versus GitHub issues and milestones** as the home for deferred work (5.6).
+8. **When release engineering starts**, and how SemVer relates to the season codenames of §8;
+   whether to soften `CHANGELOG.md`'s current SemVer claim meanwhile (2.18, 5.8). §8 is
+   constitutional.
+9. **GHCR image pruning:** whether to add the action or API code at all (2.10).
+10. Optional: a **single CI-checks script** (moves the check list out of the workflow YAML) (5.2).
+11. If raised: the **acknowledgement window** in `SECURITY.md` (one week today versus the
+    reference's 48 h) (5.3).
+
+## (c) What the reference would gain from the target
+
+- **CI that runs inside the pinned devcontainer**, plus the target's
+  `check-toolchain-pin.sh:73-108` "no workflow-installed toolchain" guard. The reference installs lychee
+  three times (`ci_pr.yml`, `ci_main.yml`, `links.yml`) and Rust through `dtolnay` in four jobs.
+- **A mechanical British-spelling check** (`check-british-spelling.sh`). The reference has only a
+  prose table (`CONTRIBUTING.md:165-179`).
+- **Upstream text kept verbatim:** the reference changed "color" to "colour" in its
+  `CODE_OF_CONDUCT.md:8`, against its own exception for external legal text (`STYLE.md:38`).
+- **A Single Source of Truth violation inside the reference's own CI:** the stale-cache logic is
+  copied inline in `ci_main.yml:360-437` instead of `require`-ing `.github/scripts/cleanup-caches.js`,
+  as `cleanup_caches.yml:41-43` does.
+- **SHA-pinned YAML examples:** the reference's `STYLE.md:96` example uses `actions/checkout@v4`, a
+  tag. Its `STYLE.md` "Last updated: 2026-01-24" (`:227`) also looks stale; the target's rule to bump
+  it on any convention change (`CONTRIBUTING.md:308-309`) would help.
+- **Signed commits** on all of `main` (`CONTRIBUTING.md:259-271`), not only signed tags.
+- **A documentation-issue template**, and an "Explanation for the maintainer" section in the PR
+  template.
+- **Claude Code commands and skills** (`/check-style`, `/check-spelling`, `/check-coherence`) that
+  run the CI checks plus the judgement no tool checks.
+- **`[Unreleased]:` compare-link references** at the foot of `CHANGELOG.md`, and
+  `.gitattributes` `eol=lf` for every text file.
